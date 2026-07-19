@@ -459,13 +459,50 @@ def plan_date_night(city: str) -> dict:
     Args:
         city: 'Gdańsk', 'Sopot', 'Warszawa', etc.
     """
-    # Use mock data for romantic filtering (Google Places doesn't have 'romantic' field)
-    restaurants = _find_restaurants_mock(city, romantic_only=True, limit=5)
-    bars = _find_restaurants_mock(city, cuisine="wine bar", limit=3)
+    # Try Google Places first, fall back to european_data mock
+    restaurants = find_restaurants(city, romantic=True, limit=5)
+    if not restaurants.get("restaurants") or "error" in restaurants["restaurants"][0]:
+        # Fallback: use european_data
+        try:
+            from european_data import EUROPEAN_RESTAURANTS
+            city_lower = city.lower()
+            mock = []
+            for key in EUROPEAN_RESTAURANTS:
+                if city_lower in key or key in city_lower:
+                    mock = [r for r in EUROPEAN_RESTAURANTS[key] if r.get("romantic")]
+                    break
+            restaurants = {"restaurants": mock, "count": len(mock), "city": city, "source": "mock"}
+        except ImportError:
+            pass
+
+    bars = find_restaurants(city, cuisine="wine bar", limit=3)
+    if not bars.get("restaurants") or "error" in bars["restaurants"][0]:
+        try:
+            from european_data import EUROPEAN_RESTAURANTS
+            city_lower = city.lower()
+            mock = []
+            for key in EUROPEAN_RESTAURANTS:
+                if city_lower in key or key in city_lower:
+                    mock = [r for r in EUROPEAN_RESTAURANTS[key] if "wine" in r.get("cuisine", "").lower()]
+                    break
+            bars = {"restaurants": mock, "count": len(mock), "city": city, "source": "mock"}
+        except ImportError:
+            pass
+
     weather = get_weather(city)
 
-    dinner = restaurants[0] if restaurants else None
-    bar = bars[0] if bars else None
+    dinner = None
+    if restaurants.get("restaurants"):
+        for r in restaurants["restaurants"]:
+            if "name" in r:
+                dinner = r
+                break
+    bar = None
+    if bars.get("restaurants"):
+        for r in bars["restaurants"]:
+            if "name" in r:
+                bar = r
+                break
     w = weather.get("weather", {})
 
     plan_lines = []
@@ -481,8 +518,8 @@ def plan_date_night(city: str) -> dict:
         "weather": w,
         "dinner": dinner,
         "drinks": bar,
-        "all_restaurants": restaurants,
-        "all_bars": bars,
+        "all_restaurants": restaurants.get("restaurants", []),
+        "all_bars": bars.get("restaurants", []),
         "plan": "\n".join(plan_lines) if plan_lines else "Za mało danych — ustaw GOOGLE_PLACES_API_KEY",
     }
 
