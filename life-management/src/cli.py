@@ -467,33 +467,44 @@ def main():
         return
 
     # Route to handler
-    handlers = {
-        "init": lambda: cmd_init(args),
-        "track": lambda: {
-            "start": cmd_track_start(args),
-            "stop": cmd_track_stop(args),
-            "status": cmd_track_status(args),
-        }.get(args.subcommand, lambda: parser.print_help())(),
-        "people": lambda: {
-            "list": cmd_people_list(args),
-            "neglected": cmd_people_neglected(args),
-            "birthdays": cmd_people_birthdays(args),
-        }.get(args.subcommand, lambda: parser.print_help())(),
-        "report": lambda: {
-            "daily": cmd_report_daily(args),
-            "weekly": cmd_report_weekly(args),
-            "balance": cmd_report_balance(args),
-        }.get(args.subcommand, lambda: parser.print_help())(),
-        "health": lambda: cmd_health_log(args),
-        "focus": lambda: {
-            "start": cmd_focus_start(args),
-            "stop": cmd_focus_stop(args),
-        }.get(args.subcommand, lambda: parser.print_help())(),
-    }
-
-    handler = handlers.get(args.command)
-    if handler:
-        handler()
+    if args.command == "init":
+        cmd_init(args)
+    elif args.command == "track":
+        if args.subcommand == "start":
+            cmd_track_start(args)
+        elif args.subcommand == "stop":
+            cmd_track_stop(args)
+        elif args.subcommand == "status":
+            cmd_track_status(args)
+        else:
+            p_track.print_help()
+    elif args.command == "people":
+        if args.subcommand == "list":
+            cmd_people_list(args)
+        elif args.subcommand == "neglected":
+            cmd_people_neglected(args)
+        elif args.subcommand == "birthdays":
+            cmd_people_birthdays(args)
+        else:
+            p_people.print_help()
+    elif args.command == "report":
+        if args.subcommand == "daily":
+            cmd_report_daily(args)
+        elif args.subcommand == "weekly":
+            cmd_report_weekly(args)
+        elif args.subcommand == "balance":
+            cmd_report_balance(args)
+        else:
+            p_report.print_help()
+    elif args.command == "health":
+        cmd_health_log(args)
+    elif args.command == "focus":
+        if args.subcommand == "start":
+            cmd_focus_start(args)
+        elif args.subcommand == "stop":
+            cmd_focus_stop(args)
+        else:
+            p_focus.print_help()
     else:
         parser.print_help()
 

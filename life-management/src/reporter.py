@@ -179,7 +179,7 @@ class Reporter:
 
     def _get_health_range(self, start: str, end: str) -> Dict[str, Any]:
         """Get health averages for a date range."""
-        rows = self.conn.execute(
+        row = self.conn.execute(
             """SELECT
                 COUNT(*) as days,
                 AVG(sleep_hours) as avg_sleep,
@@ -197,22 +197,23 @@ class Reporter:
             (start, end),
         ).fetchone()
 
-        if not row or row["days"] == 0:
+        row_dict = dict(row) if row else None
+        if not row_dict or row_dict["days"] == 0:
             return {"has_data": False, "days": 0}
 
         return {
             "has_data": True,
-            "days": row["days"],
-            "avg_sleep_hours": round(row["avg_sleep"], 1) if row["avg_sleep"] else None,
-            "avg_sleep_quality": round(row["avg_sleep_quality"], 1) if row["avg_sleep_quality"] else None,
-            "avg_water_ml": round(row["avg_water"]) if row["avg_water"] else None,
-            "avg_mood": round(row["avg_mood"], 1) if row["avg_mood"] else None,
-            "avg_energy": round(row["avg_energy"], 1) if row["avg_energy"] else None,
-            "avg_stress": round(row["avg_stress"], 1) if row["avg_stress"] else None,
-            "total_exercise_minutes": row["total_exercise"] or 0,
-            "total_snacking": row["total_snacking"] or 0,
-            "total_intrusive_thoughts": row["total_intrusive"] or 0,
-            "pills_adherence_pct": round((row["pills_adherence"] or 0) * 100, 1),
+            "days": row_dict["days"],
+            "avg_sleep_hours": round(row_dict["avg_sleep"], 1) if row_dict["avg_sleep"] else None,
+            "avg_sleep_quality": round(row_dict["avg_sleep_quality"], 1) if row_dict["avg_sleep_quality"] else None,
+            "avg_water_ml": round(row_dict["avg_water"]) if row_dict["avg_water"] else None,
+            "avg_mood": round(row_dict["avg_mood"], 1) if row_dict["avg_mood"] else None,
+            "avg_energy": round(row_dict["avg_energy"], 1) if row_dict["avg_energy"] else None,
+            "avg_stress": round(row_dict["avg_stress"], 1) if row_dict["avg_stress"] else None,
+            "total_exercise_minutes": row_dict["total_exercise"] or 0,
+            "total_snacking": row_dict["total_snacking"] or 0,
+            "total_intrusive_thoughts": row_dict["total_intrusive"] or 0,
+            "pills_adherence_pct": round((row_dict["pills_adherence"] or 0) * 100, 1),
         }
 
     # ─── HABITS ─────────────────────────────────────────────

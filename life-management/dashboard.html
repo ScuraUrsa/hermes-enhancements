@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life Management Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f0f23; color: #e0e0e0; padding: 20px; }
+        h1 { color: #00ff88; margin-bottom: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+        .card { background: #1a1a2e; border-radius: 12px; padding: 20px; border: 1px solid #2a2a4a; }
+        .card h2 { color: #00ff88; font-size: 1.1em; margin-bottom: 12px; }
+        .stat { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #2a2a4a; }
+        .stat:last-child { border-bottom: none; }
+        .stat-label { color: #888; }
+        .stat-value { font-weight: bold; }
+        .bar { height: 20px; background: #2a2a4a; border-radius: 10px; margin: 4px 0; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 10px; transition: width 0.3s; }
+        .alert { padding: 8px 12px; border-radius: 8px; margin: 4px 0; }
+        .alert-critical { background: #ff444420; border-left: 3px solid #ff4444; }
+        .alert-high { background: #ffaa0020; border-left: 3px solid #ffaa00; }
+        .alert-medium { background: #00aaff20; border-left: 3px solid #00aaff; }
+        .alert-low { background: #00ff8820; border-left: 3px solid #00ff88; }
+        .person-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+        .person-overdue { color: #ff4444; }
+        .person-ok { color: #00ff88; }
+        .refresh { color: #888; font-size: 0.8em; text-align: right; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>🧬 Life Management Dashboard</h1>
+    <div class="grid">
+        <div class="card">
+            <h2>⏱️ Dziś</h2>
+            <div id="today-stats">Ładowanie...</div>
+        </div>
+        <div class="card">
+            <h2>👥 Osoby (top 10)</h2>
+            <div id="people-balance">Ładowanie...</div>
+        </div>
+        <div class="card">
+            <h2>🔔 Alerty</h2>
+            <div id="alerts">Ładowanie...</div>
+        </div>
+        <div class="card">
+            <h2>💊 Nawykowe streaki</h2>
+            <div id="streaks">Ładowanie...</div>
+        </div>
+        <div class="card">
+            <h2>📅 Nadchodzące</h2>
+            <div id="upcoming">Ładowanie...</div>
+        </div>
+        <div class="card">
+            <h2>📊 Tydzień</h2>
+            <div id="weekly">Ładowanie...</div>
+        </div>
+    </div>
+    <div class="refresh" id="refresh-time"></div>
+
+    <script>
+        const COLORS = {
+            praca: '#4a9eff', rodzina: '#ff6b6b', znajomi: '#ffd93d',
+            zdrowie: '#6bcb77', jedzenie: '#ff8c42', hobby: '#a855f7',
+            odpoczynek: '#4ecdc4', nauka: '#ff6b9d', administracja: '#95a5a6',
+            transport: '#e67e22', higiena: '#1abc9c', inne: '#7f8c8d'
+        };
+
+        const EMBEDDED_DATA = {"today": {"date": "2026-07-19", "total_minutes": 660, "total_hours": 11.0, "blocks_tracked": 7, "by_category": {"praca": 420, "zdrowie": 90, "hobby": 90, "rodzina": 30, "jedzenie": 30}, "coverage_pct": 45.8}, "people": [{"id": 1, "name": "Mama", "category": "rodzina_blizsza", "priority": 10, "minutes_last_30d": 90, "hours_last_30d": 1.5, "days_since_contact": 6, "contact_frequency_days": 3, "overdue": true}, {"id": 2, "name": "Tata", "category": "rodzina_blizsza", "priority": 9, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 5, "overdue": false}, {"id": 5, "name": "Babcia Zosia", "category": "rodzina_blizsza", "priority": 9, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 3, "overdue": false}, {"id": 3, "name": "Siostra Ania", "category": "rodzina_blizsza", "priority": 8, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 7, "overdue": false}, {"id": 6, "name": "Dziadek Jan", "category": "rodzina_blizsza", "priority": 8, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 3, "overdue": false}, {"id": 4, "name": "Brat Tomek", "category": "rodzina_blizsza", "priority": 7, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 7, "overdue": false}, {"id": 7, "name": "Ciocia Krysia", "category": "rodzina_blizsza", "priority": 6, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 14, "overdue": false}, {"id": 8, "name": "Wujek Marek", "category": "rodzina_blizsza", "priority": 6, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 14, "overdue": false}, {"id": 9, "name": "Kuzynka Ola", "category": "rodzina_blizsza", "priority": 5, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 30, "overdue": false}, {"id": 10, "name": "Kuzyn Piotr", "category": "rodzina_blizsza", "priority": 5, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 30, "overdue": false}, {"id": 15, "name": "Babcia Halina", "category": "rodzina_dalsza", "priority": 5, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 14, "overdue": false}, {"id": 16, "name": "Dziadek Franek", "category": "rodzina_dalsza", "priority": 5, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 14, "overdue": false}, {"id": 11, "name": "Ciocia Basia", "category": "rodzina_dalsza", "priority": 4, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 30, "overdue": false}, {"id": 12, "name": "Wujek Staszek", "category": "rodzina_dalsza", "priority": 4, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 30, "overdue": false}, {"id": 13, "name": "Kuzynka Magda", "category": "rodzina_dalsza", "priority": 3, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 60, "overdue": false}, {"id": 14, "name": "Kuzyn Kuba", "category": "rodzina_dalsza", "priority": 3, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 60, "overdue": false}, {"id": 17, "name": "Ciocia Ela", "category": "rodzina_dalsza", "priority": 3, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 60, "overdue": false}, {"id": 18, "name": "Wujek Rysiek", "category": "rodzina_dalsza", "priority": 3, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 60, "overdue": false}, {"id": 19, "name": "Kuzynka Ewa", "category": "rodzina_dalsza", "priority": 2, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 90, "overdue": false}, {"id": 20, "name": "Kuzyn Adam", "category": "rodzina_dalsza", "priority": 2, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 90, "overdue": false}, {"id": 41, "name": "Szef Dzia\u0142u", "category": "wspolpracownicy", "priority": 6, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 1, "overdue": false}, {"id": 42, "name": "PM Kasia", "category": "wspolpracownicy", "priority": 5, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 1, "overdue": false}, {"id": 43, "name": "Dev Mateusz", "category": "wspolpracownicy", "priority": 5, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 1, "overdue": false}, {"id": 44, "name": "Dev Ola", "category": "wspolpracownicy", "priority": 5, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 1, "overdue": false}, {"id": 50, "name": "CEO", "category": "wspolpracownicy", "priority": 5, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 14, "overdue": false}, {"id": 45, "name": "QA Tester", "category": "wspolpracownicy", "priority": 4, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 3, "overdue": false}, {"id": 46, "name": "Designer UX", "category": "wspolpracownicy", "priority": 4, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 3, "overdue": false}, {"id": 47, "name": "DevOps Krzysiek", "category": "wspolpracownicy", "priority": 4, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 3, "overdue": false}, {"id": 48, "name": "HR Manager", "category": "wspolpracownicy", "priority": 3, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 7, "overdue": false}, {"id": 49, "name": "Sta\u017cysta Janek", "category": "wspolpracownicy", "priority": 3, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 3, "overdue": false}, {"id": 31, "name": "Znajomy Janek", "category": "znajomi", "priority": 4, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 30, "overdue": false}, {"id": 32, "name": "Znajoma Marta", "category": "znajomi", "priority": 4, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 30, "overdue": false}, {"id": 33, "name": "Kolega z kursu", "category": "znajomi", "priority": 3, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 60, "overdue": false}, {"id": 34, "name": "Kole\u017canka z event\u00f3w", "category": "znajomi", "priority": 3, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 60, "overdue": false}, {"id": 35, "name": "Znajomy z klubu", "category": "znajomi", "priority": 3, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 60, "overdue": false}, {"id": 36, "name": "Znajoma z podr\u00f3\u017cy", "category": "znajomi", "priority": 3, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 90, "overdue": false}, {"id": 37, "name": "Kolega z by\u0142ej pracy", "category": "znajomi", "priority": 3, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 90, "overdue": false}, {"id": 38, "name": "Kole\u017canka ze studi\u00f3w", "category": "znajomi", "priority": 3, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 90, "overdue": false}, {"id": 39, "name": "Znajomy z konferencji", "category": "znajomi", "priority": 2, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 180, "overdue": false}, {"id": 40, "name": "Znajoma z meetupu", "category": "znajomi", "priority": 2, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 180, "overdue": false}, {"id": 22, "name": "Przyjaci\u00f3\u0142ka Kasia", "category": "znajomi_bliscy", "priority": 8, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 5, "overdue": false}, {"id": 21, "name": "Kumpel Marek", "category": "znajomi_bliscy", "priority": 7, "minutes_last_30d": 60, "hours_last_30d": 1.0, "days_since_contact": 5, "contact_frequency_days": 7, "overdue": false}, {"id": 24, "name": "Przyjaciel Micha\u0142", "category": "znajomi_bliscy", "priority": 7, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 10, "overdue": false}, {"id": 29, "name": "Przyjaci\u00f3\u0142ka Ola", "category": "znajomi_bliscy", "priority": 7, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 7, "overdue": false}, {"id": 23, "name": "Kumpel z pracy Tomek", "category": "znajomi_bliscy", "priority": 6, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 3, "overdue": false}, {"id": 25, "name": "Kumpela Ania", "category": "znajomi_bliscy", "priority": 6, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 10, "overdue": false}, {"id": 30, "name": "Kumpel Rafa\u0142", "category": "znajomi_bliscy", "priority": 6, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 14, "overdue": false}, {"id": 26, "name": "S\u0105siad Pawe\u0142", "category": "znajomi_bliscy", "priority": 5, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 14, "overdue": false}, {"id": 27, "name": "Znajoma z si\u0142owni", "category": "znajomi_bliscy", "priority": 5, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 7, "overdue": false}, {"id": 28, "name": "Kumpel z uczelni", "category": "znajomi_bliscy", "priority": 5, "minutes_last_30d": 0, "hours_last_30d": 0.0, "days_since_contact": null, "contact_frequency_days": 30, "overdue": false}], "alerts": [{"type": "overdue_contact", "priority": "high", "message": "\ud83d\udd34 Mama (rodzina_blizsza) \u2014 brak kontaktu od 6 dni!", "action": "Zadzwo\u0144 lub napisz do Mama"}], "streaks": {"pigu\u0142ki": 1, "\u0107wiczenia": 1}, "upcoming": {"birthdays": [{"person_id": 9, "name": "Kuzynka Ola", "birthday": "2000-07-22", "days_until": 3, "age": 26}, {"person_id": 50, "name": "CEO", "birthday": "1975-08-05", "days_until": 17, "age": 51}, {"person_id": 36, "name": "Znajoma z podr\u00f3\u017cy", "birthday": "1996-08-05", "days_until": 17, "age": 30}, {"person_id": 23, "name": "Kumpel z pracy Tomek", "birthday": "1990-08-15", "days_until": 27, "age": 36}], "events": [{"id": 4, "title": "Wizyta u dentysty", "event_date": "2026-08-15", "event_type": "zdrowie", "person_id": null, "recurring": 0, "reminder_days_before": 3, "notes": "", "notified": 0, "created_at": "2026-07-19T21:47:53.554937", "person_name": null}]}, "weekly": {"week_start": "2026-07-13", "week_end": "2026-07-20", "total_hours": 71.5, "by_category": {"praca": 49.0, "hobby": 10.5, "zdrowie": 6.0, "jedzenie": 3.5, "rodzina": 1.5, "znajomi": 1.0}, "daily_average_hours": 10.2}};
+async function loadData() {
+    renderToday(EMBEDDED_DATA.today);
+    renderPeople(EMBEDDED_DATA.people);
+    renderAlerts(EMBEDDED_DATA.alerts);
+    renderStreaks(EMBEDDED_DATA.streaks);
+    renderUpcoming(EMBEDDED_DATA.upcoming);
+    renderWeekly(EMBEDDED_DATA.weekly);
+    document.getElementById('refresh-time').textContent = 'Wygenerowano: ' + new Date().toLocaleTimeString('pl-PL');
+    return; }
+async function _loadData() {
+            try {
+                const resp = await fetch('/api/dashboard');
+                const data = await resp.json();
+                renderToday(data.today);
+                renderPeople(data.people);
+                renderAlerts(data.alerts);
+                renderStreaks(data.streaks);
+                renderUpcoming(data.upcoming);
+                renderWeekly(data.weekly);
+                document.getElementById('refresh-time').textContent =
+                    'Odświeżono: ' + new Date().toLocaleTimeString('pl-PL');
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        function renderToday(today) {
+            const el = document.getElementById('today-stats');
+            if (!today) { el.innerHTML = 'Brak danych'; return; }
+            let html = `<div class="stat"><span class="stat-label">Śledzone</span><span class="stat-value">${today.total_hours}h (${today.coverage_pct}%)</span></div>`;
+            for (const [cat, mins] of Object.entries(today.by_category || {})) {
+                const hours = (mins / 60).toFixed(1);
+                const pct = today.total_minutes > 0 ? (mins / today.total_minutes * 100).toFixed(0) : 0;
+                html += `<div class="stat">
+                    <span class="stat-label">${cat}</span>
+                    <span class="stat-value">${hours}h</span>
+                </div>
+                <div class="bar"><div class="bar-fill" style="width:${pct}%;background:${COLORS[cat] || '#888'}"></div></div>`;
+            }
+            el.innerHTML = html;
+        }
+
+        function renderPeople(people) {
+            const el = document.getElementById('people-balance');
+            if (!people || !people.length) { el.innerHTML = 'Brak osób'; return; }
+            let html = '';
+            for (const p of people.slice(0, 10)) {
+                const cls = p.overdue ? 'person-overdue' : 'person-ok';
+                const icon = p.overdue ? '🔴' : '🟢';
+                html += `<div class="person-row">
+                    <span class="${cls}">${icon} ${p.name} <small>(${p.category})</small></span>
+                    <span>${p.hours_last_30d}h | ${p.days_since_contact || '?'}d</span>
+                </div>`;
+            }
+            el.innerHTML = html;
+        }
+
+        function renderAlerts(alerts) {
+            const el = document.getElementById('alerts');
+            if (!alerts || !alerts.length) { el.innerHTML = '✅ Brak alertów'; return; }
+            let html = '';
+            for (const a of alerts) {
+                html += `<div class="alert alert-${a.priority}">${a.message}<br><small>→ ${a.action}</small></div>`;
+            }
+            el.innerHTML = html;
+        }
+
+        function renderStreaks(streaks) {
+            const el = document.getElementById('streaks');
+            if (!streaks) { el.innerHTML = 'Brak danych'; return; }
+            let html = '';
+            for (const [name, days] of Object.entries(streaks)) {
+                const fire = days >= 7 ? '🔥'.repeat(Math.min(days, 5)) : '';
+                html += `<div class="stat"><span class="stat-label">${name}</span><span class="stat-value">${days} dni ${fire}</span></div>`;
+            }
+            el.innerHTML = html || 'Brak streaków';
+        }
+
+        function renderUpcoming(upcoming) {
+            const el = document.getElementById('upcoming');
+            if (!upcoming) { el.innerHTML = 'Brak danych'; return; }
+            let html = '';
+            if (upcoming.birthdays && upcoming.birthdays.length) {
+                html += '<strong>🎂 Urodziny:</strong><br>';
+                for (const b of upcoming.birthdays.slice(0, 5)) {
+                    html += `<div>${b.name} — za ${b.days_until} dni (${b.age} lat)</div>`;
+                }
+            }
+            if (upcoming.events && upcoming.events.length) {
+                html += '<br><strong>📌 Wydarzenia:</strong><br>';
+                for (const e of upcoming.events.slice(0, 5)) {
+                    html += `<div>${e.event_date} — ${e.title}</div>`;
+                }
+            }
+            el.innerHTML = html || 'Brak nadchodzących';
+        }
+
+        function renderWeekly(weekly) {
+            const el = document.getElementById('weekly');
+            if (!weekly) { el.innerHTML = 'Brak danych'; return; }
+            let html = `<div class="stat"><span class="stat-label">Średnio dziennie</span><span class="stat-value">${weekly.daily_average_hours}h</span></div>`;
+            for (const [cat, hours] of Object.entries(weekly.by_category || {})) {
+                html += `<div class="stat"><span class="stat-label">${cat}</span><span class="stat-value">${hours}h</span></div>`;
+            }
+            el.innerHTML = html;
+        }
+
+        loadData();
+        setInterval(loadData, 60000);  // Odświeżaj co minutę
+    </script>
+</body>
+</html>
