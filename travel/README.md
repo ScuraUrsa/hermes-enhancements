@@ -13,13 +13,14 @@
 | Date Night Planner | ✅ | ✅ POV/05 | deleg |
 | Gotowe MCP serwery | ✅ | ✅ POV #15 | deleg |
 | Europejskie miasta | ✅ | ✅ european_data.py | Główny |
-| Hermes Travel Plugin | ✅ | ✅ travel_plugin.py | Główny |
+| Hermes Travel Plugin | ✅ | ✅ travel_plugin.py (9 narzędzi) | Główny |
+| Atrakcje turystyczne | ✅ | ✅ attractions_data.py | Główny |
 
 ## Statystyki
 
 | Metryka | Wartość |
 |---------|---------|
-| Tokeny zużyte | **109,000** (1.1% sesji, 0.2% dziennego) |
+| Tokeny zużyte | **119,800** (1.2% sesji, 0.2% dziennego) |
 | POVy travel | **8** |
 | Research docs | **6** |
 | Miasta (Polska) | **9** (Gdańsk, Sopot, Gdynia, Warszawa, Kraków, Wrocław, Poznań, Łódź, Katowice) |
@@ -27,6 +28,8 @@
 | Restauracje | **70+** (w tym 30+ Michelin-starred) |
 | Hotele | **45+** (głównie 5-star luxury) |
 | Wydarzenia | **35+** |
+| Atrakcje | **80+** (Polska: 7 miast, Europa: 8 miast) |
+| Narzędzia w pluginie | **9** (restaurants, hotels, events, weather, currency, date-night, full-plan, attractions, day-trip) |
 | Sub-agenty | **3** zespawnione |
 | Commity | **12+** |
 
@@ -49,7 +52,8 @@
 travel/
 ├── README.md                    # Ten plik
 ├── AGENT_ASSIGNMENTS.md         # Podział pracy między agentami
-├── travel_plugin.py             # Gotowy plugin dla Hermesa (7 narzędzi)
+├── travel_plugin.py             # Gotowy plugin dla Hermesa (9 narzędzi)
+├── attractions_data.py          # 80+ atrakcji (Polska + Europa)
 ├── european_data.py             # 8 miast europejskich
 ├── POV/
 │   ├── 01-flights-hotels/       # Loty + hotele (Kayak, Skyscanner, Booking)
