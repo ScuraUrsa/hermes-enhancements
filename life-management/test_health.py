@@ -385,10 +385,17 @@ class TestWaterTracker(unittest.TestCase):
 
     def test_progress_pct(self):
         """Procent postępu."""
-        self.wt.set_daily_goal(1000)
-        self.wt.log_water(500)
+        # Użyj świeżej bazy dla izolacji
+        db_path = str(Path(__file__).parent / "data" / "test_water_pct.db")
+        if os.path.exists(db_path):
+            os.remove(db_path)
+        db = HealthDB(db_path)
+        wt = WaterTracker(db)
 
-        summary = self.wt.get_today_water()
+        wt.set_daily_goal(1000)
+        wt.log_water(500)
+
+        summary = wt.get_today_water()
         self.assertEqual(summary["progress_pct"], 50.0)
 
     def test_get_water_logs(self):
@@ -663,83 +670,66 @@ class TestHealthReport(unittest.TestCase):
 class TestHealthCLI(unittest.TestCase):
     """Testy CLI health.py (przez subprocess)."""
 
+    @classmethod
+    def setUpClass(cls):
+        cls.test_db = str(Path(__file__).parent / "data" / "test_health_cli.db")
+        if os.path.exists(cls.test_db):
+            os.remove(cls.test_db)
+        cls.env = {**os.environ, "HEALTH_DB_PATH": cls.test_db}
+
+    def _run(self, *args):
+        """Uruchom health.py z testową bazą."""
+        import subprocess
+        return subprocess.run(
+            ["python3", str(Path(__file__).parent / "health.py"), *args],
+            capture_output=True, text=True, timeout=10,
+            env=self.env,
+        )
+
     def test_cli_help(self):
         """CLI bez argumentów pokazuje help."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "health.py")],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run()
         self.assertEqual(result.returncode, 0)
         self.assertIn("Health & Wellness", result.stdout)
 
     def test_cli_water_glass(self):
         """CLI water-glass."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "health.py"), "water-glass"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("water-glass")
         self.assertEqual(result.returncode, 0)
         self.assertIn("Szklanka", result.stdout)
 
     def test_cli_water_today(self):
         """CLI water-today."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "health.py"), "water-today"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("water-today")
         self.assertEqual(result.returncode, 0)
 
     def test_cli_health_brief(self):
         """CLI health-brief."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "health.py"), "health-brief"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("health-brief")
         self.assertEqual(result.returncode, 0)
         self.assertIn("HEALTH BRIEF", result.stdout)
 
     def test_cli_health_weekly(self):
         """CLI health-weekly."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "health.py"), "health-weekly"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("health-weekly")
         self.assertEqual(result.returncode, 0)
         self.assertIn("HEALTH WEEKLY REPORT", result.stdout)
 
     def test_cli_pill_schedule_add(self):
         """CLI pill-schedule-add."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "health.py"),
-             "pill-schedule-add", "TestCLI", "10:00", "1 tab"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("pill-schedule-add", "TestCLI", "10:00", "1 tab")
         self.assertEqual(result.returncode, 0)
         self.assertIn("Dodano harmonogram", result.stdout)
 
     def test_cli_exercise_streak(self):
         """CLI exercise-streak."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "health.py"), "exercise-streak"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("exercise-streak")
         self.assertEqual(result.returncode, 0)
         self.assertIn("Seria", result.stdout)
 
     def test_cli_sleep_debt(self):
         """CLI sleep-debt."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "health.py"), "sleep-debt"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("sleep-debt")
         self.assertEqual(result.returncode, 0)
         self.assertIn("Dług senny", result.stdout)
 
