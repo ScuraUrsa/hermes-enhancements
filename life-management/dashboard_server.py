@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from life_cli import (
     LifeDB, TimeTracker, PeopleManager, EventManager, HabitTracker, ReportGenerator,
 )
+from gamification import Gamification
 
 LIFE_DIR = Path(__file__).parent
 
@@ -327,6 +328,7 @@ class LifeAPI:
         self.events = EventManager(self.db)
         self.habits = HabitTracker(self.db)
         self.reports = ReportGenerator(self.db)
+        self.gamification = Gamification(self.db)
 
     def dashboard(self) -> dict:
         """Pełne dane dashboardu."""
