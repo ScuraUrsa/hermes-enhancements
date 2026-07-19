@@ -5,26 +5,36 @@ Wspólne repo: `ScuraUrsa/hermes-enhancements/life-management/`
 
 | Agent ID | Obszar | Status |
 |----------|--------|--------|
-| **GŁÓWNY** (Coder, deepseek-v4-pro) | **Time Tracker Core + People CRM** — 5-min bloki, baza 50 osób, balance time, raporty | 🔄 W trakcie |
-| deleg_??? | **Health & Wellness** — pigułki, odżywianie, ćwiczenia, woda, sen | ⬜ |
-| deleg_??? | **Mind & Habits** — natarczywe myśli, podjadanie, focus, produktywność | ⬜ |
-| deleg_??? | **Events & Reminders** — urodziny, ważne daty, kalendarz, powiadomienia | ⬜ |
-| deleg_??? | **Hermes Integration** — skill, cron jobs, voice reminders, dashboard | ⬜ |
+| **GŁÓWNY** (Coder, deepseek-v4-pro) | **Time Tracker Core + People CRM** — 5-min bloki, baza 50 osób, balance time, raporty, habit tracker, event manager | ✅ Done |
+| deleg_??? | **Health & Wellness** — pigułki (rozbudowa), odżywianie (meal planning, kalorie, woda), ćwiczenia (workout tracker, progress), sen (sleep tracker) | ⬜ |
+| deleg_??? | **Mind & Habits** — natarczywe myśli (CBT patterns, trigger analysis), podjadanie (trigger→response mapping), focus (pomodoro, deep work sessions), produktywność (daily goals, weekly reviews) | ⬜ |
+| deleg_??? | **Hermes Integration** — cron jobs (daily brief, pill reminder, weekly report), voice reminders, Telegram notifications, dashboard webowy | ⬜ |
 
 ## Zasady
 1. Wpisz swój obszar przed rozpoczęciem pracy
 2. Nie wchodź w obszar innego agenta
 3. Commituj do `life-management/` w repo `ScuraUrsa/hermes-enhancements`
 4. Używaj `ollama_token_monitor.py record` po każdym API callu
-5. Każdy POV musi mieć: `core.py` (działający), `README.md`, `test_core.py`
+5. Każdy moduł rozszerza `life_cli.py` lub tworzy własny plik w `life-management/`
 
 ## Architektura wspólna
-- Wszystkie moduły ładują się do wspólnej bazy SQLite: `life_management.db`
+- Wszystkie moduły ładują się do wspólnej bazy SQLite: `data/life_management.db`
 - Wspólny format czasu: bloki 5-minutowe, ISO 8601
 - Wspólny format osób: `people` table (id, name, category, priority, last_contact, notes)
-- Każdy moduł ma własne tabele, ale korzysta ze wspólnych `people` i `time_blocks`
+- Core engine: `life_cli.py` — zawiera TimeTracker, PeopleManager, EventManager, HabitTracker, ReportGenerator
+- Każdy nowy moduł może importować z `life_cli.py` lub rozszerzać go
 
-## Stan bazy (na start)
+## Stan bazy
 - SQLite: `life-management/data/life_management.db`
-- Tabele: `people`, `time_blocks`, `events`, `habits`, `health_log`
-- Wszystkie tabele tworzone przez pierwszy moduł (Time Tracker Core)
+- Tabele: `people`, `time_blocks`, `events`, `habit_log`
+- Wszystkie tabele tworzone automatycznie przez `LifeDB._init_tables()`
+
+## Co już działa (GŁÓWNY zrobił)
+- ✅ Time Tracker: start/stop/log bloków 5-minutowych
+- ✅ People CRM: CRUD, kategorie, priorytety, balans czasu, overdue detection
+- ✅ Event Manager: wydarzenia, recurring, reminder_days_before
+- ✅ Habit Tracker: pills, thoughts, snacking, exercise, water, focus_session
+- ✅ Report Generator: daily brief, weekly deep dive
+- ✅ 27 testów jednostkowych
+- ✅ Hermes skill: `productivity/life-management`
+- ✅ CLI: `python3 life_cli.py <komenda>`
