@@ -677,6 +677,17 @@ class FocusTracker:
             "created_at": session.created_at,
         })
         session.id = session_id
+
+        # Kompatybilność z core habit_log
+        self.db.insert("habit_log", {
+            "timestamp": datetime.now().isoformat(),
+            "habit_type": "focus_session",
+            "value": f"{actual_minutes}min",
+            "intensity": productivity_score,
+            "notes": f"Task: {task_description} | Distractions: {len(dist_list)} | {'✓' if completed else '✗'}",
+            "created_at": datetime.now().isoformat(),
+        })
+
         return session
 
     def get_sessions(
