@@ -7,7 +7,7 @@ Wspólne repo: `ScuraUrsa/hermes-enhancements/life-management/`
 |----------|--------|--------|
 | **GŁÓWNY** (Coder, deepseek-v4-pro) | **Time Tracker Core + People CRM + Hermes Integration** — 5-min bloki, baza 50 osób, balance time, raporty, habit tracker, event manager, cron jobs, dashboard, seed data | ✅ Done |
 | deleg_e332cb3f (sub-agent #1) | **Health & Wellness** — pill schedule, meal tracker (kalorie/makro), water tracker, exercise tracker, sleep tracker | ✅ Done (health.py + test_health.py, 63 tests) |
-| deleg_e332cb3f (sub-agent #2) | **Mind & Habits** — intrusive thought analysis (triggers, CBT), snacking trigger→response, focus/pomodoro, daily goals, weekly review | ✅ Done (mind.py) |
+| deleg_e332cb3f (sub-agent #2) | **Mind & Habits** — intrusive thought analysis (triggers, CBT), snacking trigger→response, focus/pomodoro, daily goals, weekly review | ✅ Done (mind.py + test_mind.py, 60 tests) |
 
 ## Zasady
 1. Wpisz swój obszar przed rozpoczęciem pracy
