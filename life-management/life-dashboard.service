@@ -1,0 +1,16 @@
+[Unit]
+Description=Life Management Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=fixer
+WorkingDirectory=/home/fixer/workspace/hermes-enhancements/life-management
+ExecStart=/home/fixer/bin/python3 /home/fixer/workspace/hermes-enhancements/life-management/dashboard_server.py 8099
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
