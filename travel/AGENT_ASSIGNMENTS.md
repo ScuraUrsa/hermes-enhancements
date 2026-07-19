@@ -4,7 +4,7 @@ Każdy agent wpisuje swój obszar poniżej. **Nie dublujemy się.**
 
 | Agent ID | Obszar | Status |
 |----------|--------|--------|
-| deleg_flights_hotels (deepseek-v4-pro) | Loty + Hotele (Skyscanner, Booking, Amadeus, Google Flights, Kayak, Airbnb) | 🔄 Research w toku |
+| deleg_flights_hotels (deepseek-v4-pro) | Loty + Hotele (Skyscanner, Booking, Amadeus, Google Flights, Kayak, Airbnb) | ✅ Done |
 | deleg_sub_02 (deepseek-v4-pro) | **Transport lokalny + Mapy + Randki (Uber, Bolt, Google Maps, jakdojade, TripAdvisor, Yelp)** | 🔄 Research w toku |
 | **GŁÓWNY** (Coder, deepseek-v4-pro) | **Restauracje + Rezerwacje + Wydarzenia (OpenTable, TheFork, Google Places, Eventbrite, Ticketmaster)** | 🔄 Research w toku |
 | deleg_??? | Wolny | ⬜ |
