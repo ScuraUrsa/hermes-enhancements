@@ -28,6 +28,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+# Import atrakcji
+try:
+    from attractions_data import POLAND_ATTRACTIONS, EUROPE_ATTRACTIONS
+except ImportError:
+    POLAND_ATTRACTIONS = {}
+    EUROPE_ATTRACTIONS = {}
+
 
 # ═══════════════════════════════════════════════════════════════
 # MOCK DATA — rozbudowana baza
@@ -429,6 +436,60 @@ def full_travel_plan(city: str, checkin: str, checkout: str, guests: int = 2) ->
     }
 
 
+def find_attractions(city: str, limit: int = 10) -> dict:
+    """Znajdź atrakcje turystyczne w mieście (Polska + Europa)."""
+    city_lower = city.lower()
+
+    # Szukaj w Polsce
+    for key in POLAND_ATTRACTIONS:
+        if city_lower in key or key in city_lower:
+            attractions = POLAND_ATTRACTIONS[key]
+            return {"attractions": attractions[:limit], "count": len(attractions[:limit]),
+                    "city": city, "source": "Poland"}
+
+    # Szukaj w Europie
+    for key in EUROPE_ATTRACTIONS:
+        if city_lower in key or key in city_lower:
+            attractions = EUROPE_ATTRACTIONS[key]
+            return {"attractions": attractions[:limit], "count": len(attractions[:limit]),
+                    "city": city, "source": "Europe"}
+
+    return {"attractions": [], "count": 0, "city": city, "source": "not found"}
+
+
+def plan_day_trip(city: str) -> dict:
+    """Zaplanuj jednodniową wycieczkę: atrakcje + restauracja + wydarzenie."""
+    attractions = find_attractions(city, limit=5)
+    restaurants = find_restaurants(city, limit=5)
+    events = find_events(city, limit=5)
+    weather = get_weather(city)
+
+    top_attraction = attractions["attractions"][0] if attractions["attractions"] else None
+    top_restaurant = restaurants["restaurants"][0] if restaurants["restaurants"] else None
+    top_event = events["events"][0] if events["events"] else None
+
+    # Buduj plan tekstowy
+    plan_lines = []
+    if top_attraction:
+        plan_lines.append(f"🏛️  Atrakcja: {top_attraction['name']} ({top_attraction['rating']}⭐) — {top_attraction.get('price', '?')}")
+    if top_restaurant:
+        plan_lines.append(f"🍽️  Obiad: {top_restaurant['name']} ({top_restaurant['rating']}⭐) — {top_restaurant['address']}")
+    if top_event:
+        plan_lines.append(f"🎭  Wydarzenie: {top_event['name']} ({top_event['date']}) — {top_event['venue']}")
+
+    return {
+        "city": city,
+        "weather": weather["weather"],
+        "top_attraction": top_attraction,
+        "top_restaurant": top_restaurant,
+        "top_event": top_event,
+        "all_attractions": attractions["attractions"],
+        "all_restaurants": restaurants["restaurants"],
+        "all_events": events["events"],
+        "plan": "\n".join(plan_lines) if plan_lines else "Nie udało się zaplanować — za mało danych",
+    }
+
+
 # ═══════════════════════════════════════════════════════════════
 # MAIN — do testowania
 # ═══════════════════════════════════════════════════════════════
@@ -445,6 +506,8 @@ if __name__ == "__main__":
         print("  python3 travel_plugin.py currency 100 PLN EUR")
         print("  python3 travel_plugin.py date-night Sopot")
         print("  python3 travel_plugin.py full-plan Kraków 2026-08-01 2026-08-03")
+        print("  python3 travel_plugin.py attractions Gdańsk")
+        print("  python3 travel_plugin.py day-trip Kraków")
         sys.exit(0)
 
     cmd = sys.argv[1]
@@ -494,6 +557,16 @@ if __name__ == "__main__":
         checkout = sys.argv[4] if len(sys.argv) > 4 else "2026-08-03"
         guests = int(sys.argv[5]) if len(sys.argv) > 5 else 2
         result = full_travel_plan(city, checkin, checkout, guests)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+
+    elif cmd == "attractions":
+        city = sys.argv[2] if len(sys.argv) > 2 else "Gdańsk"
+        result = find_attractions(city)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+
+    elif cmd == "day-trip":
+        city = sys.argv[2] if len(sys.argv) > 2 else "Kraków"
+        result = plan_day_trip(city)
         print(json.dumps(result, indent=2, ensure_ascii=False))
 
     else:
