@@ -1,21 +1,20 @@
-#!/usr/bin/env python3
 """
-Hermes Travel Plugin — kompletny plugin do wyszukiwania restauracji, hoteli,
-wydarzeń, pogody i walut.
+Hermes Travel Plugin — live Google Places + Open-Meteo + ExchangeRate API.
 
-Instalacja:
-    cp travel_plugin.py ~/.hermes/plugins/travel/plugin.py
-    # Dodaj API keys do ~/.hermes/.env:
+Installs as a Hermes skill. No Node.js required. Python stdlib only.
+
+Installation:
+    cp travel_plugin.py ~/.hermes/skills/travel/SKILL.md  # (rename to plugin.py)
+    # Set API keys in ~/.hermes/.env:
     # GOOGLE_PLACES_API_KEY=...
-    # TICKETMASTER_API_KEY=...
 
-Użycie przez Hermesa:
-    "Znajdź włoską restaurację w Gdańsku"
-    "Jakie wydarzenia są w Warszawie 25 lipca?"
-    "Zaplanuj randkę w Sopocie"
-    "Znajdź hotel w Krakowie na weekend"
-    "Jaka pogoda jest w Gdańsku?"
-    "Przelicz 200 PLN na EUR"
+Usage by Hermes:
+    "Find Italian restaurants in Gdańsk"
+    "What events are in Warsaw on July 25?"
+    "Plan a date night in Sopot"
+    "Find a hotel in Kraków for the weekend"
+    "What's the weather in Gdańsk?"
+    "Convert 200 PLN to EUR"
 """
 
 import json
@@ -28,192 +27,54 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-# Import atrakcji
-try:
-    from attractions_data import POLAND_ATTRACTIONS, EUROPE_ATTRACTIONS
-except ImportError:
-    POLAND_ATTRACTIONS = {}
-    EUROPE_ATTRACTIONS = {}
-
 
 # ═══════════════════════════════════════════════════════════════
-# MOCK DATA — rozbudowana baza
+# CONFIG
 # ═══════════════════════════════════════════════════════════════
 
-MOCK_RESTAURANTS = {
-    "gdańsk": [
-        {"name": "Restauracja Gdańska", "rating": 4.7, "price": "$$$", "cuisine": "polska", "romantic": True,
-         "address": "ul. Długa 12, Gdańsk", "phone": "+48 58 123 45 67", "hours": "12:00-22:00"},
-        {"name": "Mandu Pierogarnia", "rating": 4.6, "price": "$$", "cuisine": "polska", "romantic": False,
-         "address": "ul. Kaprów 19D, Gdańsk", "phone": "+48 58 301 23 45", "hours": "11:00-21:00"},
-        {"name": "Trattoria Mamma Mia", "rating": 4.6, "price": "$$", "cuisine": "włoska", "romantic": True,
-         "address": "ul. Świętego Ducha 12, Gdańsk", "phone": "+48 58 301 98 76", "hours": "12:00-22:00"},
-        {"name": "La Pampa Steakhouse", "rating": 4.5, "price": "$$$", "cuisine": "steki", "romantic": False,
-         "address": "ul. Szafarnia 10, Gdańsk", "phone": "+48 58 320 12 34", "hours": "13:00-23:00"},
-        {"name": "Sensi Sushi", "rating": 4.4, "price": "$$$", "cuisine": "japońska", "romantic": False,
-         "address": "ul. Piwna 28, Gdańsk", "phone": "+48 58 345 67 89", "hours": "12:00-22:00"},
-        {"name": "Brovarnia Gdańsk", "rating": 4.3, "price": "$$", "cuisine": "polska", "romantic": False,
-         "address": "ul. Szafarnia 9, Gdańsk", "phone": "+48 58 320 19 00", "hours": "12:00-23:00"},
-        {"name": "Pueblo", "rating": 4.5, "price": "$$", "cuisine": "meksykańska", "romantic": False,
-         "address": "ul. Kołodziejska 4, Gdańsk", "phone": "+48 58 301 11 22", "hours": "12:00-22:00"},
-        {"name": "Ritz Restaurant", "rating": 4.8, "price": "$$$$", "cuisine": "fine dining", "romantic": True,
-         "address": "ul. Długi Targ 19, Gdańsk", "phone": "+48 58 300 12 34", "hours": "17:00-23:00"},
-        {"name": "Avocado Vegan Bistro", "rating": 4.6, "price": "$$", "cuisine": "wegańska", "romantic": False,
-         "address": "ul. Garncarska 18, Gdańsk", "phone": "+48 58 320 45 67", "hours": "10:00-20:00"},
-        {"name": "Winestone", "rating": 4.4, "price": "$$$", "cuisine": "wine bar", "romantic": True,
-         "address": "ul. Długa 45, Gdańsk", "phone": "+48 58 320 89 01", "hours": "16:00-00:00"},
-        {"name": "Restauracja Filharmonia", "rating": 4.7, "price": "$$$$", "cuisine": "fine dining", "romantic": True,
-         "address": "ul. Ołowianka 1, Gdańsk", "phone": "+48 58 320 23 45", "hours": "17:00-23:00"},
-    ],
-    "sopot": [
-        {"name": "Fisherman by Rafał Koziorzemski", "rating": 4.7, "price": "$$$$", "cuisine": "rybna", "romantic": True,
-         "address": "Plac Zdrojowy 2, Sopot", "phone": "+48 58 551 21 21", "hours": "12:00-22:00"},
-        {"name": "Bulaj", "rating": 4.5, "price": "$$$", "cuisine": "rybna", "romantic": True,
-         "address": "ul. Zamkowa Góra 1, Sopot", "phone": "+48 58 555 99 99", "hours": "12:00-22:00"},
-        {"name": "Błękitny Pudel", "rating": 4.3, "price": "$$", "cuisine": "polska", "romantic": False,
-         "address": "ul. Bohaterów Monte Cassino 44, Sopot", "phone": "+48 58 551 21 22", "hours": "10:00-23:00"},
-    ],
-    "warszawa": [
-        {"name": "Nolita", "rating": 4.8, "price": "$$$$", "cuisine": "fine dining", "romantic": True,
-         "address": "ul. Wilcza 46, Warszawa", "phone": "+48 22 292 01 24", "hours": "17:00-23:00"},
-        {"name": "Atelier Amaro", "rating": 4.9, "price": "$$$$", "cuisine": "fine dining", "romantic": True,
-         "address": "ul. Agrykola 1, Warszawa", "phone": "+48 22 628 77 47", "hours": "18:00-23:00"},
-        {"name": "Soul Kitchen", "rating": 4.6, "price": "$$$", "cuisine": "polska", "romantic": True,
-         "address": "ul. Nowogrodzka 18A, Warszawa", "phone": "+48 22 299 00 00", "hours": "12:00-22:00"},
-        {"name": "Bez Gwiazdek", "rating": 4.5, "price": "$$$", "cuisine": "polska", "romantic": False,
-         "address": "ul. Wiślana 8, Warszawa", "phone": "+48 22 299 00 01", "hours": "12:00-22:00"},
-        {"name": "Uki Uki", "rating": 4.7, "price": "$$$", "cuisine": "japońska", "romantic": False,
-         "address": "ul. Krucza 23/31, Warszawa", "phone": "+48 22 299 00 02", "hours": "12:00-22:00"},
-    ],
-    "kraków": [
-        {"name": "Bottiglieria 1881", "rating": 4.9, "price": "$$$$", "cuisine": "fine dining", "romantic": True,
-         "address": "ul. Bocheńska 5, Kraków", "phone": "+48 12 660 47 50", "hours": "18:00-23:00"},
-        {"name": "Zazie Bistro", "rating": 4.6, "price": "$$$", "cuisine": "francuska", "romantic": True,
-         "address": "ul. Józefa 34, Kraków", "phone": "+48 12 422 22 22", "hours": "12:00-22:00"},
-        {"name": "Karakter", "rating": 4.5, "price": "$$", "cuisine": "międzynarodowa", "romantic": False,
-         "address": "ul. Brzozowa 17, Kraków", "phone": "+48 12 422 22 23", "hours": "12:00-22:00"},
-    ],
-    "wrocław": [
-        {"name": "La Maddalena", "rating": 4.7, "price": "$$$$", "cuisine": "włoska", "romantic": True,
-         "address": "ul. Włodkowica 9, Wrocław", "phone": "+48 71 722 22 22", "hours": "17:00-23:00"},
-        {"name": "Młoda Polska", "rating": 4.5, "price": "$$$", "cuisine": "polska", "romantic": False,
-         "address": "ul. Białoskórnicza 5, Wrocław", "phone": "+48 71 722 22 23", "hours": "12:00-22:00"},
-    ],
-    "poznań": [
-        {"name": "Muga", "rating": 4.8, "price": "$$$$", "cuisine": "fine dining", "romantic": True,
-         "address": "ul. Garbary 45, Poznań", "phone": "+48 61 222 22 22", "hours": "17:00-23:00"},
-        {"name": "Wiejskie Jadło", "rating": 4.3, "price": "$$", "cuisine": "polska", "romantic": False,
-         "address": "ul. Stary Rynek 77, Poznań", "phone": "+48 61 222 22 23", "hours": "11:00-22:00"},
-    ],
-    "łódź": [
-        {"name": "Quale Restaurant", "rating": 4.6, "price": "$$$", "cuisine": "włoska", "romantic": True,
-         "address": "ul. Piotrkowska 89, Łódź", "phone": "+48 42 222 22 22", "hours": "12:00-22:00"},
-        {"name": "Ato Sushi", "rating": 4.5, "price": "$$$", "cuisine": "japońska", "romantic": False,
-         "address": "ul. Piotrkowska 120, Łódź", "phone": "+48 42 222 22 23", "hours": "12:00-22:00"},
-    ],
-    "katowice": [
-        {"name": "Tatiana", "rating": 4.7, "price": "$$$$", "cuisine": "fine dining", "romantic": True,
-         "address": "ul. Staromiejska 12, Katowice", "phone": "+48 32 222 22 22", "hours": "17:00-23:00"},
-        {"name": "Kyoto Sushi", "rating": 4.7, "price": "$$$", "cuisine": "japońska", "romantic": False,
-         "address": "ul. Mariacka 15, Katowice", "phone": "+48 32 222 22 23", "hours": "12:00-22:00"},
-    ],
-}
+GOOGLE_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY", "")
 
-MOCK_HOTELS = {
-    "warszawa": [
-        {"name": "Hotel Bristol", "stars": 5, "rating": 4.8, "price_per_night": 850,
-         "address": "Krakowskie Przedmieście 42/44, Warszawa", "amenities": "SPA, basen, restauracja"},
-        {"name": "Raffles Europejski", "stars": 5, "rating": 4.9, "price_per_night": 1200,
-         "address": "Krakowskie Przedmieście 13, Warszawa", "amenities": "SPA, 2 restauracje, bar"},
-        {"name": "InterContinental Warszawa", "stars": 5, "rating": 4.7, "price_per_night": 700,
-         "address": "Emilii Plater 49, Warszawa", "amenities": "Basen, SPA, widok na miasto"},
-        {"name": "PURO Warszawa Centrum", "stars": 4, "rating": 4.5, "price_per_night": 400,
-         "address": "ul. Widok 9, Warszawa", "amenities": "Design hotel, śniadanie, bar"},
-    ],
-    "kraków": [
-        {"name": "Hotel Stary", "stars": 5, "rating": 4.9, "price_per_night": 900,
-         "address": "Szczepańska 5, Kraków", "amenities": "SPA, basen na dachu, restauracja"},
-        {"name": "Hotel Copernicus", "stars": 5, "rating": 4.8, "price_per_night": 800,
-         "address": "Kanonicza 16, Kraków", "amenities": "Historyczny budynek, SPA"},
-        {"name": "PURO Kraków Stare Miasto", "stars": 4, "rating": 4.5, "price_per_night": 380,
-         "address": "ul. Ogrodowa 10, Kraków", "amenities": "Design, śniadanie, bar"},
-    ],
-    "wrocław": [
-        {"name": "The Granary La Suite", "stars": 5, "rating": 4.8, "price_per_night": 650,
-         "address": "Mennicza 24, Wrocław", "amenities": "SPA, restauracja, design"},
-        {"name": "DoubleTree by Hilton", "stars": 4, "rating": 4.5, "price_per_night": 450,
-         "address": "Podwale 84, Wrocław", "amenities": "Basen, SPA, parking"},
-    ],
-    "gdańsk": [
-        {"name": "Hilton Gdańsk", "stars": 5, "rating": 4.6, "price_per_night": 600,
-         "address": "Targ Rybny 1, Gdańsk", "amenities": "Basen, SPA, widok na Motławę"},
-        {"name": "PURO Gdańsk Stare Miasto", "stars": 4, "rating": 4.5, "price_per_night": 350,
-         "address": "ul. Stągiewna 26, Gdańsk", "amenities": "Design, śniadanie, bar"},
-    ],
-    "sopot": [
-        {"name": "Sofitel Grand Sopot", "stars": 5, "rating": 4.7, "price_per_night": 900,
-         "address": "Powstańców Warszawy 12, Sopot", "amenities": "SPA, plaża, basen"},
-        {"name": "Sheraton Sopot", "stars": 5, "rating": 4.6, "price_per_night": 800,
-         "address": "Powstańców Warszawy 10, Sopot", "amenities": "SPA, plaża, restauracja"},
-    ],
-    "poznań": [
-        {"name": "Hotel Vivaldi", "stars": 4, "rating": 4.4, "price_per_night": 350,
-         "address": "ul. Winogrady 5, Poznań", "amenities": "Restauracja, parking"},
-    ],
-    "łódź": [
-        {"name": "Andel's by Vienna House", "stars": 4, "rating": 4.5, "price_per_night": 400,
-         "address": "ul. Ogrodowa 17, Łódź", "amenities": "Design, basen, SPA"},
-    ],
-    "katowice": [
-        {"name": "Hotel Monopol", "stars": 5, "rating": 4.6, "price_per_night": 500,
-         "address": "ul. Dworcowa 5, Katowice", "amenities": "SPA, restauracja, historia"},
-    ],
-}
-
-MOCK_EVENTS = {
-    "gdańsk": [
-        {"name": "Koncert: Męskie Granie 2026", "date": "2026-07-25", "venue": "Stadion Energa", "category": "music", "price": "150-300 PLN"},
-        {"name": "Festiwal Szekspirowski", "date": "2026-07-28", "venue": "Teatr Szekspirowski", "category": "theatre", "price": "50-120 PLN"},
-        {"name": "Jarmark Dominikański", "date": "2026-07-26", "venue": "Główne Miasto", "category": "festival", "price": "Free"},
-        {"name": "Kino Letnie na Plaży", "date": "2026-07-27", "venue": "Plaża Stogi", "category": "film", "price": "20 PLN"},
-        {"name": "Rejs po Motławie", "date": "2026-07-26", "venue": "Przystań Żabi Kruk", "category": "recreation", "price": "60 PLN"},
-        {"name": "Degustacja win", "date": "2026-07-29", "venue": "Winestone Gdańsk", "category": "food", "price": "120 PLN"},
-        {"name": "Stand-up: Cezary Pazura", "date": "2026-07-30", "venue": "Klub Parlament", "category": "comedy", "price": "80 PLN"},
-    ],
-    "warszawa": [
-        {"name": "Chopin Concerts", "date": "2026-07-25", "venue": "Filharmonia Narodowa", "category": "music", "price": "80-200 PLN"},
-        {"name": "Wystawa: Van Gogh", "date": "2026-07-20", "venue": "Muzeum Narodowe", "category": "arts", "price": "40 PLN"},
-        {"name": "Noc Muzeów", "date": "2026-07-26", "venue": "Warszawa", "category": "festival", "price": "Free"},
-    ],
-    "kraków": [
-        {"name": "Festiwal Kultury Żydowskiej", "date": "2026-07-25", "venue": "Kazimierz", "category": "festival", "price": "Free-50 PLN"},
-        {"name": "Opera: Carmen", "date": "2026-07-28", "venue": "Opera Krakowska", "category": "music", "price": "60-150 PLN"},
-    ],
-    "wrocław": [
-        {"name": "Festiwal Filmowy Nowe Horyzonty", "date": "2026-07-25", "venue": "Kino Nowe Horyzonty", "category": "film", "price": "25 PLN"},
-    ],
-    "poznań": [
-        {"name": "Malta Festival", "date": "2026-07-26", "venue": "Malta", "category": "festival", "price": "Free-100 PLN"},
-    ],
-}
-
-MOCK_WEATHER = {
-    "gdańsk": {"temp": 22, "humidity": 65, "wind": 15, "description": "Częściowo słonecznie", "icon": "⛅"},
-    "sopot": {"temp": 21, "humidity": 70, "wind": 18, "description": "Lekki wiatr od morza", "icon": "🌤️"},
-    "gdynia": {"temp": 20, "humidity": 72, "wind": 20, "description": "Wietrznie", "icon": "💨"},
-    "warszawa": {"temp": 26, "humidity": 55, "wind": 10, "description": "Słonecznie", "icon": "☀️"},
-    "kraków": {"temp": 27, "humidity": 50, "wind": 8, "description": "Słonecznie, gorąco", "icon": "☀️"},
-    "wrocław": {"temp": 25, "humidity": 58, "wind": 12, "description": "Słonecznie", "icon": "☀️"},
-    "poznań": {"temp": 24, "humidity": 60, "wind": 14, "description": "Częściowo słonecznie", "icon": "⛅"},
-    "łódź": {"temp": 25, "humidity": 55, "wind": 11, "description": "Słonecznie", "icon": "☀️"},
-    "katowice": {"temp": 26, "humidity": 52, "wind": 9, "description": "Słonecznie", "icon": "☀️"},
-    "zakopane": {"temp": 18, "humidity": 75, "wind": 5, "description": "Lekkie zachmurzenie", "icon": "🌥️"},
-}
-
-MOCK_CURRENCIES = {
-    "PLN": 1.0, "EUR": 4.25, "USD": 3.90, "GBP": 4.95,
-    "CHF": 4.40, "CZK": 0.17, "HUF": 0.011, "NOK": 0.37,
-    "SEK": 0.36, "DKK": 0.57, "RON": 0.85, "BGN": 2.17,
+CITY_COORDS = {
+    "gdańsk": (54.3520, 18.6466), "sopot": (54.4416, 18.5601),
+    "gdynia": (54.5189, 18.5305), "warszawa": (52.2297, 21.0122),
+    "kraków": (50.0647, 19.9450), "wrocław": (51.1079, 17.0385),
+    "poznań": (52.4064, 16.9252), "łódź": (51.7592, 19.4560),
+    "katowice": (50.2649, 19.0238), "zakopane": (49.2992, 19.9496),
+    "berlin": (52.5200, 13.4050), "prague": (50.0755, 14.4378),
+    "vienna": (48.2082, 16.3738), "paris": (48.8566, 2.3522),
+    "london": (51.5074, -0.1278), "barcelona": (41.3874, 2.1686),
+    "rome": (41.9028, 12.4964), "amsterdam": (52.3676, 4.9041),
+    "budapest": (47.4979, 19.0402), "copenhagen": (55.6761, 12.5683),
+    "stockholm": (59.3293, 18.0686), "oslo": (59.9139, 10.7522),
+    "helsinki": (60.1699, 24.9384), "lisbon": (38.7223, -9.1393),
+    "madrid": (40.4168, -3.7038), "dublin": (53.3498, -6.2603),
+    "brussels": (50.8503, 4.3517), "athens": (37.9838, 23.7275),
+    "milan": (45.4642, 9.1900), "munich": (48.1351, 11.5820),
+    "zurich": (47.3769, 8.5417), "dubrovnik": (42.6507, 18.0944),
+    "split": (43.5081, 16.4402), "tallinn": (59.4370, 24.7536),
+    "riga": (56.9496, 24.1052), "vilnius": (54.6872, 25.2797),
+    "lviv": (49.8397, 24.0297), "bucuresti": (44.4268, 26.1025),
+    "sofia": (42.6977, 23.3219), "belgrade": (44.7866, 20.4489),
+    "zagreb": (45.8150, 15.9819), "ljubljana": (46.0569, 14.5058),
+    "bratislava": (48.1486, 17.1077), "reykjavik": (64.1466, -21.9426),
+    "malaga": (36.7213, -4.4214), "valencia": (39.4699, -0.3763),
+    "porto": (41.1579, -8.6291), "naples": (40.8518, 14.2681),
+    "florence": (43.7696, 11.2558), "venice": (45.4408, 12.3155),
+    "seville": (37.3891, -5.9845), "granada": (37.1773, -3.5986),
+    "nice": (43.7102, 7.2620), "lyon": (45.7640, 4.8357),
+    "hamburg": (53.5511, 9.9937), "frankfurt": (50.1109, 8.6821),
+    "cologne": (50.9375, 6.9603), "dresden": (51.0504, 13.7373),
+    "edinburgh": (55.9533, -3.1883), "manchester": (53.4808, -2.2426),
+    "birmingham": (52.4862, -1.8904), "liverpool": (53.4084, -2.9916),
+    "glasgow": (55.8642, -4.2518), "cardiff": (51.4816, -3.1791),
+    "belfast": (54.5973, -5.9301), "antwerp": (51.2194, 4.4025),
+    "rotterdam": (51.9244, 4.4777), "the hague": (52.0705, 4.3007),
+    "geneva": (46.2044, 6.1432), "bern": (46.9480, 7.4474),
+    "salzburg": (47.8095, 13.0550), "innsbruck": (47.2692, 11.4041),
+    "gdansk": (54.3520, 18.6466), "warsaw": (52.2297, 21.0122),
+    "cracow": (50.0647, 19.9450), "wroclaw": (51.1079, 17.0385),
+    "poznan": (52.4064, 16.9252), "lodz": (51.7592, 19.4560),
+    "katowice": (50.2649, 19.0238), "zakopane": (49.2992, 19.9496),
 }
 
 CUISINE_MAP = {
@@ -227,14 +88,24 @@ CUISINE_MAP = {
     "wegańska": "wegańska", "weganska": "wegańska", "vegan": "wegańska",
     "fine dining": "fine dining", "fine_dining": "fine dining",
     "wine bar": "wine bar", "winebar": "wine bar",
-}
-
-CITY_COORDS = {
-    "gdańsk": (54.3520, 18.6466), "sopot": (54.4416, 18.5601),
-    "gdynia": (54.5189, 18.5305), "warszawa": (52.2297, 21.0122),
-    "kraków": (50.0647, 19.9450), "wrocław": (51.1079, 17.0385),
-    "poznań": (52.4064, 16.9252), "łódź": (51.7592, 19.4560),
-    "katowice": (50.2649, 19.0238), "zakopane": (49.2992, 19.9496),
+    "indyjska": "indyjska", "indian": "indyjska",
+    "chińska": "chińska", "chinese": "chińska",
+    "tajska": "tajska", "thai": "tajska",
+    "grecka": "grecka", "greek": "grecka",
+    "hiszpańska": "hiszpańska", "spanish": "hiszpańska",
+    "turecka": "turecka", "turkish": "turecka",
+    "wietnamska": "wietnamska", "vietnamese": "wietnamska",
+    "koreańska": "koreańska", "korean": "koreańska",
+    "śródziemnomorska": "śródziemnomorska", "mediterranean": "śródziemnomorska",
+    "amerykańska": "amerykańska", "american": "amerykańska",
+    "burgery": "burgery", "burgers": "burgery",
+    "pizza": "pizza",
+    "kawa": "kawa", "coffee": "kawa", "cafe": "kawa",
+    "lody": "lody", "ice cream": "lody",
+    "piekarnia": "piekarnia", "bakery": "piekarnia",
+    "owoce morza": "owoce morza",
+    "tapas": "tapas",
+    "grill": "grill", "bbq": "grill", "barbecue": "grill",
 }
 
 
@@ -251,71 +122,220 @@ def _get_json(url: str, headers: dict = None, timeout: int = 10) -> dict:
         return {"error": str(e)}
 
 
-def get_weather_live(lat: float, lng: float) -> dict:
-    url = (f"https://api.open-meteo.com/v1/forecast?"
-           f"latitude={lat}&longitude={lng}"
-           f"&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code"
-           f"&timezone=Europe/Warsaw")
+def _post_json(url: str, body: dict, headers: dict = None, timeout: int = 10) -> dict:
+    hdrs = headers or {}
+    hdrs["Content-Type"] = "application/json"
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=hdrs, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read())
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ═══════════════════════════════════════════════════════════════
+# GOOGLE PLACES API (New) — LIVE
+# ═══════════════════════════════════════════════════════════════
+
+def _google_places_search(
+    query: str,
+    max_results: int = 10,
+    min_rating: float = 4.0,
+    price_levels: list[str] | None = None,
+    open_now: bool = False,
+) -> list[dict]:
+    """Search Google Places (New) Text Search."""
+    if not GOOGLE_API_KEY:
+        return [{"error": "GOOGLE_PLACES_API_KEY not set"}]
+
+    field_mask = (
+        "places.displayName,places.formattedAddress,places.rating,"
+        "places.userRatingCount,places.priceLevel,places.websiteUri,"
+        "places.googleMapsUri,places.regularOpeningHours.openNow,"
+        "places.editorialSummary,places.primaryType,places.photos"
+    )
+
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_API_KEY,
+        "X-Goog-FieldMask": field_mask,
+    }
+
+    body: dict = {
+        "textQuery": query,
+        "maxResultCount": max_results,
+    }
+    if min_rating:
+        body["minRating"] = min_rating
+    if price_levels:
+        body["priceLevels"] = price_levels
+    if open_now:
+        body["openNow"] = True
+
+    data = _post_json(
+        "https://places.googleapis.com/v1/places:searchText",
+        body, headers, timeout=15,
+    )
+
+    if "error" in data:
+        return [data]
+
+    results = []
+    for p in data.get("places", []):
+        results.append({
+            "name": p.get("displayName", {}).get("text", "?"),
+            "address": p.get("formattedAddress", "?"),
+            "rating": p.get("rating"),
+            "reviews": p.get("userRatingCount", 0),
+            "price_level": p.get("priceLevel", "?"),
+            "open_now": p.get("regularOpeningHours", {}).get("openNow"),
+            "summary": (p.get("editorialSummary", {}) or {}).get("text", ""),
+            "website": p.get("websiteUri", ""),
+            "maps": p.get("googleMapsUri", ""),
+            "type": p.get("primaryType", ""),
+        })
+    return results
+
+
+# ═══════════════════════════════════════════════════════════════
+# OPEN-METEO — LIVE (free, no key)
+# ═══════════════════════════════════════════════════════════════
+
+def _get_weather_live(lat: float, lng: float) -> dict:
+    url = (
+        f"https://api.open-meteo.com/v1/forecast?"
+        f"latitude={lat}&longitude={lng}"
+        f"&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code"
+        f"&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code"
+        f"&timezone=Europe/Warsaw&forecast_days=3"
+    )
     data = _get_json(url)
     if "error" in data:
         return data
+
+    codes = {
+        0: ("Bezchmurnie", "☀️"), 1: ("Prawie bezchmurnie", "🌤️"),
+        2: ("Częściowo słonecznie", "⛅"), 3: ("Pochmurno", "☁️"),
+        45: ("Mgła", "🌫️"), 48: ("Szadź", "🌫️"),
+        51: ("Lekka mżawka", "🌦️"), 53: ("Mżawka", "🌦️"), 55: ("Gęsta mżawka", "🌦️"),
+        61: ("Lekki deszcz", "🌧️"), 63: ("Deszcz", "🌧️"), 65: ("Ulewa", "🌧️"),
+        71: ("Lekki śnieg", "🌨️"), 73: ("Śnieg", "🌨️"), 75: ("Śnieżyca", "🌨️"),
+        80: ("Przelotne opady", "🌦️"), 95: ("Burza", "⛈️"), 96: ("Burza z gradem", "⛈️"),
+    }
+
     current = data.get("current", {})
-    codes = {0: "Bezchmurnie ☀️", 1: "Prawie bezchmurnie 🌤️", 2: "Częściowo słonecznie ⛅",
-             3: "Pochmurno ☁️", 45: "Mgła 🌫️", 61: "Deszcz 🌧️", 80: "Przelotne opady 🌦️", 95: "Burza ⛈️"}
+    daily = data.get("daily", {})
+
     code = current.get("weather_code", 0)
+    desc, icon = codes.get(code, (f"Kod {code}", "❓"))
+
+    forecast = []
+    for i in range(min(3, len(daily.get("time", [])))):
+        fc_code = daily.get("weather_code", [0])[i] if i < len(daily.get("weather_code", [])) else 0
+        fc_desc, fc_icon = codes.get(fc_code, (f"Kod {fc_code}", "❓"))
+        forecast.append({
+            "date": daily.get("time", [])[i] if i < len(daily.get("time", [])) else "?",
+            "temp_max": daily.get("temperature_2m_max", [])[i] if i < len(daily.get("temperature_2m_max", [])) else "?",
+            "temp_min": daily.get("temperature_2m_min", [])[i] if i < len(daily.get("temperature_2m_min", [])) else "?",
+            "rain_prob": daily.get("precipitation_probability_max", [])[i] if i < len(daily.get("precipitation_probability_max", [])) else "?",
+            "description": fc_desc,
+            "icon": fc_icon,
+        })
+
     return {
         "temp": current.get("temperature_2m", "?"),
         "humidity": current.get("relative_humidity_2m", "?"),
         "wind": current.get("wind_speed_10m", "?"),
-        "description": codes.get(code, f"Kod {code}"),
-        "icon": codes.get(code, "❓"),
+        "description": desc,
+        "icon": icon,
+        "forecast": forecast,
+        "source": "Open-Meteo (live)",
     }
 
 
-def get_currency_live(base: str = "PLN") -> dict:
+# ═══════════════════════════════════════════════════════════════
+# EXCHANGE RATE — LIVE (free, no key)
+# ═══════════════════════════════════════════════════════════════
+
+def _get_currency_live(base: str = "PLN") -> dict:
     return _get_json(f"https://open.er-api.com/v6/latest/{base}")
 
 
 # ═══════════════════════════════════════════════════════════════
-# TOOLS — funkcje wywoływane przez Hermesa
+# TOOLS — public API for Hermes
 # ═══════════════════════════════════════════════════════════════
 
-def find_restaurants(city: str, cuisine: str = None, romantic_only: bool = False,
-                     max_price: str = None, limit: int = 10) -> dict:
-    """Znajdź restauracje w mieście."""
-    city_lower = city.lower()
-    restaurants = []
+def find_restaurants(
+    city: str,
+    cuisine: str = None,
+    romantic: bool = False,
+    max_price: str = None,
+    open_now: bool = False,
+    limit: int = 10,
+) -> dict:
+    """Find restaurants in a city. Uses Google Places API if key is set.
 
-    for key in MOCK_RESTAURANTS:
-        if city_lower in key or key in city_lower:
-            restaurants = MOCK_RESTAURANTS[key]
-            break
-
+    Args:
+        city: 'Gdańsk', 'Warszawa', 'Berlin', etc.
+        cuisine: 'włoska', 'japońska', 'polska', etc.
+        romantic: filter for romantic atmosphere
+        max_price: '$', '$$', '$$$', '$$$$'
+        open_now: only show currently open
+        limit: max results
+    """
+    query_parts = ["restaurant"]
     if cuisine:
-        cuisine_norm = CUISINE_MAP.get(cuisine.lower(), cuisine.lower())
-        restaurants = [r for r in restaurants if cuisine_norm in r.get("cuisine", "").lower()]
+        cuisine_norm = CUISINE_MAP.get(cuisine.lower(), cuisine)
+        query_parts.append(cuisine_norm)
+    if romantic:
+        query_parts.append("romantic")
+    query_parts.append("in")
+    query_parts.append(city)
 
-    if romantic_only:
-        restaurants = [r for r in restaurants if r.get("romantic")]
+    query = " ".join(query_parts)
 
-    if max_price:
-        price_levels = {"$": 1, "$$": 2, "$$$": 3, "$$$$": 4}
-        max_level = price_levels.get(max_price, 4)
-        restaurants = [r for r in restaurants if len(r.get("price", "$")) <= max_level]
+    price_map = {
+        "$": ["PRICE_LEVEL_INEXPENSIVE"],
+        "$$": ["PRICE_LEVEL_MODERATE"],
+        "$$$": ["PRICE_LEVEL_EXPENSIVE"],
+        "$$$$": ["PRICE_LEVEL_VERY_EXPENSIVE"],
+    }
+    price_levels = price_map.get(max_price) if max_price else None
 
-    return {"restaurants": restaurants[:limit], "count": len(restaurants[:limit]), "city": city}
+    results = _google_places_search(
+        query, max_results=limit, min_rating=4.0,
+        price_levels=price_levels, open_now=open_now,
+    )
+
+    return {
+        "restaurants": results,
+        "count": len(results),
+        "city": city,
+        "cuisine": cuisine,
+        "source": "Google Places (live)" if GOOGLE_API_KEY else "API key not set",
+    }
 
 
-def find_hotels(city: str, checkin: str = None, checkout: str = None,
-                guests: int = 2, limit: int = 5) -> dict:
-    """Znajdź hotele w mieście."""
-    city_lower = city.lower()
-    hotels = []
+def find_hotels(
+    city: str,
+    checkin: str = None,
+    checkout: str = None,
+    guests: int = 2,
+    limit: int = 5,
+) -> dict:
+    """Find hotels in a city. Uses Google Places API.
 
-    for key in MOCK_HOTELS:
-        if city_lower in key or key in city_lower:
-            hotels = MOCK_HOTELS[key]
-            break
+    Args:
+        city: 'Gdańsk', 'Kraków', etc.
+        checkin: YYYY-MM-DD
+        checkout: YYYY-MM-DD
+        guests: number of guests
+        limit: max results
+    """
+    results = _google_places_search(
+        f"hotel in {city}", max_results=limit, min_rating=4.0,
+    )
 
     nights = 1
     if checkin and checkout:
@@ -323,175 +343,178 @@ def find_hotels(city: str, checkin: str = None, checkout: str = None,
             d1 = datetime.fromisoformat(checkin)
             d2 = datetime.fromisoformat(checkout)
             nights = max(1, (d2 - d1).days)
-        except:
+        except Exception:
             pass
 
-    result = []
-    for h in hotels[:limit]:
-        result.append({**h, "total_price": h["price_per_night"] * nights, "nights": nights})
+    return {
+        "hotels": results,
+        "count": len(results),
+        "city": city,
+        "nights": nights,
+        "source": "Google Places (live)" if GOOGLE_API_KEY else "API key not set",
+    }
 
-    return {"hotels": result, "count": len(result), "city": city, "nights": nights}
+
+def find_attractions(
+    city: str,
+    attraction_type: str = None,
+    limit: int = 10,
+) -> dict:
+    """Find tourist attractions, museums, landmarks.
+
+    Args:
+        city: 'Gdańsk', 'Rzym', etc.
+        attraction_type: 'museum', 'landmark', 'park', 'church', etc.
+        limit: max results
+    """
+    query = f"tourist attraction"
+    if attraction_type:
+        query = f"{attraction_type} {query}"
+    query += f" in {city}"
+
+    results = _google_places_search(query, max_results=limit, min_rating=4.0)
+    return {
+        "attractions": results,
+        "count": len(results),
+        "city": city,
+        "source": "Google Places (live)" if GOOGLE_API_KEY else "API key not set",
+    }
 
 
-def find_events(city: str, date: str = None, category: str = None, limit: int = 10) -> dict:
-    """Znajdź wydarzenia w mieście."""
+def find_bars(
+    city: str,
+    vibe: str = None,
+    limit: int = 5,
+) -> dict:
+    """Find bars, pubs, cocktail bars.
+
+    Args:
+        city: 'Gdańsk', 'Sopot', etc.
+        vibe: 'cocktail', 'wine', 'rooftop', 'speakeasy', etc.
+        limit: max results
+    """
+    query = f"{vibe or ''} bar in {city}".strip()
+    results = _google_places_search(query, max_results=limit, min_rating=4.0)
+    return {
+        "bars": results,
+        "count": len(results),
+        "city": city,
+        "source": "Google Places (live)" if GOOGLE_API_KEY else "API key not set",
+    }
+
+
+def get_weather(city: str) -> dict:
+    """Get current weather + 3-day forecast. Uses Open-Meteo (free, no key).
+
+    Args:
+        city: 'Gdańsk', 'Warszawa', 'Berlin', etc.
+    """
     city_lower = city.lower()
-    events = []
+    coord = CITY_COORDS.get(city_lower)
 
-    for key in MOCK_EVENTS:
-        if city_lower in key or key in city_lower:
-            events = MOCK_EVENTS[key]
-            break
+    if not coord:
+        # Try partial match
+        for key, val in CITY_COORDS.items():
+            if city_lower in key or key in city_lower:
+                coord = val
+                break
 
-    if date:
-        events = [e for e in events if e["date"] >= date]
+    if coord:
+        weather = _get_weather_live(*coord)
+        if "error" not in weather:
+            return {"weather": weather, "city": city, "source": "Open-Meteo (live)"}
 
-    if category:
-        events = [e for e in events if category.lower() in e.get("category", "").lower()]
-
-    return {"events": events[:limit], "count": len(events[:limit]), "city": city}
-
-
-def get_weather(city: str, use_live: bool = False) -> dict:
-    """Pobierz pogodę."""
-    city_lower = city.lower()
-
-    if use_live:
-        coord = CITY_COORDS.get(city_lower)
-        if coord:
-            live = get_weather_live(*coord)
-            if "error" not in live:
-                return {"weather": live, "city": city, "source": "live (Open-Meteo)"}
-
-    weather = MOCK_WEATHER.get(city_lower, {"temp": "?", "description": "Brak danych", "icon": "❓"})
-    return {"weather": weather, "city": city, "source": "mock"}
+    return {"weather": {"error": f"No coordinates for {city}"}, "city": city}
 
 
-def convert_currency(amount: float, from_cur: str, to_cur: str, use_live: bool = False) -> dict:
-    """Konwertuj walutę."""
+def convert_currency(amount: float, from_cur: str, to_cur: str) -> dict:
+    """Convert currency. Uses ExchangeRate-API (free, no key).
+
+    Args:
+        amount: e.g. 100
+        from_cur: 'PLN', 'EUR', 'USD', etc.
+        to_cur: 'PLN', 'EUR', 'USD', etc.
+    """
     from_cur = from_cur.upper()
     to_cur = to_cur.upper()
 
-    if use_live:
-        data = get_currency_live(from_cur)
-        if "error" not in data:
-            rate = data.get("rates", {}).get(to_cur, 0)
-            return {"amount": amount, "from": from_cur, "to": to_cur,
-                    "rate": rate, "result": amount * rate, "source": "live"}
+    data = _get_currency_live(from_cur)
+    if "error" in data:
+        return {"error": data["error"]}
 
-    from_rate = MOCK_CURRENCIES.get(from_cur, 1.0)
-    to_rate = MOCK_CURRENCIES.get(to_cur, 1.0)
-    rate = to_rate / from_rate
-    return {"amount": amount, "from": from_cur, "to": to_cur,
-            "rate": rate, "result": amount * rate, "source": "mock"}
+    rate = data.get("rates", {}).get(to_cur, 0)
+    return {
+        "amount": amount,
+        "from": from_cur,
+        "to": to_cur,
+        "rate": rate,
+        "result": round(amount * rate, 2),
+        "source": "ExchangeRate-API (live)",
+    }
 
 
 def plan_date_night(city: str) -> dict:
-    """Zaplanuj randkę."""
-    restaurants = find_restaurants(city, romantic_only=True, limit=5)
-    events = find_events(city, limit=5)
+    """Plan a complete date night: dinner + drinks + weather.
+
+    Args:
+        city: 'Gdańsk', 'Sopot', 'Warszawa', etc.
+    """
+    restaurants = find_restaurants(city, romantic=True, limit=5)
+    bars = find_bars(city, vibe="cocktail", limit=3)
     weather = get_weather(city)
 
-    romantic_r = restaurants["restaurants"]
-    dinner = romantic_r[0] if romantic_r else None
-    event = events["events"][0] if events["events"] else None
+    dinner = restaurants["restaurants"][0] if restaurants["restaurants"] else None
+    bar = bars["bars"][0] if bars["bars"] else None
+    w = weather.get("weather", {})
 
-    # Znajdź bar
-    bars = find_restaurants(city, cuisine="wine bar", limit=3)
-    bar = bars["restaurants"][0] if bars["restaurants"] else None
+    plan_lines = []
+    if w.get("temp"):
+        plan_lines.append(f"🌤️  Pogoda: {w['temp']}°C, {w.get('description', '?')}")
+    if dinner:
+        plan_lines.append(f"🍽️  Kolacja: {dinner['name']} (⭐{dinner.get('rating', '?')}) — {dinner.get('address', '?')}")
+    if bar:
+        plan_lines.append(f"🍸  Drink: {bar['name']} (⭐{bar.get('rating', '?')}) — {bar.get('address', '?')}")
 
     return {
         "city": city,
-        "weather": weather["weather"],
+        "weather": w,
         "dinner": dinner,
-        "event": event,
         "drinks": bar,
-        "plan": (
-            f"🍽️  Kolacja: {dinner['name']} ({dinner['rating']}⭐) — {dinner['address']}\n"
-            f"🎭  Wydarzenie: {event['name']} ({event['date']}) — {event['venue']}\n"
-            f"🍸  Drink: {bar['name']} ({bar['rating']}⭐) — {bar['address']}"
-        ) if dinner and event and bar else "Nie udało się zaplanować — za mało danych",
+        "all_restaurants": restaurants["restaurants"],
+        "all_bars": bars["bars"],
+        "plan": "\n".join(plan_lines) if plan_lines else "Za mało danych — ustaw GOOGLE_PLACES_API_KEY",
     }
 
 
 def full_travel_plan(city: str, checkin: str, checkout: str, guests: int = 2) -> dict:
-    """Stwórz pełny plan podróży."""
+    """Create a complete travel plan: hotel + restaurants + attractions + weather.
+
+    Args:
+        city: 'Kraków', 'Praga', etc.
+        checkin: YYYY-MM-DD
+        checkout: YYYY-MM-DD
+        guests: number of guests
+    """
     hotels = find_hotels(city, checkin, checkout, guests)
     restaurants = find_restaurants(city, limit=5)
-    events = find_events(city, limit=5)
+    attractions = find_attractions(city, limit=5)
     weather = get_weather(city)
 
     hotel = hotels["hotels"][0] if hotels["hotels"] else None
-    total_hotel = hotel["total_price"] if hotel else 0
 
     return {
         "city": city,
         "dates": f"{checkin} → {checkout}",
         "guests": guests,
-        "weather": weather["weather"],
+        "weather": weather.get("weather", {}),
         "hotel": hotel,
-        "total_hotel_pln": total_hotel,
         "top_restaurants": restaurants["restaurants"][:3],
-        "top_events": events["events"][:3],
-    }
-
-
-def find_attractions(city: str, limit: int = 10) -> dict:
-    """Znajdź atrakcje turystyczne w mieście (Polska + Europa)."""
-    city_lower = city.lower()
-
-    # Szukaj w Polsce
-    for key in POLAND_ATTRACTIONS:
-        if city_lower in key or key in city_lower:
-            attractions = POLAND_ATTRACTIONS[key]
-            return {"attractions": attractions[:limit], "count": len(attractions[:limit]),
-                    "city": city, "source": "Poland"}
-
-    # Szukaj w Europie
-    for key in EUROPE_ATTRACTIONS:
-        if city_lower in key or key in city_lower:
-            attractions = EUROPE_ATTRACTIONS[key]
-            return {"attractions": attractions[:limit], "count": len(attractions[:limit]),
-                    "city": city, "source": "Europe"}
-
-    return {"attractions": [], "count": 0, "city": city, "source": "not found"}
-
-
-def plan_day_trip(city: str) -> dict:
-    """Zaplanuj jednodniową wycieczkę: atrakcje + restauracja + wydarzenie."""
-    attractions = find_attractions(city, limit=5)
-    restaurants = find_restaurants(city, limit=5)
-    events = find_events(city, limit=5)
-    weather = get_weather(city)
-
-    top_attraction = attractions["attractions"][0] if attractions["attractions"] else None
-    top_restaurant = restaurants["restaurants"][0] if restaurants["restaurants"] else None
-    top_event = events["events"][0] if events["events"] else None
-
-    # Buduj plan tekstowy
-    plan_lines = []
-    if top_attraction:
-        plan_lines.append(f"🏛️  Atrakcja: {top_attraction['name']} ({top_attraction['rating']}⭐) — {top_attraction.get('price', '?')}")
-    if top_restaurant:
-        plan_lines.append(f"🍽️  Obiad: {top_restaurant['name']} ({top_restaurant['rating']}⭐) — {top_restaurant['address']}")
-    if top_event:
-        plan_lines.append(f"🎭  Wydarzenie: {top_event['name']} ({top_event['date']}) — {top_event['venue']}")
-
-    return {
-        "city": city,
-        "weather": weather["weather"],
-        "top_attraction": top_attraction,
-        "top_restaurant": top_restaurant,
-        "top_event": top_event,
-        "all_attractions": attractions["attractions"],
-        "all_restaurants": restaurants["restaurants"],
-        "all_events": events["events"],
-        "plan": "\n".join(plan_lines) if plan_lines else "Nie udało się zaplanować — za mało danych",
+        "top_attractions": attractions["attractions"][:3],
     }
 
 
 # ═══════════════════════════════════════════════════════════════
-# MAIN — do testowania
+# MAIN — for testing
 # ═══════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
@@ -501,13 +524,12 @@ if __name__ == "__main__":
         print("Hermes Travel Plugin — test")
         print("  python3 travel_plugin.py restaurants Gdańsk włoska")
         print("  python3 travel_plugin.py hotels Warszawa 2026-08-01 2026-08-03")
-        print("  python3 travel_plugin.py events Gdańsk 2026-07-25")
+        print("  python3 travel_plugin.py attractions Kraków")
+        print("  python3 travel_plugin.py bars Sopot cocktail")
         print("  python3 travel_plugin.py weather Gdańsk")
         print("  python3 travel_plugin.py currency 100 PLN EUR")
         print("  python3 travel_plugin.py date-night Sopot")
         print("  python3 travel_plugin.py full-plan Kraków 2026-08-01 2026-08-03")
-        print("  python3 travel_plugin.py attractions Gdańsk")
-        print("  python3 travel_plugin.py day-trip Kraków")
         sys.exit(0)
 
     cmd = sys.argv[1]
@@ -515,59 +537,40 @@ if __name__ == "__main__":
     if cmd == "restaurants":
         city = sys.argv[2] if len(sys.argv) > 2 else "Gdańsk"
         cuisine = sys.argv[3] if len(sys.argv) > 3 else None
-        result = find_restaurants(city, cuisine)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+        print(json.dumps(find_restaurants(city, cuisine), indent=2, ensure_ascii=False))
 
     elif cmd == "hotels":
         city = sys.argv[2] if len(sys.argv) > 2 else "Warszawa"
         checkin = sys.argv[3] if len(sys.argv) > 3 else None
         checkout = sys.argv[4] if len(sys.argv) > 4 else None
-        guests = int(sys.argv[5]) if len(sys.argv) > 5 else 2
-        result = find_hotels(city, checkin, checkout, guests)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+        print(json.dumps(find_hotels(city, checkin, checkout), indent=2, ensure_ascii=False))
 
-    elif cmd == "events":
+    elif cmd == "attractions":
         city = sys.argv[2] if len(sys.argv) > 2 else "Gdańsk"
-        date = sys.argv[3] if len(sys.argv) > 3 else None
-        result = find_events(city, date)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+        atype = sys.argv[3] if len(sys.argv) > 3 else None
+        print(json.dumps(find_attractions(city, atype), indent=2, ensure_ascii=False))
+
+    elif cmd == "bars":
+        city = sys.argv[2] if len(sys.argv) > 2 else "Sopot"
+        vibe = sys.argv[3] if len(sys.argv) > 3 else None
+        print(json.dumps(find_bars(city, vibe), indent=2, ensure_ascii=False))
 
     elif cmd == "weather":
         city = sys.argv[2] if len(sys.argv) > 2 else "Gdańsk"
-        use_live = "--live" in sys.argv
-        result = get_weather(city, use_live)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+        print(json.dumps(get_weather(city), indent=2, ensure_ascii=False))
 
     elif cmd == "currency":
         amount = float(sys.argv[2]) if len(sys.argv) > 2 else 100
         from_cur = sys.argv[3] if len(sys.argv) > 3 else "PLN"
         to_cur = sys.argv[4] if len(sys.argv) > 4 else "EUR"
-        use_live = "--live" in sys.argv
-        result = convert_currency(amount, from_cur, to_cur, use_live)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+        print(json.dumps(convert_currency(amount, from_cur, to_cur), indent=2, ensure_ascii=False))
 
     elif cmd == "date-night":
-        city = sys.argv[2] if len(sys.argv) > 2 else "Gdańsk"
-        result = plan_date_night(city)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+        city = sys.argv[2] if len(sys.argv) > 2 else "Sopot"
+        print(json.dumps(plan_date_night(city), indent=2, ensure_ascii=False))
 
     elif cmd == "full-plan":
         city = sys.argv[2] if len(sys.argv) > 2 else "Kraków"
         checkin = sys.argv[3] if len(sys.argv) > 3 else "2026-08-01"
         checkout = sys.argv[4] if len(sys.argv) > 4 else "2026-08-03"
-        guests = int(sys.argv[5]) if len(sys.argv) > 5 else 2
-        result = full_travel_plan(city, checkin, checkout, guests)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-
-    elif cmd == "attractions":
-        city = sys.argv[2] if len(sys.argv) > 2 else "Gdańsk"
-        result = find_attractions(city)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-
-    elif cmd == "day-trip":
-        city = sys.argv[2] if len(sys.argv) > 2 else "Kraków"
-        result = plan_day_trip(city)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-
-    else:
-        print(f"Nieznana komenda: {cmd}")
+        print(json.dumps(full_travel_plan(city, checkin, checkout), indent=2, ensure_ascii=False))
