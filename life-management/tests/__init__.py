@@ -1,0 +1,1 @@
+"""Life Management System — Tests."""

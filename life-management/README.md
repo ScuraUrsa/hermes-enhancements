@@ -1,120 +1,123 @@
-# POV #13: Life Time Tracker — Core Engine
+# Life Management System
 
-## Co to jest
-
-Kompletny system zarządzania życiem przez CLI. Fundament pod wszystkie moduły life-management.
-
-## Funkcje
-
-### ⏱️ Time Tracker (bloki 5-minutowe)
-- `start <kategoria> [osoba_id]` — rozpocznij blok czasu
-- `stop [opis]` — zakończ blok
-- `log <start> <end> <kat>` — ręcznie dodaj blok wstecz
-- `today` — podsumowanie dnia
-- `week` — raport tygodniowy
-
-### 👥 People CRM (50 osób)
-- `people-add <imię> <kategoria>` — dodaj osobę
-- `people` — lista wszystkich osób
-- `balance` — balans czasu spędzonego z każdą osobą (30 dni)
-- `attention` — kto potrzebuje kontaktu (overdue + priorytet)
-- `birthdays [dni]` — nadchodzące urodziny
-
-### 📅 Event Manager
-- `events [dni]` — nadchodzące wydarzenia
-- Automatyczne przypomnienia (reminder_days_before)
-- Recurring events (urodziny co roku)
-
-### 💊 Habit Tracker
-- `pill taken|skipped` — logowanie pigułek + streak
-- `thought <intensywność>` — natarczywe myśli
-- `snack <intensywność>` — podjadanie
-- `habit <typ> <wartość>` — dowolny nawyk
-- `habit-streak <typ>` — sprawdź serię
-
-### 📊 Raporty
-- `brief` — pełny daily brief (czas, wydarzenia, urodziny, kontakt, nawyki)
-- `week` — deep dive tygodniowy
+System do zarządzania każdą minutą życia. Mierzysz czas w 5-minutowych blokach, zarządzasz relacjami z 50 osobami, śledzisz zdrowie, nawyki i produktywność.
 
 ## Architektura
 
 ```
 life-management/
-├── AGENT_ASSIGNMENTS.md    # Koordynacja między agentami
-├── life_cli.py             # CLI + cały core engine (SQLite)
-├── test_life_cli.py        # 27 testów jednostkowych
-├── README.md               # Ten plik
-├── core/                   # SQLAlchemy models (inny agent)
-│   ├── models.py
-│   ├── services.py
-│   └── seed.py
-└── data/
-    └── life_management.db # SQLite (tworzona automatycznie)
+├── data/
+│   └── life_management.db     # SQLite (wszystkie dane)
+├── src/
+│   ├── __init__.py
+│   ├── schema.py              # Schemat bazy (10 tabel)
+│   ├── time_tracker.py        # Time Tracker Core — 5-min bloki
+│   ├── people_crm.py          # People CRM — 50 osób, balans czasu
+│   ├── reporter.py            # Raporty — daily, weekly, balance
+│   └── cli.py                 # CLI — komendy terminalowe
+├── tests/
+│   └── test_core.py           # 42 testy jednostkowe
+└── README.md
 ```
 
-## Baza danych
+## Tabele w bazie
 
-SQLite z 4 tabelami:
-- `people` — osoby (name, category, priority, birthday, contact_frequency_days, last_contact)
-- `time_blocks` — bloki 5-minutowe (start_time, end_time, category, person_id, energy, focus)
-- `events` — wydarzenia (title, event_date, event_type, recurring, reminder_days_before)
-- `habit_log` — logi nawyków (timestamp, habit_type, value, intensity)
-
-## Kategorie czasu
-
-`praca`, `rodzina`, `znajomi`, `zdrowie`, `jedzenie`, `hobby`, `odpoczynek`, `nauka`, `administracja`, `transport`, `higiena`, `inne`
-
-## Kategorie osób
-
-`rodzina_blizsza`, `rodzina_dalsza`, `znajomi_bliscy`, `znajomi`, `wspolpracownicy`, `inni`
+| Tabela | Opis |
+|--------|------|
+| `people` | 50 osób, kategorie, priorytety, urodziny, balans |
+| `time_blocks` | 5-minutowe bloki czasu, energia, focus |
+| `events` | Wydarzenia, urodziny, przypomnienia |
+| `habits` | Nawyki (pigułki, woda, ćwiczenia, focus) |
+| `habit_log` | Dzienne wykonania nawyków |
+| `health_log` | Sen, pigułki, woda, jedzenie, nastrój, natarczywe myśli |
+| `interactions` | Log interakcji z ludźmi |
+| `focus_sessions` | Sesje Pomodoro / deep work |
+| `daily_journal` | Szybki dziennik (gratitude, refleksja) |
+| `weekly_summary` | Tygodniowe podsumowania |
 
 ## Szybki start
 
 ```bash
-# Dodaj osoby
-python3 life_cli.py people-add "Mama" rodzina_blizsza
-python3 life_cli.py people-add "Kumpel Marek" znajomi_bliscy
+cd ~/workspace/hermes-enhancements/life-management
 
-# Śledź czas
-python3 life_cli.py start praca
-python3 life_cli.py stop "Skończyłem kodować"
+# Inicjalizacja bazy + import 50 przykładowych osób
+PYTHONPATH=. python3 -m src.cli init --sample
 
-# Loguj nawyki
-python3 life_cli.py pill taken
-python3 life_cli.py thought 7
+# Śledzenie czasu
+PYTHONPATH=. python3 -m src.cli track start work_deep --energy 8 --planned
+PYTHONPATH=. python3 -m src.cli track stop --focus 9 --satisfaction 8
+PYTHONPATH=. python3 -m src.cli track status
 
-# Codzienny raport
-python3 life_cli.py brief
+# Zarządzanie ludźmi
+PYTHONPATH=. python3 -m src.cli people list
+PYTHONPATH=. python3 -m src.cli people neglected
+PYTHONPATH=. python3 -m src.cli people birthdays --days 30
 
-# Sprawdź kogo zaniedbujesz
-python3 life_cli.py attention
-```
+# Logowanie zdrowia
+PYTHONPATH=. python3 -m src.cli health --pills true --sleep 7.5 --mood 7 --snacking 2 --intrusive 3
 
-## Integracja z Hermesem
+# Sesje focus
+PYTHONPATH=. python3 -m src.cli focus start --task "kodowanie" --duration 25
+PYTHONPATH=. python3 -m src.cli focus stop --focus 8
 
-```bash
-# Codzienny brief o 8:00
-cronjob create --schedule "0 8 * * *" --prompt "Uruchom python3 ~/workspace/hermes-enhancements/life-management/life_cli.py brief i wyślij wynik"
-
-# Przypomnienie o pigułkach o 9:00 i 21:00
-cronjob create --schedule "0 9,21 * * *" --prompt "Przypomnij użytkownikowi o wzięciu pigułek. Uruchom python3 life_cli.py pill taken jeśli użytkownik potwierdzi."
-
-# Tygodniowy raport w niedzielę o 20:00
-cronjob create --schedule "0 20 * * 0" --prompt "Uruchom python3 ~/workspace/hermes-enhancements/life-management/life_cli.py week i wyślij wynik"
+# Raporty
+PYTHONPATH=. python3 -m src.cli report daily
+PYTHONPATH=. python3 -m src.cli report weekly
+PYTHONPATH=. python3 -m src.cli report balance
 ```
 
 ## Testy
 
 ```bash
-python3 -m pytest test_life_cli.py -v
-# 27 passed
+PYTHONPATH=. python3 -m pytest tests/test_core.py -v
+# 42 testów, wszystkie przechodzą
 ```
+
+## Kategorie czasu
+
+| Kategoria | Opis |
+|-----------|------|
+| `work_deep` | Głęboka praca (Pomodoro, flow) |
+| `work_shallow` | Płytka praca (maile, meetingi) |
+| `people` | Czas z ludźmi |
+| `health` | Ćwiczenia, sen, jedzenie |
+| `hobby` | Hobby, pasje |
+| `learning` | Nauka, kursy |
+| `admin` | Administracja, rachunki |
+| `rest` | Świadomy odpoczynek |
+| `waste` | Zmarnowany czas (social media) |
+| `transit` | Transport |
+
+## Kategorie osób
+
+| Kategoria | Domyślny kontakt | Tygodniowy cel |
+|-----------|-----------------|----------------|
+| `family_close` | Codziennie | 120 min |
+| `partner` | Codziennie | 300 min |
+| `friends_close` | Co 3 dni | 90 min |
+| `family_extended` | Co tydzień | 60 min |
+| `friends` | Co 2 tygodnie | 45 min |
+| `work` | Co 5 dni | — |
+| `mentor` | Co miesiąc | 30 min |
+
+## Podział pracy między agentami
+
+Zobacz `AGENT_ASSIGNMENTS.md` — każdy agent ma swój obszar:
+
+- **GŁÓWNY (Coder)**: Time Tracker Core + People CRM ✅ (ten moduł)
+- **Health & Wellness**: pigułki, odżywianie, ćwiczenia, woda, sen
+- **Mind & Habits**: natarczywe myśli, podjadanie, focus, produktywność
+- **Events & Reminders**: urodziny, ważne daty, kalendarz, powiadomienia
+- **Hermes Integration**: skill, cron jobs, voice reminders, dashboard
 
 ## Status
 
-✅ Core engine gotowy
-✅ 27 testów przechodzi
-✅ CLI w pełni funkcjonalne
-⬜ Integracja z Hermes cron jobs
-⬜ Dashboard webowy
-⬜ Aplikacja mobilna
+- [x] Schema (10 tabel)
+- [x] Time Tracker Core (start/stop, 5-min bloki, focus sessions)
+- [x] People CRM (50 osób, balans, neglected detection, birthdays)
+- [x] Reporter (daily briefing, weekly summary, balance alerts)
+- [x] CLI (wszystkie komendy)
+- [x] Testy (42/42 passing)
+- [ ] Hermes skill (do zrobienia przez agenta Integration)
+- [ ] Cron jobs (do zrobienia przez agenta Integration)
+- [ ] Voice reminders (do zrobienia przez agenta Integration)

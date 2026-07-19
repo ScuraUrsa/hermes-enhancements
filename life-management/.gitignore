@@ -1,5 +1,6 @@
 # Life Management — gitignore
 data/*.db
+core/*.db
 __pycache__/
 *.pyc
 .pytest_cache/
