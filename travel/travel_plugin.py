@@ -454,17 +454,18 @@ def convert_currency(amount: float, from_cur: str, to_cur: str) -> dict:
 
 
 def plan_date_night(city: str) -> dict:
-    """Plan a complete date night: dinner + drinks + weather.
+    """Zaplanuj randkę — restauracja, bar, wydarzenie, pogoda.
 
     Args:
         city: 'Gdańsk', 'Sopot', 'Warszawa', etc.
     """
-    restaurants = find_restaurants(city, romantic=True, limit=5)
-    bars = find_bars(city, vibe="cocktail", limit=3)
+    # Use mock data for romantic filtering (Google Places doesn't have 'romantic' field)
+    restaurants = _find_restaurants_mock(city, romantic_only=True, limit=5)
+    bars = _find_restaurants_mock(city, cuisine="wine bar", limit=3)
     weather = get_weather(city)
 
-    dinner = restaurants["restaurants"][0] if restaurants["restaurants"] else None
-    bar = bars["bars"][0] if bars["bars"] else None
+    dinner = restaurants[0] if restaurants else None
+    bar = bars[0] if bars else None
     w = weather.get("weather", {})
 
     plan_lines = []
@@ -480,8 +481,8 @@ def plan_date_night(city: str) -> dict:
         "weather": w,
         "dinner": dinner,
         "drinks": bar,
-        "all_restaurants": restaurants["restaurants"],
-        "all_bars": bars["bars"],
+        "all_restaurants": restaurants,
+        "all_bars": bars,
         "plan": "\n".join(plan_lines) if plan_lines else "Za mało danych — ustaw GOOGLE_PLACES_API_KEY",
     }
 
