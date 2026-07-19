@@ -15,6 +15,7 @@ Importuje LifeDB z life_cli.py i dodaje nowe tabele + CLI komendy.
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, date, timedelta
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Literal
@@ -1110,7 +1111,8 @@ def mind_cli_main():
     """CLI dla modułu Mind & Habits."""
     import sys
 
-    db = MindDB()
+    db_path = os.environ.get("MIND_DB_PATH", "")
+    db = MindDB(db_path) if db_path else MindDB()
     thoughts = IntrusiveThoughtTracker(db)
     snacks = SnackingTracker(db)
     focus = FocusTracker(db)

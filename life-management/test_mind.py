@@ -162,6 +162,11 @@ class TestIntrusiveThoughtTracker(unittest.TestCase):
         cls.db = MindDB(cls.db_path)
         cls.tracker = IntrusiveThoughtTracker(cls.db)
 
+    def setUp(self):
+        """Wyczyść dane przed każdym testem."""
+        self.db.delete("intrusive_thoughts", "1=1")
+        self.db.delete("habit_log", "1=1")
+
     def test_log_and_get_thought(self):
         """Logowanie i pobieranie myśli."""
         t = self.tracker.log_thought(
@@ -178,7 +183,6 @@ class TestIntrusiveThoughtTracker(unittest.TestCase):
         self.assertEqual(t.intensity, 8)
         self.assertEqual(t.coping_strategy, "cognitive_restructuring")
 
-        # Pobierz ponownie
         t2 = self.tracker.get_thought(t.id)
         self.assertIsNotNone(t2)
         self.assertEqual(t2.thought_content, "I'm going to fail this project")
@@ -218,13 +222,11 @@ class TestIntrusiveThoughtTracker(unittest.TestCase):
             intensity=4,
         )
 
-        # Filtruj po CBT pattern
         bw_thoughts = self.tracker.get_thoughts(cbt_pattern="black_and_white")
         self.assertEqual(len(bw_thoughts), 2)
         for t in bw_thoughts:
             self.assertEqual(t["cbt_pattern"], "black_and_white")
 
-        # Filtruj po dacie
         since = (datetime.now() - timedelta(days=1)).isoformat()
         recent = self.tracker.get_thoughts(start_date=since)
         self.assertGreaterEqual(len(recent), 3)
@@ -253,7 +255,6 @@ class TestIntrusiveThoughtTracker(unittest.TestCase):
         self.assertIn("mind_reading", breakdown["patterns"])
         self.assertEqual(breakdown["patterns"]["catastrophizing"]["count"], 2)
         self.assertEqual(breakdown["patterns"]["mind_reading"]["count"], 1)
-        # Średnia intensywność catastrophizing: (8+6)/2 = 7.0
         self.assertEqual(breakdown["patterns"]["catastrophizing"]["avg_intensity"], 7.0)
 
     def test_top_triggers(self):
@@ -273,7 +274,6 @@ class TestIntrusiveThoughtTracker(unittest.TestCase):
 
         triggers = self.tracker.get_top_triggers(days=30)
         self.assertGreaterEqual(len(triggers), 2)
-        # work stress powinien być pierwszy (2x)
         self.assertEqual(triggers[0]["trigger"], "work stress")
         self.assertEqual(triggers[0]["count"], 2)
 
@@ -308,6 +308,11 @@ class TestSnackingTracker(unittest.TestCase):
             os.remove(cls.db_path)
         cls.db = MindDB(cls.db_path)
         cls.tracker = SnackingTracker(cls.db)
+
+    def setUp(self):
+        """Wyczyść dane przed każdym testem."""
+        self.db.delete("snacking_log", "1=1")
+        self.db.delete("habit_log", "1=1")
 
     def test_log_and_get_snack(self):
         """Logowanie i pobieranie epizodu podjadania."""
@@ -358,7 +363,6 @@ class TestSnackingTracker(unittest.TestCase):
             feeling_after="satisfied", intensity=6,
         )
 
-        # Filtruj po triggerze
         stress_snacks = self.tracker.get_snacks(trigger_type="stress")
         self.assertEqual(len(stress_snacks), 2)
         for s in stress_snacks:
@@ -385,7 +389,6 @@ class TestSnackingTracker(unittest.TestCase):
         self.assertIn("boredom", breakdown["triggers"])
         self.assertEqual(breakdown["triggers"]["stress"]["count"], 2)
         self.assertEqual(breakdown["triggers"]["boredom"]["count"], 1)
-        # Średnia intensywność stress: (8+7)/2 = 7.5
         self.assertEqual(breakdown["triggers"]["stress"]["avg_intensity"], 7.5)
 
     def test_feeling_after_breakdown(self):
@@ -427,7 +430,6 @@ class TestSnackingTracker(unittest.TestCase):
         self.assertIn("trigger_response_map", tmap)
         self.assertIn("stress", tmap["trigger_response_map"])
         stress_responses = tmap["trigger_response_map"]["stress"]
-        # chocolate → guilty powinno być 2x
         choc = [r for r in stress_responses if r["food"] == "chocolate"]
         self.assertEqual(len(choc), 1)
         self.assertEqual(choc[0]["count"], 2)
@@ -444,6 +446,11 @@ class TestFocusTracker(unittest.TestCase):
             os.remove(cls.db_path)
         cls.db = MindDB(cls.db_path)
         cls.tracker = FocusTracker(cls.db)
+
+    def setUp(self):
+        """Wyczyść dane przed każdym testem."""
+        self.db.delete("focus_sessions", "1=1")
+        self.db.delete("habit_log", "1=1")
 
     def test_log_manual_session(self):
         """Ręczne logowanie sesji focus."""
@@ -544,7 +551,6 @@ class TestFocusTracker(unittest.TestCase):
 
         dists = self.tracker.get_top_distractions(days=30)
         self.assertGreaterEqual(len(dists), 1)
-        # phone powinien być najczęstszy
         self.assertEqual(dists[0]["distraction"], "phone")
         self.assertEqual(dists[0]["count"], 3)
 
@@ -557,11 +563,9 @@ class TestFocusTracker(unittest.TestCase):
         self.assertEqual(session.task_description, "Live coding session")
         self.assertEqual(session.duration_minutes, 25)
 
-        # Dodaj dystrakcję
         self.tracker.log_distraction("phone call")
         self.tracker.log_distraction("slack message")
 
-        # Zakończ
         ended = self.tracker.end_session(
             completed=True,
             productivity_score=9,
@@ -575,7 +579,6 @@ class TestFocusTracker(unittest.TestCase):
 
     def test_end_session_without_start(self):
         """Zakończenie bez rozpoczęcia zwraca None."""
-        # Użyj nowej instancji bez aktywnej sesji
         db2 = MindDB(str(Path(__file__).parent / "data" / "test_mind_focus2.db"))
         if os.path.exists(db2.db_path):
             os.remove(db2.db_path)
@@ -595,6 +598,10 @@ class TestDailyGoalsManager(unittest.TestCase):
         cls.db = MindDB(cls.db_path)
         cls.manager = DailyGoalsManager(cls.db)
 
+    def setUp(self):
+        """Wyczyść dane przed każdym testem."""
+        self.db.delete("daily_goals", "1=1")
+
     def test_set_and_get_goals(self):
         """Ustawianie i pobieranie celów."""
         goals = self.manager.set_goals([
@@ -608,7 +615,6 @@ class TestDailyGoalsManager(unittest.TestCase):
         self.assertEqual(goals[1].goal_text, "Go to the gym")
         self.assertEqual(goals[2].goal_text, "Read 30 pages")
 
-        # Pobierz dzisiejsze
         today_goals = self.manager.get_today_goals()
         self.assertEqual(len(today_goals), 3)
 
@@ -633,12 +639,10 @@ class TestDailyGoalsManager(unittest.TestCase):
         goals = self.manager.set_goals(["Test goal"])
         goal_id = goals[0].id
 
-        # Ukończ
         completed = self.manager.complete_goal(goal_id)
         self.assertTrue(completed.completed)
         self.assertIsNotNone(completed.completed_at)
 
-        # Cofnij
         uncompleted = self.manager.uncomplete_goal(goal_id)
         self.assertFalse(uncompleted.completed)
         self.assertIsNone(uncompleted.completed_at)
@@ -655,7 +659,6 @@ class TestDailyGoalsManager(unittest.TestCase):
         self.manager.set_goals(["Goal A", "Goal B", "Goal C"])
         today_goals = self.manager.get_today_goals()
 
-        # Ukończ 2 z 3
         self.manager.complete_goal(today_goals[0].id)
         self.manager.complete_goal(today_goals[1].id)
 
@@ -676,6 +679,11 @@ class TestWeeklyReviewManager(unittest.TestCase):
         cls.db = MindDB(cls.db_path)
         cls.manager = WeeklyReviewManager(cls.db)
 
+    def setUp(self):
+        """Wyczyść dane przed każdym testem."""
+        self.db.delete("weekly_reviews", "1=1")
+        self.db.delete("daily_goals", "1=1")
+
     def test_create_and_get_review(self):
         """Tworzenie i pobieranie przeglądu."""
         r = self.manager.create_review(
@@ -693,7 +701,6 @@ class TestWeeklyReviewManager(unittest.TestCase):
         self.assertIn("Finished the project", r.what_went_well)
         self.assertIn("Less snacking", r.what_to_improve)
 
-        # Pobierz ponownie
         r2 = self.manager.get_review(r.id)
         self.assertIsNotNone(r2)
         self.assertEqual(r2.lessons_learned, "Planning ahead reduces stress")
@@ -765,12 +772,10 @@ class TestWeeklyReviewManager(unittest.TestCase):
     def test_review_auto_counts_goals(self):
         """Przegląd automatycznie zlicza cele z tygodnia."""
         goals_mgr = DailyGoalsManager(self.db)
-        # Ustaw cele na ten tydzień
         today = date.today()
         week_start = (today - timedelta(days=today.weekday())).isoformat()
         goals_mgr.set_goals(["Goal 1", "Goal 2", "Goal 3"], goal_date=week_start)
 
-        # Ukończ 2
         day_goals = goals_mgr.get_goals_for_date(week_start)
         goals_mgr.complete_goal(day_goals[0].id)
         goals_mgr.complete_goal(day_goals[1].id)
@@ -794,9 +799,14 @@ class TestMindReportGenerator(unittest.TestCase):
         cls.db = MindDB(cls.db_path)
         cls.reports = MindReportGenerator(cls.db)
 
+    def setUp(self):
+        """Wyczyść dane przed każdym testem."""
+        for table in ["intrusive_thoughts", "snacking_log", "focus_sessions",
+                       "daily_goals", "weekly_reviews", "habit_log"]:
+            self.db.delete(table, "1=1")
+
     def test_mind_daily_brief(self):
         """Daily brief powinien się wygenerować."""
-        # Dodaj trochę danych
         self.reports.thoughts.log_thought(
             thought_content="Test thought",
             trigger="test",
@@ -923,15 +933,32 @@ class TestDataClasses(unittest.TestCase):
 
 
 class TestMindCLI(unittest.TestCase):
-    """Testy CLI (przez subprocess)."""
+    """Testy CLI (przez subprocess) — używają izolowanej testowej bazy."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.test_db = str(Path(__file__).parent / "data" / "test_mind_cli.db")
+        cls.mind_script = str(Path(__file__).parent / "mind.py")
+
+    def setUp(self):
+        """Usuń starą testową bazę przed każdym testem."""
+        if os.path.exists(self.test_db):
+            os.remove(self.test_db)
+
+    def _run(self, *args):
+        """Uruchom mind.py z testową bazą."""
+        import subprocess
+        env = os.environ.copy()
+        env["MIND_DB_PATH"] = self.test_db
+        return subprocess.run(
+            ["python3", self.mind_script] + list(args),
+            capture_output=True, text=True, timeout=10,
+            env=env,
+        )
 
     def test_cli_help(self):
         """CLI bez argumentów pokazuje help."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "mind.py")],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run()
         self.assertEqual(result.returncode, 0)
         self.assertIn("Mind & Habits", result.stdout)
         self.assertIn("thought-log", result.stdout)
@@ -943,121 +970,69 @@ class TestMindCLI(unittest.TestCase):
 
     def test_cli_thought_log(self):
         """CLI thought-log komenda."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "mind.py"),
-             "thought-log", "test thought", "test trigger", "catastrophizing", "7"],
-            capture_output=True, text=True, timeout=10,
+        result = self._run(
+            "thought-log", "test thought", "test trigger", "catastrophizing", "7"
         )
         self.assertEqual(result.returncode, 0)
         self.assertIn("Zalogowano myśl", result.stdout)
 
     def test_cli_snack_log(self):
         """CLI snack-log komenda."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "mind.py"),
-             "snack-log", "stress", "chocolate", "guilty", "8"],
-            capture_output=True, text=True, timeout=10,
+        result = self._run(
+            "snack-log", "stress", "chocolate", "guilty", "8"
         )
         self.assertEqual(result.returncode, 0)
         self.assertIn("Zalogowano podjadanie", result.stdout)
 
     def test_cli_goals_set_and_today(self):
         """CLI goals-set i goals-today."""
-        import subprocess
-        # Ustaw cele
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "mind.py"),
-             "goals-set", "Goal A | Goal B | Goal C"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("goals-set", "Goal A | Goal B | Goal C")
         self.assertEqual(result.returncode, 0)
         self.assertIn("Ustawiono", result.stdout)
 
-        # Pokaż cele
-        result2 = subprocess.run(
-            ["python3", str(Path(__file__).parent / "mind.py"),
-             "goals-today"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result2 = self._run("goals-today")
         self.assertEqual(result2.returncode, 0)
         self.assertIn("Goal A", result2.stdout)
 
     def test_cli_focus_today(self):
         """CLI focus-today."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "mind.py"),
-             "focus-today"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("focus-today")
         self.assertEqual(result.returncode, 0)
         self.assertIn("Focus dziś", result.stdout)
 
     def test_cli_mind_brief(self):
         """CLI mind-brief."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "mind.py"),
-             "mind-brief"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("mind-brief")
         self.assertEqual(result.returncode, 0)
         self.assertIn("MIND & HABITS", result.stdout)
 
     def test_cli_mind_week(self):
         """CLI mind-week."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "mind.py"),
-             "mind-week"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("mind-week")
         self.assertEqual(result.returncode, 0)
         self.assertIn("RAPORT TYGODNIOWY", result.stdout)
 
     def test_cli_thought_patterns(self):
         """CLI thought-patterns."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "mind.py"),
-             "thought-patterns", "30"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("thought-patterns", "30")
         self.assertEqual(result.returncode, 0)
         self.assertIn("CBT Patterns", result.stdout)
 
     def test_cli_snack_triggers(self):
         """CLI snack-triggers."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "mind.py"),
-             "snack-triggers", "30"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("snack-triggers", "30")
         self.assertEqual(result.returncode, 0)
         self.assertIn("Triggery podjadania", result.stdout)
 
     def test_cli_goals_stats(self):
         """CLI goals-stats."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "mind.py"),
-             "goals-stats", "30"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("goals-stats", "30")
         self.assertEqual(result.returncode, 0)
         self.assertIn("Cele", result.stdout)
 
     def test_cli_review_list(self):
         """CLI review-list."""
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(Path(__file__).parent / "mind.py"),
-             "review-list"],
-            capture_output=True, text=True, timeout=10,
-        )
+        result = self._run("review-list")
         self.assertEqual(result.returncode, 0)
 
 
