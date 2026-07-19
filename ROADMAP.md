@@ -21,6 +21,14 @@
 - [ ] Przetestuj: `terminal("ls /")` — czy działa w kontenerze?
 - [ ] POV: bezpieczne uruchamianie kodu
 
+### 1.4 Travel & Booking MCP Server
+- [x] Research: MCP serwery, API lotnicze, hotelowe, restauracyjne, eventowe
+- [x] POV: `travel_mcp_server.py` — 5 narzędzi (flights, restaurants, venues, events, weather)
+- [x] Zero zależności — tylko Python stdlib
+- [ ] Zdobądź API keys: Amadeus, Google Places, Eventbrite, OpenWeatherMap
+- [ ] Przetestuj z Hermesem: "Znajdź loty GDN→BCN, restauracje i wydarzenia na weekend"
+- [ ] Zintegruj jako MCP server: `hermes mcp add travel`
+
 ## Faza 2: Średnioterminowe (2-4 tygodnie)
 
 ### 2.1 Mem0 Memory

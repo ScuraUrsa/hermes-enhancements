@@ -28,6 +28,10 @@
 | 16 | **Mobile native app** | 5 | 8 | $ | Gateway działa | 🟢 LOW | ⬜ |
 | 17 | **Edge AI (RPi)** | 4 | 7 | $$ | Hardware needed | 🟢 LOW | ⬜ |
 | 18 | **Langfuse Monitoring** | 8 | 3 | $ | Open-source | 🟡 MEDIUM | ✅ POV #11 |
+| 19 | **Travel MCP Server** | 9 | 3 | $ | API keys needed | 🔴 HIGH | ✅ POV #12 |
+| 20 | **Google Places Restaurants** | 8 | 2 | $ | API key needed | 🔴 HIGH | ✅ POV #12 |
+| 21 | **Eventbrite Events** | 7 | 2 | $ | API key needed | 🟡 MEDIUM | ✅ POV #12 |
+| 22 | **Amadeus Flights** | 8 | 3 | $ | API key needed | 🟡 MEDIUM | ✅ POV #12 |
 
 ## Top 3 — Zrób teraz (HIGH Impact + LOW Effort)
 
