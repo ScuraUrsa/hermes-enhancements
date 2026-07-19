@@ -443,6 +443,7 @@ class DateNightPlanner:
         budget: int = 2,  # 1=$, 2=$$, 3=$$$, 4=$$$$
         travel_mode: str = "DRIVE",
         vibe: str = "romantic",
+        log=None,
     ) -> dict:
         """
         Główna funkcja planowania randki.
@@ -453,10 +454,14 @@ class DateNightPlanner:
             budget: poziom cenowy 1-4
             travel_mode: DRIVE, WALK, BICYCLE, TRANSIT
             vibe: nastrój — romantic, casual, fancy, adventurous
+            log: file handle for progress output (defaults to sys.stdout)
 
         Returns:
             dict z pełnym planem randki
         """
+        if log is None:
+            log = sys.stdout
+
         plan = {
             "origin": origin_address,
             "destination": destination_address,
@@ -472,7 +477,7 @@ class DateNightPlanner:
         }
 
         # 1. Geokodowanie
-        print(f"\n📍 Geokodowanie adresów...")
+        print(f"\n📍 Geokodowanie adresów...", file=log)
         origin_coords = None
         dest_coords = None
 
@@ -489,12 +494,12 @@ class DateNightPlanner:
 
         plan["origin_coords"] = origin_coords
         plan["dest_coords"] = dest_coords
-        print(f"  Origin: {origin_coords}")
-        print(f"  Destination: {dest_coords}")
+        print(f"  Origin: {origin_coords}", file=log)
+        print(f"  Destination: {dest_coords}", file=log)
 
         # 2. Google Maps Routes
         if self.gmaps:
-            print(f"\n🗺️  Obliczanie trasy ({travel_mode})...")
+            print(f"\n🗺️  Obliczanie trasy ({travel_mode})...", file=log)
             route = self.gmaps.compute_route(
                 origin_coords[0], origin_coords[1],
                 dest_coords[0], dest_coords[1],
@@ -508,14 +513,14 @@ class DateNightPlanner:
                     "description": r.get("description", ""),
                 }
                 duration_sec = int(r.get("duration", "0s").rstrip("s"))
-                print(f"  Dystans: {r.get('distanceMeters', '?')}m")
-                print(f"  Czas: {duration_sec // 60} min")
+                print(f"  Dystans: {r.get('distanceMeters', '?')}m", file=log)
+                print(f"  Czas: {duration_sec // 60} min", file=log)
             else:
                 plan["errors"].append("Routes API nie zwróciło trasy")
 
         # 3. Google Maps Places — miejsca w pobliżu celu
         if self.gmaps:
-            print(f"\n🍽️  Wyszukiwanie miejsc w pobliżu celu...")
+            print(f"\n🍽️  Wyszukiwanie miejsc w pobliżu celu...", file=log)
             place_types = self._vibe_to_place_types(vibe)
             places = self.gmaps.nearby_places(
                 dest_coords[0], dest_coords[1],
@@ -531,11 +536,11 @@ class DateNightPlanner:
                     "price_level": p.get("priceLevel"),
                     "maps_url": p.get("googleMapsUri", ""),
                 })
-            print(f"  Znaleziono {len(places)} miejsc")
+            print(f"  Znaleziono {len(places)} miejsc", file=log)
 
         # 4. Uber — szacowanie ceny
         if self.uber:
-            print(f"\n🚗 Szacowanie ceny Ubera...")
+            print(f"\n🚗 Szacowanie ceny Ubera...", file=log)
             prices = self.uber.price_estimate(
                 origin_coords[0], origin_coords[1],
                 dest_coords[0], dest_coords[1],
@@ -547,11 +552,11 @@ class DateNightPlanner:
                     "duration": p.get("duration"),
                     "distance": p.get("distance"),
                 })
-            print(f"  Dostępne opcje: {len(prices)}")
+            print(f"  Dostępne opcje: {len(prices)}", file=log)
 
         # 5. TripAdvisor — wyszukiwanie miejsc
         if self.tripadvisor:
-            print(f"\n⭐ TripAdvisor — wyszukiwanie...")
+            print(f"\n⭐ TripAdvisor — wyszukiwanie...", file=log)
             ta_venues = self.tripadvisor.search_locations(
                 query=vibe,
                 category="restaurants",
@@ -565,11 +570,11 @@ class DateNightPlanner:
                     "rating": v.get("rating"),
                     "num_reviews": v.get("num_reviews"),
                 })
-            print(f"  Znaleziono {len(ta_venues)} miejsc")
+            print(f"  Znaleziono {len(ta_venues)} miejsc", file=log)
 
         # 6. Yelp — wyszukiwanie
         if self.yelp:
-            print(f"\n🌟 Yelp — wyszukiwanie...")
+            print(f"\n🌟 Yelp — wyszukiwanie...", file=log)
             yelp_categories = self._vibe_to_yelp_categories(vibe)
             yelp_venues = self.yelp.search_businesses(
                 term=vibe,
@@ -587,7 +592,7 @@ class DateNightPlanner:
                     "url": v.get("url", ""),
                     "categories": [c.get("title") for c in v.get("categories", [])],
                 })
-            print(f"  Znaleziono {len(yelp_venues)} miejsc")
+            print(f"  Znaleziono {len(yelp_venues)} miejsc", file=log)
 
         return plan
 
@@ -712,8 +717,11 @@ def main():
 
     config = Config()
 
+    # W trybie JSON logi idą na stderr, JSON na stdout
+    log = sys.stderr if args.json else sys.stdout
+
     # Sprawdź dostępność API
-    print("🔑 Sprawdzanie dostępności API...")
+    print("🔑 Sprawdzanie dostępności API...", file=log)
     apis = {
         "Google Maps": bool(config.google_api_key),
         "Uber": bool(config.uber_client_id),
@@ -722,17 +730,17 @@ def main():
     }
     for name, available in apis.items():
         status = "✅" if available else "❌ (brak klucza)"
-        print(f"  {name}: {status}")
+        print(f"  {name}: {status}", file=log)
 
     if not any(apis.values()):
-        print("\n⚠️  Brak kluczy API! Ustaw zmienne środowiskowe:")
-        print("  export GOOGLE_MAPS_API_KEY='...'")
-        print("  export UBER_CLIENT_ID='...'")
-        print("  export UBER_CLIENT_SECRET='...'")
-        print("  export TRIPADVISOR_API_KEY='...'")
-        print("  export YELP_API_KEY='...'")
-        print("\n💡 Demo działa w trybie 'dry-run' — pokazuje strukturę bez API.")
-        print("   Zobacz README.md po instrukcje konfiguracji.")
+        print("\n⚠️  Brak kluczy API! Ustaw zmienne środowiskowe:", file=log)
+        print("  export GOOGLE_MAPS_API_KEY='...'", file=log)
+        print("  export UBER_CLIENT_ID='...'", file=log)
+        print("  export UBER_CLIENT_SECRET='...'", file=log)
+        print("  export TRIPADVISOR_API_KEY='...'", file=log)
+        print("  export YELP_API_KEY='...'", file=log)
+        print("\n💡 Demo działa w trybie 'dry-run' — pokazuje strukturę bez API.", file=log)
+        print("   Zobacz README.md po instrukcje konfiguracji.", file=log)
 
     # Planuj
     planner = DateNightPlanner(config)
@@ -742,6 +750,7 @@ def main():
         budget=args.budget,
         travel_mode=args.mode,
         vibe=args.vibe,
+        log=log,
     )
 
     if args.json:
