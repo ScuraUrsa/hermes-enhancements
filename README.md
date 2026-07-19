@@ -24,14 +24,16 @@ hermes-enhancements/
 │   └── mobile-edge.md           # Mobile app, Raspberry Pi
 └── POV/                         # Proof of Value (działające prototypy)
     ├── 01-elevenlabs-tts/       # ✅ ElevenLabs TTS (działa!)
-    │   ├── README.md
-    │   └── demo.py
     ├── 02-browser-automation/   # ✅ Selenium + Chrome (działa!)
-    │   ├── README.md
-    │   └── demo.py
-    └── 03-mem0-memory/          # ✅ Mem0 koncepcja (offline demo)
-        ├── README.md
-        └── demo.py
+    ├── 03-mem0-memory/          # ✅ Mem0 koncepcja (offline demo)
+    ├── 04-token-monitor/        # ✅ Ollama Cloud token monitor
+    ├── 05-crewai-orchestration/ # ✅ CrewAI multi-agent orchestration
+    ├── 06-qdrant-rag/           # ✅ Qdrant RAG pipeline
+    ├── 07-voice-pipeline/       # ✅ Real-time Voice Pipeline (STT → LLM → TTS)
+    ├── 08-notion-integration/   # ✅ Notion API integration
+    ├── 09-github-mcp/           # ✅ GitHub MCP server
+    ├── 10-hermes-selenium-plugin/ # ✅ Hermes Selenium desktop plugin
+    └── 11-langfuse-monitoring/  # ✅ Langfuse LLM observability
 ```
 
 ## Top 3 — Zrób teraz (HIGH Impact + LOW Effort)
@@ -88,3 +90,19 @@ Wymaga `sudo usermod -aG docker $USER` lub root.
 ## Commity
 
 Wszystkie zmiany w repo: https://github.com/ScuraUrsa/hermes-enhancements
+
+## Wszystkie POV (11/11 ✅)
+
+| # | POV | Impact | Effort | Status |
+|---|-----|--------|--------|--------|
+| 1 | ElevenLabs TTS | 8 | 4 | ✅ |
+| 2 | Browser Automation (Selenium) | 9 | 3 | ✅ |
+| 3 | Mem0 Memory | 7 | 5 | ✅ |
+| 4 | Token Monitor | 6 | 2 | ✅ |
+| 5 | CrewAI Orchestration | 8 | 5 | ✅ |
+| 6 | Qdrant RAG | 8 | 6 | ✅ |
+| 7 | Voice Pipeline (STT→LLM→TTS) | 9 | 6 | ✅ |
+| 8 | Notion Integration | 6 | 4 | ✅ |
+| 9 | GitHub MCP | 6 | 3 | ✅ |
+| 10 | Selenium Desktop Plugin | 7 | 5 | ✅ |
+| 11 | Langfuse Monitoring | 8 | 3 | ✅ |
