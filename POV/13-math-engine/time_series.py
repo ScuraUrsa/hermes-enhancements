@@ -352,7 +352,7 @@ class TimeSeriesAnalyzer:
                     "forecast_lower": forecast_ci[:, 0].tolist(),
                     "forecast_upper": forecast_ci[:, 1].tolist(),
                     "residuals": fitted.resid.tolist(),
-                    "params": {k: float(v) for k, v in fitted.params.to_dict().items()},
+                    "params": {str(k): float(v) for k, v in zip(fitted.model.param_names, fitted.params)},
                 },
                 metadata={"order": order, "seasonal_order": seasonal_order,
                          "forecast_horizon": forecast_horizon, "method": "statsmodels"},

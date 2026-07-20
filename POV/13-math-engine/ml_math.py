@@ -311,6 +311,7 @@ class MLMath:
 
             # Predictions
             y_pred = np.sign(X_bias @ w)
+            y_pred[y_pred == 0] = 1  # Map zero to positive
             accuracy = float(np.mean(y_pred == y))
 
             # Support vectors: points with margin <= 1
@@ -400,6 +401,7 @@ class MLMath:
             # Predictions
             decision = (alpha * y) @ K + bias
             y_pred = np.sign(decision)
+            y_pred[y_pred == 0] = 1  # Map zero to positive
             accuracy = float(np.mean(y_pred == y))
 
             return MLResult(
@@ -472,6 +474,11 @@ class MLMath:
         try:
             X = np.asarray(X, dtype=float)
             n_samples, n_features = X.shape
+
+            # Edge case: more clusters than samples
+            if k > n_samples:
+                k = n_samples
+
             rng = np.random.RandomState(seed)
 
             best_inertia = np.inf
@@ -489,8 +496,12 @@ class MLMath:
                         [np.sum((X - centroids[j]) ** 2, axis=1) for j in range(c)],
                         axis=0,
                     )
-                    probs = dists / np.sum(dists)
-                    centroids[c] = X[np.random.choice(n_samples, p=probs)]
+                    total = np.sum(dists)
+                    if total <= 0:
+                        probs = np.ones(n_samples) / n_samples
+                    else:
+                        probs = dists / total
+                    centroids[c] = X[rng.choice(n_samples, p=probs)]
 
                 history = [centroids.copy()]
                 for it in range(max_iter):
