@@ -68,9 +68,17 @@ class Transforms:
         try:
             t = sp.symbols(t_var, positive=True)
             s = sp.symbols(s_var)
-            f = sp.sympify(expr)
+            # Use the same t symbol in the expression
+            local_dict = {t_var: t}
+            f = sp.sympify(expr, locals=local_dict)
 
-            F, convergence_condition = sp.laplace_transform(f, t, s, noconds=False)
+            F_result = sp.laplace_transform(f, t, s, noconds=False)
+            # Handle different SymPy versions (returns 2 or 3 values)
+            if len(F_result) == 3:
+                F, a, cond = F_result
+                convergence_condition = f"Re(s) > {a}"
+            else:
+                F, convergence_condition = F_result
 
             return TRResult(
                 success=True,
@@ -101,7 +109,8 @@ class Transforms:
         try:
             s = sp.symbols(s_var)
             t = sp.symbols(t_var, positive=True)
-            F = sp.sympify(expr)
+            local_dict = {s_var: s}
+            F = sp.sympify(expr, locals=local_dict)
 
             f = sp.inverse_laplace_transform(F, s, t)
 
@@ -546,7 +555,8 @@ class Transforms:
         try:
             t = sp.symbols(t_var, real=True)
             w = sp.symbols(w_var, real=True)
-            f = sp.sympify(expr)
+            local_dict = {t_var: t}
+            f = sp.sympify(expr, locals=local_dict)
 
             F = sp.fourier_transform(f, t, w)
 
@@ -569,7 +579,8 @@ class Transforms:
         try:
             w = sp.symbols(w_var, real=True)
             t = sp.symbols(t_var, real=True)
-            F = sp.sympify(expr)
+            local_dict = {w_var: w}
+            F = sp.sympify(expr, locals=local_dict)
 
             f = sp.inverse_fourier_transform(F, w, t)
 
