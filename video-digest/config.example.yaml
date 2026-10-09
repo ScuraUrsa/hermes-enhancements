@@ -1,0 +1,17 @@
+# ~/.hermes/ytdigest/config.yaml  (everything optional; defaults in ytdigest/config.py)
+report_language: pl
+# accounts processed by the backlog, in this order
+accounts: [koalamis6, fjkazmierczak, kazmierczakfilipjan, praktyki]
+# playlists not owned through the API (e.g. a koalamis brand channel), by URL
+extra_playlists: []
+#  - {account: koalamis6, name: "Do obejrzenia", url: "https://www.youtube.com/playlist?list=PL..."}
+skip_playlists: []
+include_liked: false
+# USD per day for unattended backlog work (Filip's own requests are not capped)
+backlog_daily_cap_usd: 1.00
+# benchmark routing table (vbench); empty = vbench/routing.json next to this folder, else built-in defaults
+routing_file: ""
+transcript_order: [manual, groq, parakeet, local, auto]
+# phone notification when a one-click digest finishes (needs HASS_URL + HASS_TOKEN in env)
+notify_ha_service: ""   # e.g. notify.mobile_app_sm_g780f
+notion_data_source_id: 561ac2c0-89c5-4d5a-aa40-67ab0f248e9c
