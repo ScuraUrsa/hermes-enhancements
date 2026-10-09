@@ -92,7 +92,8 @@ def process(url: str, cfg: dict, *, account: str | None = None, playlists: list[
             audio_cache["p"] = fetch.download_audio(bundle["url"], work, cookies)
         return audio_cache["p"]
 
-    tr = transcript.get(info, cfg, work, cookies, audio_getter)
+    tcfg = {**cfg, "whisper_groq_model": table.get("_transcribe_groq_model") or cfg["whisper_groq_model"]}
+    tr = transcript.get(info, tcfg, work, cookies, audio_getter)
     bundle["transcript"] = tr
     bundle["language"] = bundle["language"] or tr.get("language")
     bundle["audio"]["speech_ratio"] = transcript.speech_ratio(tr["segments"], bundle["duration_sec"] or 0)
@@ -102,7 +103,7 @@ def process(url: str, cfg: dict, *, account: str | None = None, playlists: list[
     # 4. classify (cheap model) unless the rule was already sure
     if not cls:
         try:
-            cls = classify.with_model(client, table["default"]["classify"], info, head, bundle["audio"]["speech_ratio"])
+            cls = classify.with_model(client, table["default"]["classify"], info, head, bundle["audio"]["speech_ratio"], tr["source"])
         except Exception as exc:
             log(f"[{vid}] classify failed ({exc}); using 'other'")
             cls = {"video_type": "other", "is_artistic": False, "confidence": 0.3, "reason": "classifier failed"}
@@ -142,7 +143,8 @@ def process(url: str, cfg: dict, *, account: str | None = None, playlists: list[
                 bundle["frames"] = frames.extract_frames(video, bundle_dir, bundle["duration_sec"], bundle["yt_chapters"], fcfg)
                 bundle["prep"] = {"frames_per_min": frames_per_min, "scene_threshold": cfg["scene_threshold"]}
                 if bundle["frames"]:
-                    vision.describe(client, route["vision"], bundle_dir, bundle["frames"], tr["segments"], cfg["report_language"])
+                    vision.describe(client, route["vision"], bundle_dir, bundle["frames"], tr["segments"],
+                                    cfg["report_language"], title=bundle.get("title") or "")
                     run["visual"] = any(f.get("caption") for f in bundle["frames"])
             except Exception as exc:
                 log(f"[{vid}] visual analysis skipped: {str(exc)[:200]}")

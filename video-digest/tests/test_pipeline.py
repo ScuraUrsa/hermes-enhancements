@@ -42,7 +42,7 @@ def faked(monkeypatch):
     def fake_json(self, ref, system, user, images=None, max_tokens=4000):
         calls["llm"].append(ref)
         self._record(ref, llm.split_ref(ref)[1], 1000, 200)
-        if "classify" in system or "video_type from" in user:
+        if "classify" in system or "video_type from" in user or "Video types (pick exactly one)" in system:
             return {"video_type": "explainer_visual", "is_artistic": False, "confidence": 0.9}
         if images:
             return {"frames": [{"n": i + 1, "caption": f"kadr {i}", "adds_information": True} for i in range(len(images))]}

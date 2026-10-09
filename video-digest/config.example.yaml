@@ -10,7 +10,7 @@ include_liked: false
 # USD per day for unattended backlog work (Filip's own requests are not capped)
 backlog_daily_cap_usd: 1.00
 # benchmark routing table (vbench); empty = vbench/routing.json next to this folder, else built-in defaults
-routing_file: ""
+routing_file: ""          # install.sh: point at <repo>/vbench/routing.json
 transcript_order: [manual, groq, parakeet, local, auto]
 # phone notification when a one-click digest finishes (needs HASS_URL + HASS_TOKEN in env)
 notify_ha_service: ""   # e.g. notify.mobile_app_sm_g780f

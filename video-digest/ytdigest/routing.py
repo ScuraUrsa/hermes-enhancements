@@ -58,11 +58,32 @@ def load(cfg: dict) -> dict[str, dict]:
         path = str(sibling) if sibling.is_file() else ""
     if path and Path(path).is_file():
         loaded = json.loads(Path(path).read_text(encoding="utf-8"))
-        for vtype, row in loaded.items():
-            if vtype.startswith("_") or not isinstance(row, dict):
-                continue
-            table[vtype] = {**table.get(vtype, table["default"]), **row}
+        provisional = bool(loaded.get("provisional"))
+        vb_default = loaded.get("default") if isinstance(loaded.get("default"), dict) else {}
+        for vtype in ["default", *VIDEO_TYPES]:
+            row = {**vb_default, **(loaded.get(vtype) if isinstance(loaded.get(vtype), dict) else {})}
+            if row:  # types vbench doesn't list inherit its "default" row
+                table[vtype] = _from_vbench(table.get(vtype, table["default"]), row, provisional)
+        tr = (loaded.get("transcribe") or {}).get("default") or {}
+        if str(tr.get("ref", "")).startswith("groq:"):
+            table["_transcribe_groq_model"] = tr["ref"].split(":", 1)[1].split("@")[0]
     return table
+
+
+def _from_vbench(base: dict, row: dict, provisional: bool) -> dict:
+    """Merge one vbench routing row. A report ref "gemini-video:<model>@fps=x" means
+    Gemini reads the URL. While the table is provisional (no benchmark data yet) the
+    Gemini URL path stays the default and vbench's picks drive the fallback path."""
+    out = {**base, **{k: v for k, v in row.items() if k in ("classify", "vision", "report", "frames_per_min", "skip") and v is not None}}
+    rep = str(row.get("report") or "")
+    if rep.startswith("gemini-video:"):
+        model = rep.split(":", 1)[1].split("@")[0]
+        opts = dict(kv.split("=", 1) for kv in rep.split("@")[1:] if "=" in kv)
+        out.update(analyzer="gemini_url", url_model=f"gemini:{model}", url_fps=float(opts.get("fps", base.get("url_fps", 0.2))))
+        out["report"] = base["report"]  # text model for the fallback path
+    elif not provisional:
+        out["analyzer"] = "frames"
+    return out
 
 
 def route(table: dict[str, dict], video_type: str) -> dict:

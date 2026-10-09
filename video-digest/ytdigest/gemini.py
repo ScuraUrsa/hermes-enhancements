@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import time
 
+from . import shared
 from .llm import LLMError, parse_json
 from .report import FIELDS, _instructions, _meta, normalise
 from .routing import VIDEO_TYPES
@@ -45,14 +46,19 @@ def analyse(client, model: str, bundle: dict, cfg: dict, fps: float, transcript_
     if not key:
         raise LLMError("GEMINI_API_KEY not set")
     lang = cfg["report_language"]
+    vp = shared.vbench_prompts()
+    if vp:  # the benchmark's own "Gemini watches the URL" prompt
+        system, user_text = vp.report_system(lang), vp.VIDEO_URL_USER.format(title=bundle.get("title") or "")
+    else:
+        system, user_text = SYSTEM, _prompt(bundle, lang, transcript_hint)
     body = {
-        "system_instruction": {"parts": [{"text": SYSTEM}]},
+        "system_instruction": {"parts": [{"text": system}]},
         "contents": [{
             "role": "user",
             "parts": [
                 {"file_data": {"file_uri": bundle["url"], "mime_type": "video/*"},
                  "video_metadata": {"fps": max(0.05, float(fps))}},
-                {"text": _prompt(bundle, lang, transcript_hint)},
+                {"text": user_text},
             ],
         }],
         "generationConfig": {

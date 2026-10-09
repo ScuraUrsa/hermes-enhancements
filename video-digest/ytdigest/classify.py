@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 
+from . import shared
 from .routing import VIDEO_TYPES
 
 _MUSIC_TITLE = re.compile(
@@ -72,8 +73,14 @@ not replace experiencing it. Talks ABOUT music or art are not artistic.
 Return: {{"video_type": "...", "is_artistic": true|false, "confidence": 0.0-1.0, "reason": "one short sentence"}}"""
 
 
-def with_model(client, ref: str, info: dict, transcript_head: str, speech_ratio: float | None) -> dict:
-    out = client.json(ref, SYSTEM, prompt(info, transcript_head, speech_ratio), max_tokens=400)
+def with_model(client, ref: str, info: dict, transcript_head: str, speech_ratio: float | None,
+               transcript_source: str = "none") -> dict:
+    vp = shared.vbench_prompts()
+    if vp:
+        system, user = vp.CLASSIFY_SYSTEM, vp.classify_user(shared.meta(info, transcript_source), transcript_head[:2500])
+    else:
+        system, user = SYSTEM, prompt(info, transcript_head, speech_ratio)
+    out = client.json(ref, system, user, max_tokens=400)
     vtype = out.get("video_type") if out.get("video_type") in VIDEO_TYPES else "other"
     artistic = bool(out.get("is_artistic")) or vtype == "music_artistic"
     if artistic:

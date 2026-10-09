@@ -43,7 +43,8 @@ class Usage:
 
 
 def split_ref(ref: str) -> tuple[str, str]:
-    provider, _, model = ref.partition(":")
+    """'ollama-cloud:gpt-oss:120b' -> ('ollama-cloud', 'gpt-oss:120b'); '@k=v' options are dropped."""
+    provider, _, model = ref.split("@", 1)[0].partition(":")
     if not model:
         raise LLMError(f"model ref needs 'provider:model', got {ref!r}")
     return provider, model
@@ -60,9 +61,15 @@ def _image_part(path: Path) -> dict:
     return {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{data}"}}
 
 
+def ref_options(ref: str) -> dict:
+    """'gemini-video:gemini-2.5-flash-lite@fps=0.2' -> {'fps': '0.2'}"""
+    _, _, opts = ref.partition("@")
+    return dict(kv.split("=", 1) for kv in opts.split("@") if "=" in kv)
+
+
 def parse_json(text: str) -> dict:
     """Models wrap JSON in prose or fences now and then; take the outermost object."""
-    text = text.strip()
+    text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S).strip()
     fence = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.S)
     if fence:
         text = fence.group(1)
@@ -94,6 +101,8 @@ class Client:
     def complete(self, ref: str, system: str, user: str, images: list[Path] | None = None,
                  json_mode: bool = False, max_tokens: int = 4000) -> str:
         provider, model = split_ref(ref)
+        if provider == "gemini-video":
+            raise LLMError("gemini-video refs are handled by the gemini_url analyzer")
         if provider == "claude-code":
             return self._claude_code(model, system, user, images)
         return self._openai_compat(provider, model, system, user, images or [], json_mode, max_tokens)

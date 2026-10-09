@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from . import shared
+
 SYSTEM = (
     "You describe video frames for someone who will not watch the video. Be concrete: what is "
     "shown (people, setting, objects, charts, slides, code, UI, maps), and transcribe any "
@@ -17,8 +19,12 @@ def _context(segments: list[dict], t: float, window: float = 20.0) -> str:
     return " ".join(near)[:600]
 
 
-def describe(client, ref: str, bundle_dir: Path, frames: list[dict], segments: list[dict], lang: str, batch: int = 6) -> None:
+def describe(client, ref: str, bundle_dir: Path, frames: list[dict], segments: list[dict], lang: str,
+             batch: int = 6, title: str = "") -> None:
     """Fill frame["caption"] (and frame["ocr_text"] when OCR didn't run). Mutates frames."""
+    vp = shared.vbench_prompts()
+    if vp:
+        return _describe_vbench(vp, client, ref, bundle_dir, frames, segments, batch, title)
     language = "Polish" if lang == "pl" else "English"
     for i in range(0, len(frames), batch):
         group = frames[i : i + batch]
@@ -44,5 +50,26 @@ def describe(client, ref: str, bundle_dir: Path, frames: list[dict], segments: l
             x = by_n.get(n, {})
             f["caption"] = x.get("caption")
             f["adds_information"] = x.get("adds_information")
+            if not f.get("ocr_text") and x.get("on_screen_text"):
+                f["ocr_text"] = x["on_screen_text"]
+
+
+def _describe_vbench(vp, client, ref, bundle_dir, frames, segments, batch, title) -> None:
+    """Same stage prompt as the benchmark (vbench VISION_SYSTEM / vision_user)."""
+    for i in range(0, len(frames), batch):
+        group = frames[i : i + batch]
+        user = vp.vision_user(title, [(f["t"], _context(segments, f["t"])) for f in group])
+        try:
+            out = client.json(ref, vp.VISION_SYSTEM, user, images=[bundle_dir / f["path"] for f in group], max_tokens=1500)
+        except Exception as exc:
+            for f in group:
+                f["caption"], f["error"] = None, str(exc)[:200]
+            continue
+        got = [x for x in out.get("frames", []) if isinstance(x, dict)]
+        for n, f in enumerate(group):
+            x = got[n] if n < len(got) else {}
+            f["caption"] = x.get("caption")
+            f["visual_only"] = x.get("visual_only") or ""
+            f["adds_information"] = bool(f["visual_only"])
             if not f.get("ocr_text") and x.get("on_screen_text"):
                 f["ocr_text"] = x["on_screen_text"]
