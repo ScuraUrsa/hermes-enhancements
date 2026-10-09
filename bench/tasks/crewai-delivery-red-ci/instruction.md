@@ -16,4 +16,5 @@ Required behaviour:
 - `reconcile` must also process items whose status is `"ci_red"`, not only `"open"`, so a follow-up
   green PR can complete them.
 
-Existing behaviour for green CI must not change.
+Existing behaviour for green CI must not change. A PR with no checks at all (`ci_status` returns an
+empty list, e.g. a repo without CI or `gh` unavailable) is not red: complete it as before.
