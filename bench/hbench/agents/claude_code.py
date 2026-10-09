@@ -93,7 +93,8 @@ class ClaudeCode(Agent):
                     "output_tokens": usage.get("output_tokens"),
                     "cache_read_tokens": usage.get("cache_read_input_tokens"),
                     "cache_write_tokens": usage.get("cache_creation_input_tokens"),
-                    "cost_usd": result.get("total_cost_usd"),
+                    # Claude Code prices every model at Anthropic list prices: meaningless for other backends.
+                    "cost_usd": result.get("total_cost_usd") if ctx.provider.kind == "anthropic" else None,
                     "turns": result.get("num_turns"),
                     "agent_status": (result.get("subtype") or "?") + (" (error)" if result.get("is_error") else ""),
                 }

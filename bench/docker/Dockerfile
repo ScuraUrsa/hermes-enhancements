@@ -3,8 +3,12 @@
 #
 #   docker build -t hbench -f docker/Dockerfile .
 #   docker run --rm -it --env-file ~/.hbench.env \
-#     -v "$PWD/results:/bench/results" -v /home/ubuntu:/repos:ro -e HBENCH_REPOS=/repos \
+#     -v "$PWD/results:/bench/results" -v /home/ubuntu:/repos:ro \
+#     -v /home/ubuntu/.hermes/hermes-agent:/repos2/hermes-agent:ro -e HBENCH_REPOS=/repos:/repos2 \
 #     --add-host=host.docker.internal:host-gateway hbench matrix matrix.toml
+#
+# On the dev VM hermes-agent lives in ~/.hermes, hence the second mount. gh is installed because
+# crewai-orchestrator's tests shell out to it (unauthenticated it fails, like a pending CI check).
 #
 # Zed: build eval-cli from the Zed repo (cargo build --release -p eval_cli) and
 # copy the binary to docker/eval-cli and uncomment the COPY line below.
@@ -13,7 +17,7 @@ FROM python:3.12-slim-bookworm
 ARG CLAUDE_CODE_VERSION=latest
 ARG COPILOT_CLI_VERSION=latest
 
-RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates ripgrep \
+RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates ripgrep gh \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*

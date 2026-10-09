@@ -128,6 +128,28 @@ def test_copilot_env_mapping(tmp_path):
     assert "--model" in argv and "COPILOT_PROVIDER_BASE_URL" not in env
 
 
+def test_copilot_parse_counts_tool_starts(tmp_path):
+    events = [
+        {"type": "assistant.turn_start", "data": {"turnId": "0"}},
+        {"type": "assistant.tool_call_delta", "data": {"toolCallId": "c1"}},
+        {"type": "tool.execution_start", "data": {"toolCallId": "c1", "toolName": "bash"}},
+        {"type": "tool.execution_complete", "data": {"toolCallId": "c1"}},
+        {"type": "assistant.turn_start", "data": {"turnId": "1"}},
+        {"type": "result", "exitCode": 0, "usage": {"premiumRequests": 0}},
+    ]
+    out = tmp_path / "agent.stdout"
+    out.write_text("\n".join(json.dumps(e) for e in events) + "\nnot json\n")
+    m = AGENTS["copilot-cli"]().parse(_ctx(tmp_path, "ollama"), out)
+    assert m["tool_calls"] == 1 and m["turns"] == 2 and m["agent_status"] == "success"
+
+
+def test_claude_cost_only_for_anthropic(tmp_path):
+    out = tmp_path / "agent.stdout"
+    out.write_text(json.dumps({"type": "result", "subtype": "success", "total_cost_usd": 0.5, "num_turns": 3}))
+    assert AGENTS["claude-code"]().parse(_ctx(tmp_path, "anthropic"), out)["cost_usd"] == 0.5
+    assert AGENTS["claude-code"]().parse(_ctx(tmp_path, "ollama"), out)["cost_usd"] is None
+
+
 def test_zed_env_mapping(tmp_path):
     argv, env = AGENTS["zed"]().command(_ctx(tmp_path, "ollama", base_url="http://h:11434"))
     providers = json.loads(env["ZED_OPENAI_COMPATIBLE_PROVIDERS"])

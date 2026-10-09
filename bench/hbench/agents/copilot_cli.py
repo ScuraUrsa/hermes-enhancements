@@ -57,24 +57,35 @@ class CopilotCli(Agent):
         return argv, env
 
     def parse(self, ctx: RunContext, stdout_path: Path) -> dict:
-        tool_calls = 0
+        # Event types seen in copilot 1.0.95 JSONL: tool.execution_start (one per tool call),
+        # assistant.turn_start (one per model turn) and a final {"type": "result", "exitCode", "usage"}.
+        # BYOK runs report no token counts.
+        tool_calls = turns = events = 0
         usage: dict = {}
-        events = 0
+        status = None
         for line in stdout_path.read_text(errors="replace").splitlines():
             try:
                 ev = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if not isinstance(ev, dict):
+                continue
             events += 1
-            text = json.dumps(ev)
-            if '"tool' in text and ('"call' in text or '"start' in text):
+            kind = ev.get("type")
+            if kind == "tool.execution_start":
                 tool_calls += 1
+            elif kind == "assistant.turn_start":
+                turns += 1
+            elif kind == "result":
+                code = ev.get("exitCode")
+                status = "success" if code == 0 else f"exit {code}"
             for key in ("usage", "tokenUsage", "token_usage"):
                 if isinstance(ev.get(key), dict):
                     usage = ev[key]
         return {
             "tool_calls": tool_calls or None,
+            "turns": turns or None,
             "input_tokens": usage.get("input_tokens") or usage.get("inputTokens"),
             "output_tokens": usage.get("output_tokens") or usage.get("outputTokens"),
-            "agent_status": f"{events} json events",
+            "agent_status": status or f"{events} json events",
         }
