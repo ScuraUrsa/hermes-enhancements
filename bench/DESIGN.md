@@ -174,10 +174,9 @@ Where it runs:
 * **Isolation**: agents run with permissions bypassed. Run inside the `docker/Dockerfile` image (non-root,
   only the repos mounted read-only, only one provider's keys), not on a VM that holds Filip's other
   secrets.
-* **Budget**: Hermes' own background work overran its $4/day cap on 2026-10-08. Anthropic runs on the
-  subscription token draw from the same quota Hermes uses for kanban work, so run the benchmark when
-  `quota_governor` reports idle, or give it a separate API key with its own spend limit. Every result
-  line records the cost Claude Code reports, so the first small run tells us the real price per cell.
+* **Budget**: Filip chose to run Anthropic cells on the Claude Code subscription, alongside Hermes' other
+  work. Every result line records the cost Claude Code reports (an API-price equivalent on a
+  subscription), so the first run shows what each cell would cost on an API key.
 
 ## 6. Hermes using these frameworks
 
@@ -227,11 +226,15 @@ Things the benchmark should specifically settle: whether local models in the 20�
 even the easy track-A tasks inside Claude Code; whether Copilot CLI's larger tool surface hurts local
 models as the field report suggests; and whether Zed's agent loop is competitive with the same model.
 
-## 8. Next steps
+## 8. Decisions and next steps
 
-1. Filip: say where Ollama should run (PC GPU and which models) and whether Anthropic runs may use the
-   subscription quota or need a separate API key.
-2. Run `hbench validate` and a first 1-repeat matrix on the dev VM: Claude Code × {Anthropic, Ollama Cloud,
-   Ollama on PC}, then Copilot CLI and Zed on the best local model.
-3. Package the remaining verified track-A candidates (§3.4) to reach ~20 tasks; add track B graders.
+Decided by Filip (2026-10-09): Claude runs use the Claude Code subscription, alongside Hermes' other
+work; "Ollama" means **Ollama Cloud**. First-run models are in `matrix.example.toml` (glm-5.3,
+kimi-k2.7-code, minimax-m3, deepseek-v4-pro, glm-5.3-flash, plus Claude opus and sonnet).
+
+1. Run `hbench validate` and the first 1-repeat matrix on the dev VM, inside the Docker image.
+2. Build Zed's `eval-cli` (heavy Rust build: do it on the PC or in CI, not on the 6 GB VM) and add the
+   Zed cell; add the Copilot-hosted cell if a Copilot subscription is available.
+3. Package the remaining verified track-A candidates (§3.4) to reach ~20 tasks; add track B graders;
+   raise `repeats` to 3 for decisions.
 4. Build `code_run.py` on top of `hbench.agents` and the routing table (§6).
