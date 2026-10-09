@@ -32,7 +32,7 @@ link ─► yt-dlp metadata ─► music rule ──(artistic)──► Notion r
 
 Model choice per video type comes from the benchmark thread's `vbench/routing.json`
 (same repo). Until it exists, `ytdigest/routing.py` uses cheap defaults: Gemini
-Flash-Lite for the URL path, `deepseek-v4.1-flash` / `gpt-oss:120b` / `qwen3-vl` on
+Flash-Lite for the URL path, `deepseek-v4.1-flash` / `gpt-oss:120b` / `gemma3:27b` (vision, falls back to `gemma3:12b`) on
 Ollama Cloud for the fallback path.
 
 ## Report template (Notion page body)

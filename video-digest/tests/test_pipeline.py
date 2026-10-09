@@ -82,7 +82,47 @@ def test_falls_back_to_frames_when_gemini_fails(cfg, faked, monkeypatch, synthet
     assert res["status"] == "done"
     bundle, rep, run = faked["notion"][-1]
     assert bundle["frames"] and all(f["caption"] for f in bundle["frames"])
-    assert any("qwen3-vl" in r for r in faked["llm"])  # vision model used
+    assert any("gemma3:27b" in r for r in faked["llm"])  # vision model used
+    assert run["visual"] and not run.get("degraded")
+
+
+def _frames_path(monkeypatch, synthetic_video):
+    monkeypatch.setattr(gemini, "analyse", lambda *a, **k: (_ for _ in ()).throw(llm.LLMError("no key")))
+    monkeypatch.setattr(fetch, "download_video", lambda url, out, h, cookies=None: synthetic_video)
+
+
+def test_retired_vision_model_falls_back(cfg, faked, monkeypatch, synthetic_video):
+    _frames_path(monkeypatch, synthetic_video)
+    real = llm.Client.json
+
+    def json_410_for_main(self, ref, system, user, images=None, max_tokens=4000):
+        if images and "gemma3:27b" in ref:
+            raise llm.LLMError(f"{ref} -> 410: model was retired")
+        return real(self, ref, system, user, images=images, max_tokens=max_tokens)
+
+    monkeypatch.setattr(llm.Client, "json", json_410_for_main)
+    res = pipeline.process("abcdefghijk", cfg, log=lambda m: None)
+    _, _, run = faked["notion"][-1]
+    assert res["status"] == "done" and run["visual"] and run["vision_model"].endswith("gemma3:12b")
+    assert not res["degraded"]
+
+
+def test_all_frames_failing_marks_run_degraded(cfg, faked, monkeypatch, synthetic_video):
+    _frames_path(monkeypatch, synthetic_video)
+    real = llm.Client.json
+
+    def json_no_vision(self, ref, system, user, images=None, max_tokens=4000):
+        if images:
+            raise llm.LLMError(f"{ref} -> 410: retired")
+        return real(self, ref, system, user, images=images, max_tokens=max_tokens)
+
+    monkeypatch.setattr(llm.Client, "json", json_no_vision)
+    logs = []
+    res = pipeline.process("abcdefghijk", cfg, log=logs.append)
+    _, _, run = faked["notion"][-1]
+    assert res["degraded"] == "vision" and run["visual"] is False
+    assert any("visual analysis failed for all frames" in m for m in logs)
+    assert "transcript only" in res["report_md"] or "tylko na transkrypcie" in res["report_md"]
 
 
 def test_music_video_is_listed_without_any_model_call(cfg, faked, monkeypatch):

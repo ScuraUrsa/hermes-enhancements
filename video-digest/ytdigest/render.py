@@ -25,6 +25,7 @@ HEADINGS = {
         "transcript": "Pełny transkrypt",
         "artistic": "Treść artystyczna: tylko zapisana na liście, bez analizy.",
         "no_transcript": "Brak transkryptu dla tego filmu.",
+        "vision_failed": "Uwaga: analiza obrazu nie powiodła się, ten raport opiera się tylko na transkrypcie.",
         "tags": "Tagi", "channel": "Kanał", "duration": "Czas trwania", "published": "Opublikowano",
         "type": "Typ", "source": "Źródło transkryptu", "model": "Modele", "cost": "Koszt",
     },
@@ -43,6 +44,7 @@ HEADINGS = {
         "video": "Video",
         "transcript": "Full transcript",
         "artistic": "Artistic content: listed only, not analysed.",
+        "vision_failed": "Note: frame analysis failed, so this report is based on the transcript only.",
         "no_transcript": "No transcript available for this video.",
         "tags": "Tags", "channel": "Channel", "duration": "Duration", "published": "Published",
         "type": "Type", "source": "Transcript source", "model": "Models", "cost": "Cost",
@@ -133,7 +135,10 @@ def notion_blocks(bundle: dict, report: dict, run: dict, lang: str, frame_upload
                      icon={"type": "emoji", "emoji": "📌"}))
     out += [h2(H["about"])] + para(report.get("about") or "—")
     out += [h2(H["text"])] + para(report.get("text_summary") or "—")
-    out += [h2(H["visual"])] + para(report.get("visual_summary") or "—")
+    out += [h2(H["visual"])]
+    if run.get("degraded") == "vision":
+        out.append(block("callout", rt(H["vision_failed"]), icon={"type": "emoji", "emoji": "⚠️"}))
+    out += para(report.get("visual_summary") or "—")
     for upload_id, frame in frame_uploads or []:
         out.append(image_block(upload_id, f"{mmss(frame['t'])} {frame.get('caption') or ''}".strip()))
     if not frame_uploads:
@@ -195,7 +200,10 @@ def markdown(bundle: dict, report: dict, run: dict, lang: str, notion_url: str |
     if notion_url:
         lines += [f"Notion: {notion_url}", ""]
     for key, field in (("about", "about"), ("text", "text_summary"), ("visual", "visual_summary")):
-        lines += [f"## {H[key]}", report.get(field) or "—", ""]
+        lines += [f"## {H[key]}"]
+        if key == "visual" and run.get("degraded") == "vision":
+            lines += [f"> ⚠️ {H['vision_failed']}", ""]
+        lines += [report.get(field) or "—", ""]
     for key, field, mark in (("points", "key_points", "-"), ("life", "life_applications", "-"),
                              ("actions", "action_items", "- [ ]"), ("related", "related_suggestions", "-")):
         if report.get(field):

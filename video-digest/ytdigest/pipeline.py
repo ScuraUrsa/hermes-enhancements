@@ -143,14 +143,36 @@ def process(url: str, cfg: dict, *, account: str | None = None, playlists: list[
                 bundle["frames"] = frames.extract_frames(video, bundle_dir, bundle["duration_sec"], bundle["yt_chapters"], fcfg)
                 bundle["prep"] = {"frames_per_min": frames_per_min, "scene_threshold": cfg["scene_threshold"]}
                 if bundle["frames"]:
-                    vision.describe(client, route["vision"], bundle_dir, bundle["frames"], tr["segments"],
-                                    cfg["report_language"], title=bundle.get("title") or "")
-                    run["visual"] = any(f.get("caption") for f in bundle["frames"])
+                    _describe_frames(client, route, cfg, bundle_dir, bundle, tr["segments"], run, log)
             except Exception as exc:
                 log(f"[{vid}] visual analysis skipped: {str(exc)[:200]}")
         log(f"[{vid}] report ({route['report']})")
         rep = report.build(client, route["report"], bundle, cfg, vtype)
     return _finish(nt, cfg, bundle_dir, bundle, rep, run, client, "done", log, work)
+
+
+def _describe_frames(client, route: dict, cfg: dict, bundle_dir: Path, bundle: dict, segments, run: dict, log) -> None:
+    """Caption the key frames; if the routed vision model fails on every frame, try the
+    fallback model once, and if that fails too mark the run degraded instead of
+    pretending the report saw the picture."""
+    refs = [route["vision"]]
+    fb = cfg.get("vision_fallback") or routing.VISION_FALLBACK
+    if fb and fb not in refs:
+        refs.append(fb)
+    for ref in refs:
+        for f in bundle["frames"]:
+            f.pop("error", None)
+        vision.describe(client, ref, bundle_dir, bundle["frames"], segments, cfg["report_language"],
+                        title=bundle.get("title") or "")
+        if any(f.get("caption") for f in bundle["frames"]):
+            run["visual"] = True
+            run["vision_model"] = ref
+            return
+        err = next((f.get("error") for f in bundle["frames"] if f.get("error")), "no captions returned")
+        log(f"[{bundle['video_id']}] vision {ref} failed on all frames: {err[:200]}")
+    run["visual"] = False
+    run["degraded"] = "vision"
+    log(f"[{bundle['video_id']}] WARNING visual analysis failed for all frames; report is transcript-only")
 
 
 def _finish(nt, cfg, bundle_dir: Path, bundle: dict, rep: dict, run: dict, client, status: str, log, work: Path | None = None) -> dict:
@@ -170,7 +192,8 @@ def _finish(nt, cfg, bundle_dir: Path, bundle: dict, rep: dict, run: dict, clien
         shutil.rmtree(work, ignore_errors=True)
     log(f"[{bundle['video_id']}] {status}, ${run['cost_usd']:.4f}" + (f", {url}" if url else ""))
     return {"video_id": bundle["video_id"], "title": bundle.get("title"), "status": status, "notion_url": url,
-            "report_md": md, "cost_usd": run["cost_usd"], "models": run["models"], "one_line": rep.get("one_line")}
+            "report_md": md, "cost_usd": run["cost_usd"], "models": run["models"], "one_line": rep.get("one_line"),
+            "degraded": run.get("degraded")}
 
 
 def safe_process(url: str, cfg: dict, **kw) -> dict:
