@@ -156,7 +156,7 @@ def _describe_frames(client, route: dict, cfg: dict, bundle_dir: Path, bundle: d
     fallback model once, and if that fails too mark the run degraded instead of
     pretending the report saw the picture."""
     refs = [route["vision"]]
-    fb = cfg.get("vision_fallback") or routing.VISION_FALLBACK
+    fb = route.get("vision_fallback") or cfg.get("vision_fallback") or routing.VISION_FALLBACK
     if fb and fb not in refs:
         refs.append(fb)
     for ref in refs:

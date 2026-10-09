@@ -28,7 +28,7 @@ URL_MODEL = "gemini:gemini-flash-lite-latest"
 # also the automatic fallback when the URL path fails (private video, no key).
 _base = {
     "analyzer": "gemini_url", "url_model": URL_MODEL, "url_fps": 0.2,
-    "classify": CHEAP_CLASSIFY, "vision": CHEAP_VISION, "report": CHEAP_TEXT,
+    "classify": CHEAP_CLASSIFY, "vision": CHEAP_VISION, "vision_fallback": VISION_FALLBACK, "report": CHEAP_TEXT,
     "frames_per_min": 1.0, "skip": False,
 }
 
@@ -76,7 +76,7 @@ def _from_vbench(base: dict, row: dict, provisional: bool) -> dict:
     """Merge one vbench routing row. A report ref "gemini-video:<model>@fps=x" means
     Gemini reads the URL. While the table is provisional (no benchmark data yet) the
     Gemini URL path stays the default and vbench's picks drive the fallback path."""
-    out = {**base, **{k: v for k, v in row.items() if k in ("classify", "vision", "report", "frames_per_min", "skip") and v is not None}}
+    out = {**base, **{k: v for k, v in row.items() if k in ("classify", "vision", "vision_fallback", "report", "frames_per_min", "skip") and v is not None}}
     rep = str(row.get("report") or "")
     if rep.startswith("gemini-video:"):
         model = rep.split(":", 1)[1].split("@")[0]

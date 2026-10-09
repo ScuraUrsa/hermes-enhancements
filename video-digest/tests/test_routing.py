@@ -46,3 +46,13 @@ def test_ref_options():
     assert llm.split_ref("gemini-video:gemini-2.5-flash-lite@fps=0.2") == ("gemini-video", "gemini-2.5-flash-lite")
     assert llm.ref_options("gemini-video:x@fps=0.2") == {"fps": "0.2"}
     assert llm.split_ref("ollama-cloud:gpt-oss:120b") == ("ollama-cloud", "gpt-oss:120b")
+
+
+def test_vbench_vision_fallback_is_read_per_type(tmp_path):
+    import json as _json
+    from ytdigest import routing as r
+    p = tmp_path / "routing.json"
+    p.write_text(_json.dumps({"provisional": True, "default": {"vision": "ollama-cloud:gemma3:27b",
+                 "vision_fallback": "ollama-cloud:gemma3:4b"}}))
+    table = r.load({"routing_file": str(p)})
+    assert table["tutorial_screen"]["vision_fallback"] == "ollama-cloud:gemma3:4b"
