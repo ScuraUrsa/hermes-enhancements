@@ -1,0 +1,131 @@
+{
+ "schema": "vbench_routing/v1",
+ "provisional": true,
+ "note": "Prior guesses before any benchmark data: cheapest Ollama Cloud models that are known to be capable. Replaced by `vbench route` output after the first sweep.",
+ "generated_at": "2026-10-09T22:30:00+00:00",
+ "source_run": "none",
+ "default": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma3:27b",
+  "report": "ollama-cloud:deepseek-v4-flash",
+  "frames_per_min": 1.5,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {}
+ },
+ "podcast_talk": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma3:12b",
+  "report": "ollama-cloud:deepseek-v4-flash",
+  "frames_per_min": 0.5,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {}
+ },
+ "interview": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma3:12b",
+  "report": "ollama-cloud:deepseek-v4-flash",
+  "frames_per_min": 0.5,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {}
+ },
+ "tutorial_screen": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:qwen3-vl:235b-instruct",
+  "report": "ollama-cloud:deepseek-v4-flash",
+  "frames_per_min": 3.0,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {}
+ },
+ "lecture_slides": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:qwen3-vl:235b-instruct",
+  "report": "ollama-cloud:deepseek-v4-flash",
+  "frames_per_min": 3.0,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {}
+ },
+ "explainer_visual": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma4:31b",
+  "report": "ollama-cloud:deepseek-v4-flash",
+  "frames_per_min": 3.0,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {}
+ },
+ "vlog_travel": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma4:31b",
+  "report": "ollama-cloud:deepseek-v4-flash",
+  "frames_per_min": 3.0,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {}
+ },
+ "news_commentary": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma3:12b",
+  "report": "ollama-cloud:deepseek-v4-flash",
+  "frames_per_min": 0.5,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {}
+ },
+ "documentary": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma4:31b",
+  "report": "ollama-cloud:deepseek-v4-flash",
+  "frames_per_min": 3.0,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {}
+ },
+ "review_product": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma4:31b",
+  "report": "ollama-cloud:deepseek-v4-flash",
+  "frames_per_min": 3.0,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {}
+ },
+ "music_artistic": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "skip": true,
+  "vision": null,
+  "report": null,
+  "frames_per_min": 0,
+  "low_confidence": false,
+  "evidence": {}
+ },
+ "short": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma3:27b",
+  "report": "ollama-cloud:deepseek-v4-flash",
+  "frames_per_min": 4.0,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {}
+ },
+ "other": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma3:27b",
+  "report": "ollama-cloud:deepseek-v4-flash",
+  "frames_per_min": 1.5,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {}
+ },
+ "transcribe": {
+  "default": {
+   "ref": "groq:whisper-large-v3-turbo",
+   "low_confidence": true,
+   "evidence": {}
+  }
+ }
+}

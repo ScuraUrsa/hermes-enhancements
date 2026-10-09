@@ -1,0 +1,5 @@
+bundles/
+results/*
+!results/.gitkeep
+__pycache__/
+*.egg-info/
