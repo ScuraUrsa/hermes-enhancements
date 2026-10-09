@@ -1,0 +1,46 @@
+# hbench matrix matrix.example.toml
+# Every [[cell]] runs on every selected task, `repeats` times.
+# Model names are examples: check `ollama list` and each framework's model list.
+
+repeats = 1
+tasks = ["*"]          # id globs or tag:NAME
+
+# --- Same framework, different providers (isolates the model) ---
+[[cell]]
+agent = "claude-code"
+provider = "anthropic"
+models = ["sonnet", "haiku"]
+options = { max_turns = 80 }
+
+[[cell]]
+agent = "claude-code"
+provider = "ollama-pc"
+models = ["qwen3-coder:30b", "gpt-oss:20b"]
+options = { max_turns = 80 }
+
+[[cell]]
+agent = "claude-code"
+provider = "ollama-cloud"
+models = ["deepseek-v4-pro"]
+
+# --- Same model, different frameworks (isolates the harness) ---
+[[cell]]
+agent = "copilot-cli"
+provider = "ollama-pc"
+models = ["qwen3-coder:30b"]
+
+[[cell]]
+agent = "zed"
+provider = "ollama-pc"
+models = ["qwen3-coder:30b"]
+
+[[cell]]
+agent = "zed"
+provider = "anthropic"
+models = ["claude-sonnet-5-5"]
+
+# --- Copilot on its own subscription models (separate quota pool) ---
+[[cell]]
+agent = "copilot-cli"
+provider = "github"
+models = ["claude-sonnet-4.5", "gpt-5-mini"]

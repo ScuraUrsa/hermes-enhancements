@@ -1,0 +1,33 @@
+# Where models run. Frameworks turn these into their own env vars (see hbench/agents/).
+# Secrets are never stored here: api_key_env names the variable to read.
+
+[anthropic]
+kind = "anthropic"
+api_key_env = "ANTHROPIC_API_KEY"     # or export CLAUDE_CODE_OAUTH_TOKEN for Claude Code on a subscription
+
+# Ollama on Filip's PC (GPU), reached from the dev VM over the host-only network.
+# Set OLLAMA_CONTEXT_LENGTH=65536 (or more) on the server: the default context is far too small for agents.
+[ollama-pc]
+kind = "ollama"
+base_url = "http://192.168.56.1:11434"
+local = true
+context_tokens = 65536
+hardware = "Filip's PC (fill in GPU/VRAM)"
+
+# Ollama on the same machine as the harness.
+[ollama-local]
+kind = "ollama"
+base_url = "http://localhost:11434"
+local = true
+context_tokens = 65536
+
+# Ollama Cloud, which Hermes already uses (deepseek-v4-pro).
+[ollama-cloud]
+kind = "ollama"
+base_url = "https://ollama.com"
+api_key_env = "OLLAMA_API_KEY"
+
+# GitHub-hosted models through the Copilot subscription (Copilot CLI only).
+[github]
+kind = "github"
+api_key_env = "COPILOT_GITHUB_TOKEN"
