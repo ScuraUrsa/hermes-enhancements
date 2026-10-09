@@ -103,10 +103,10 @@ be capable, so the pipeline can start before the first sweep.
 
 ## 7. Candidates in the first sweep (`matrix.toml`)
 
-* classify: gpt-oss:20b, nemotron-3-nano:30b, ministral-3:8b, deepseek-v4-flash (Ollama Cloud), Claude Haiku.
-* vision: gemma3 12b/27b, gemma4 31b, ministral-3 14b, qwen3-vl 235b, kimi-k2.6, gemini-3-flash-preview (all
+* classify: gpt-oss:20b, nemotron-3-nano:30b, ministral-3:8b, deepseek-v4.1-flash (Ollama Cloud), Claude Haiku.
+* vision: gemma3 12b/27b, gemma4 31b, ministral-3 14b, qwen3.5 397b, kimi-k2.6, gemini-3-flash-preview (all
   Ollama Cloud), Claude Haiku and Sonnet.
-* report: gpt-oss:120b, nemotron-3-super, deepseek-v4-flash/pro, qwen3-next:80b, minimax-m2.7, glm-4.7,
+* report: gpt-oss:120b, nemotron-3-super, deepseek-v4.1-flash, glm-5.3-flash, deepseek-v4-pro, qwen3-next:80b, minimax-m2.7, glm-4.7,
   kimi-k2.6 (Ollama Cloud), Claude Haiku, Sonnet, Opus (the ceiling), plus two text-only variants.
 * Gemini with the URL: 2.5 Flash-Lite at 0.2 and 1 fps, 3.1 Flash-Lite at 0.5 fps, 3 Flash at 1 fps (needs
   `GEMINI_API_KEY`).
@@ -125,7 +125,9 @@ resume: `vbench run matrix.toml --stage classify`, then `vision`, then `report`.
 ## 9. Known limits
 
 * Answer keys come from a Claude model; Filip's review and the second judge are the guard against bias.
-* Ollama Cloud quotas and model availability change; a failed call counts as a failure for that model.
+* Ollama Cloud retires models without notice (qwen3-vl:235b-instruct went in October 2026 with HTTP 410).
+  `vbench run` and `vbench check --matrix` ask the provider which models it still serves and skip the rest,
+  so a retired model is reported, not scored 0. Routing entries carry a `vision_fallback` for the same reason.
 * Frames per minute per type is a heuristic for now (0.5 talk, 1.5 default, 3 visual, 4 short); a later sweep
   can vary it with the same harness.
 * Transcription WER uses only the first 10 minutes and only videos with human captions.

@@ -146,7 +146,7 @@ def build_routing(rows: list[dict], rule: Rule | None = None, source: str = "") 
                              "frames_per_min": fpm_for(vt), "evidence": {}}
         if classify:
             e["evidence"]["classify"] = classify.summary()
-        vis, _, v_low = choose(agg.get(("vision", key), {}), "vision", rule)
+        vis, vis_ok, v_low = choose(agg.get(("vision", key), {}), "vision", rule)
         vis_cost = (vis.cost or 0.0) * fpm_for(vt) / 2.0 if vis else 0.0  # vision was benchmarked at 2 frames/min
         # A video_url model replaces both vision and report; every other report model also pays for vision.
         rep_aggs = agg.get(("report", key), {})
@@ -154,6 +154,8 @@ def build_routing(rows: list[dict], rule: Rule | None = None, source: str = "") 
         rep, _, r_low = choose(rep_aggs, "report", rule, extra)
         e["report"] = rep.ref if rep else None
         e["vision"] = None if (rep and rep.ref in url_refs) else (vis.ref if vis else None)
+        # next good-enough vision model, used when the first is retired or failing
+        e["vision_fallback"] = next((x.ref for x in vis_ok if vis and x.ref != vis.ref), None) if e["vision"] else None
         if vis and e["vision"]:
             e["evidence"]["vision"] = vis.summary()
         if rep:

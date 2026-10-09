@@ -153,6 +153,7 @@ def test_end_to_end_mock(tmp_path):
     # identical quality, so the cheaper model wins every stage
     assert routing["tutorial_screen"]["report"].startswith("mock:cheap")
     assert routing["tutorial_screen"]["vision"] == "mock:cheap"
+    assert routing["tutorial_screen"]["vision_fallback"] == "mock:echo"
     assert routing["default"]["classify"] == "mock:cheap"
     assert routing["music_artistic"]["skip"] is True
     md = route.leaderboard_md(rows, routing)
@@ -259,3 +260,25 @@ def test_schemas_match():
     sch = {n: json.loads((ROOT / "schemas" / f"{n}.schema.json").read_text()) for n in ("video_bundle", "video_report", "routing")}
     jsonschema.validate(json.loads((ROOT / "routing.json").read_text()), sch["routing"])
     jsonschema.validate(REPORT, sch["video_report"])
+
+
+def test_unavailable_models_are_skipped(tmp_path, monkeypatch):
+    import vbench.providers as prov
+
+    make_bundle(tmp_path)
+    cat = Catalog.load()
+    monkeypatch.setattr(prov, "list_live_models",
+                        lambda cfg: {"gemma3:27b", "deepseek-v4.1-flash"} if cfg.name == "ollama-cloud" else None)
+    gone = cat.unavailable(["ollama-cloud:qwen3-vl:235b-instruct", "ollama-cloud:gemma3:27b@x=1", "mock:echo"])
+    assert list(gone) == ["ollama-cloud:qwen3-vl:235b-instruct"]
+    m = Matrix(bundles=tmp_path / "bundles", labels=tmp_path / "labels", out=tmp_path / "out", judges=["mock:echo"],
+               stages={"vision": ["ollama-cloud:qwen3-vl:235b-instruct", "mock:cheap"]})
+    r = Runner(m, cat, lambda s: None)
+    r.drop_unavailable()
+    assert r.m.stages["vision"] == ["mock:cheap"]
+
+
+def test_routing_has_no_retired_models():
+    r = json.loads((ROOT / "routing.json").read_text())
+    refs = {v for e in r.values() if isinstance(e, dict) for k, v in e.items() if k in ("vision", "report", "classify", "vision_fallback")}
+    assert not any("qwen3-vl" in str(x) for x in refs)

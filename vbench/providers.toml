@@ -68,7 +68,9 @@ billing = "local"
 
 # --- API-equivalent prices, USD per million tokens -----------------------------------------------
 # Ollama Cloud models: cheapest reputable pay-per-token host of the same open weights, taken from
-# models.dev (hermes-infra/models_dev_cache.json, 2026-10). Refresh with `vbench prices --models-dev`.
+# models.dev (hermes-infra/models_dev_cache.json, 2026-10), or Hermes' own budget.json where newer.
+# Ollama Cloud retires models without notice: `vbench check --matrix` and `vbench run` ask it which
+# models it still serves and skip the rest.
 # Claude: Anthropic list prices; Claude Code also reports its own API-equivalent cost, which wins.
 [prices]
 "ollama-cloud:gpt-oss:20b"             = { input = 0.03,  output = 0.14, basis = "deepinfra" }
@@ -77,6 +79,8 @@ billing = "local"
 "ollama-cloud:nemotron-3-super"        = { input = 0.09,  output = 0.45, basis = "openrouter" }
 "ollama-cloud:deepseek-v4-flash"       = { input = 0.14,  output = 0.28, basis = "deepseek" }
 "ollama-cloud:deepseek-v4-pro"         = { input = 0.435, output = 0.87, basis = "deepseek" }
+"ollama-cloud:deepseek-v4.1-flash"     = { input = 0.30,  output = 1.20, basis = "Hermes budget.json (2026-10-05)" }
+"ollama-cloud:glm-5.3-flash"           = { input = 0.15,  output = 0.50, basis = "Hermes budget.json (2026-10-05)" }
 "ollama-cloud:qwen3-next:80b"          = { input = 0.09,  output = 1.10, basis = "openrouter" }
 "ollama-cloud:glm-4.7"                 = { input = 0.43,  output = 1.75, basis = "deepinfra" }
 "ollama-cloud:minimax-m2.7"            = { input = 0.28,  output = 1.20, basis = "openrouter" }
@@ -87,7 +91,7 @@ billing = "local"
 "ollama-cloud:gemma4:31b"              = { input = 0.12,  output = 0.37, basis = "openrouter" }
 "ollama-cloud:ministral-3:8b"          = { input = 0.15,  output = 0.15, basis = "openrouter" }
 "ollama-cloud:ministral-3:14b"         = { input = 0.20,  output = 0.20, basis = "openrouter" }
-"ollama-cloud:qwen3-vl:235b-instruct"  = { input = 0.20,  output = 0.88, basis = "openrouter" }
+"ollama-cloud:qwen3-vl:235b-instruct"  = { input = 0.20,  output = 0.88, basis = "openrouter (retired on Ollama Cloud 2026-10, HTTP 410)" }
 "ollama-cloud:qwen3.5:397b"            = { input = 0.39,  output = 2.34, basis = "openrouter" }
 "ollama-cloud:minimax-m3"              = { input = 0.30,  output = 1.20, basis = "openrouter" }
 "ollama-cloud:gemini-3-flash-preview"  = { input = 0.50,  output = 3.00, basis = "google" }
@@ -114,6 +118,8 @@ billing = "local"
 "ollama-cloud:nemotron-3-nano:30b"    = { context = 1048576, vision = false }
 "ollama-cloud:deepseek-v4-flash"      = { context = 1048576, vision = false }
 "ollama-cloud:deepseek-v4-pro"        = { context = 1048576, vision = false }
+"ollama-cloud:deepseek-v4.1-flash"    = { context = 1048576, vision = false }
+"ollama-cloud:glm-5.3-flash"          = { context = 202752, vision = false }
 "ollama-cloud:qwen3-next:80b"         = { context = 262144, vision = false }
 "ollama-cloud:glm-4.7"                = { context = 202752, vision = false }
 "ollama-cloud:minimax-m2.7"           = { context = 196608, vision = false }
@@ -122,7 +128,6 @@ billing = "local"
 "ollama-cloud:gemma3:27b"             = { context = 131072, vision = true }
 "ollama-cloud:gemma4:31b"             = { context = 262144, vision = true }
 "ollama-cloud:ministral-3:14b"        = { context = 262144, vision = true }
-"ollama-cloud:qwen3-vl:235b-instruct" = { context = 262144, vision = true }
 "ollama-cloud:qwen3.5:397b"           = { context = 262144, vision = true }
 "ollama-cloud:minimax-m3"             = { context = 512000, vision = true }
 "ollama-cloud:gemini-3-flash-preview" = { context = 1048576, vision = true }

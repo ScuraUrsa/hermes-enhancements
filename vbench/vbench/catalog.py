@@ -45,6 +45,23 @@ class Catalog:
     def context_tokens(self, ref: str, default: int = 128_000) -> int:
         return int(self.models.get(base_ref(ref), {}).get("context", default))
 
+    def unavailable(self, refs: list[str]) -> dict[str, str]:
+        """Refs whose provider says the model is not served (retired or misspelled). Providers that
+        can't be asked (no key, not OpenAI-compatible, offline) are skipped, not flagged."""
+        from .providers import list_live_models
+        live: dict[str, set[str] | None] = {}
+        out = {}
+        for ref in refs:
+            pname, model = split_ref(ref)
+            if pname not in self.providers:
+                continue
+            if pname not in live:
+                live[pname] = list_live_models(self.providers[pname])
+            ids = live[pname]
+            if ids is not None and model not in ids:
+                out[ref] = f"{pname} does not serve {model}"
+        return out
+
     def has_vision(self, ref: str) -> bool | None:
         v = self.models.get(base_ref(ref), {}).get("vision")
         return None if v is None else bool(v)

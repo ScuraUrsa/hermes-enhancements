@@ -176,7 +176,19 @@ class Runner:
         data = json.loads(p.read_text())
         return data if isinstance(data, list) else []
 
-    def run(self) -> int:
+    def drop_unavailable(self) -> None:
+        """Skip candidates the provider no longer serves, instead of scoring them 0 on every video."""
+        refs = sorted({r for refs in self.m.stages.values() for r in refs})
+        gone = self.cat.unavailable(refs + list(self.m.judges))
+        for ref, why in gone.items():
+            self.log(f"skip {ref}: {why}")
+        if any(j in gone for j in self.m.judges):
+            raise RuntimeError(f"a judge is unavailable: {[j for j in self.m.judges if j in gone]}")
+        self.m.stages = {st: [r for r in refs if r not in gone] for st, refs in self.m.stages.items()}
+
+    def run(self, check_live: bool = True) -> int:
+        if check_live:
+            self.drop_unavailable()
         jobs = self.jobs()
         self.log(f"{len(jobs)} runs to do -> {self.results}")
         n = 0

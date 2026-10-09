@@ -55,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--stage", action="append", help="only these stages")
     s.add_argument("--video", action="append", help="only these video ids")
     s.add_argument("--workers", type=int)
+    s.add_argument("--no-live-check", action="store_true", help="don't ask providers which models they still serve")
 
     s = sub.add_parser("route", help="leaderboard + routing.json from results")
     s.add_argument("results", nargs="+", type=Path)
@@ -133,7 +134,7 @@ def main(argv: list[str] | None = None) -> int:
             m.videos = a.video
         if a.workers:
             m.workers = a.workers
-        Runner(m, cat).run()
+        Runner(m, cat).run(check_live=not a.no_live_check)
         return 0
 
     if a.cmd == "route":
@@ -159,6 +160,8 @@ def main(argv: list[str] | None = None) -> int:
             bad += bool(probs)
         if a.matrix:
             m = Matrix.load(a.matrix)
+            gone = cat.unavailable(sorted({r for st, refs in m.stages.items() if st != "transcribe" for r in refs}
+                                          | set(m.judges)))
             for stage, refs in [("judge", m.judges), *m.stages.items()]:
                 if stage == "transcribe":
                     print(f"  {stage:10s} " + ", ".join(refs))
@@ -169,7 +172,9 @@ def main(argv: list[str] | None = None) -> int:
                         key = mod.cfg.api_key_env
                         warn = f" (set {key})" if key and not mod.cfg.api_key else ""
                         price = "" if ref.split("@")[0] in cat.prices else " (no price: cost shows as ?)"
-                        print(f"  {stage:10s} {ref}{warn}{price}")
+                        live = f" NOT SERVED ({gone[ref]})" if ref in gone else ""
+                        bad += bool(live)
+                        print(f"  {stage:10s} {ref}{warn}{price}{live}")
                     except ValueError as e:
                         bad += 1
                         print(f"  {stage:10s} {ref}: {e}")

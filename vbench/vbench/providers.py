@@ -1,4 +1,4 @@
-"""Model adapters. A model ref is ``<provider>:<model>``, e.g. ``ollama-cloud:qwen3-vl:235b-instruct``
+"""Model adapters. A model ref is ``<provider>:<model>``, e.g. ``ollama-cloud:gemma3:27b``
 or ``claude-code:haiku``; the provider part is looked up in ``providers.toml``.
 
 Kinds:
@@ -315,6 +315,21 @@ class Mock(Model):
             if marker in system or marker in user:
                 return Completion(text, len(user) // 4, len(text) // 4, 0.01)
         return Completion("{}", len(user) // 4, 1, 0.01)
+
+
+def list_live_models(cfg: ProviderConfig, timeout: int = 30) -> set[str] | None:
+    """Model ids the provider serves right now (OpenAI-compatible ``GET /models``), or None if it
+    can't be asked. Ollama Cloud retires models without notice (a retired one answers HTTP 410)."""
+    if cfg.kind != "openai_compat" or not cfg.base_url:
+        return None
+    headers = {"Authorization": f"Bearer {cfg.api_key}"} if cfg.api_key else {}
+    req = urllib.request.Request(cfg.base_url.rstrip("/") + "/models", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            data = json.loads(r.read())
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        return None
+    return {m.get("id") for m in data.get("data") or [] if m.get("id")}
 
 
 KINDS = {"openai_compat": OpenAICompat, "claude_code": ClaudeCode, "anthropic": AnthropicAPI,

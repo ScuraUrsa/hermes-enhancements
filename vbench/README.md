@@ -51,7 +51,7 @@ python3 -m vbench route results/sweep-1 -o routing.json --md LEADERBOARD.md
 | `matrix.toml` | the first sweep |
 | `routing.json` | the table the pipeline reads (provisional until the first sweep) |
 
-Model refs are `provider:model[@option=value,...]`, e.g. `ollama-cloud:qwen3-vl:235b-instruct`,
-`claude-code:haiku@effort=low`, `gemini-video:gemini-2.5-flash-lite@fps=0.2`, `ollama-cloud:deepseek-v4-flash@frames=none`.
+Model refs are `provider:model[@option=value,...]`, e.g. `ollama-cloud:gemma3:27b`,
+`claude-code:haiku@effort=low`, `gemini-video:gemini-2.5-flash-lite@fps=0.2`, `ollama-cloud:deepseek-v4.1-flash@frames=none`.
 
 Tests: `python3 -m pytest` (no network, no keys).
