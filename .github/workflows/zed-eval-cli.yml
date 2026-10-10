@@ -1,0 +1,65 @@
+# Builds Zed's headless agent runner (crates/eval_cli) as a static x86_64 musl binary for the
+# Hermes VMs and the hbench image. Triggered by a push to this branch; bump ZED_COMMIT to rebuild.
+name: zed-eval-cli
+
+on:
+  push:
+    branches: [tools/zed-eval-cli-build]
+
+env:
+  ZED_COMMIT: f16f9652ec57bf806e65b2a0d51bb92a63644914
+  TARGET: x86_64-unknown-linux-musl
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Check out Zed at the pinned commit
+        run: |
+          git init -q zed && cd zed
+          git remote add origin https://github.com/zed-industries/zed.git
+          git fetch -q --depth 1 origin "$ZED_COMMIT"
+          git checkout -q FETCH_HEAD
+          git log -1 --format='%H %cs %s'
+
+      - name: Install the toolchain
+        working-directory: zed
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends cmake protobuf-compiler
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add "$TARGET"
+          pip install -q ziglang==0.13.0
+          cargo install -q --locked cargo-zigbuild@0.19.8
+
+      - name: Build eval-cli
+        working-directory: zed
+        run: |
+          cargo zigbuild --release --package eval_cli --target "$TARGET"
+          ls -l "target/$TARGET/release/"
+
+      - name: Package
+        run: |
+          mkdir out
+          cp "zed/target/$TARGET/release/eval-cli" out/eval-cli
+          strip out/eval-cli || true
+          file out/eval-cli
+          ./out/eval-cli --help | head -40
+          xz -9 -k out/eval-cli
+          (cd out && sha256sum eval-cli eval-cli.xz | tee SHA256SUMS)
+          echo "zed $ZED_COMMIT target $TARGET run $GITHUB_RUN_ID" > out/BUILD_INFO
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eval-cli-${{ env.ZED_COMMIT }}
+          path: |
+            out/eval-cli.xz
+            out/SHA256SUMS
+            out/BUILD_INFO
+          retention-days: 90
