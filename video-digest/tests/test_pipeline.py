@@ -150,3 +150,14 @@ def test_safe_process_reports_failures(cfg, monkeypatch):
     monkeypatch.setattr(fetch, "probe", broken)
     res = pipeline.safe_process("abcdefghijk", cfg, write_notion=False)
     assert res["status"] == "failed" and "bot" in res["error"]
+
+
+def test_refused_download_marks_run_degraded(cfg, faked, monkeypatch):
+    _frames_path(monkeypatch, None)
+
+    def refused(*a, **k):
+        raise RuntimeError("HTTP Error 403: Forbidden")
+
+    monkeypatch.setattr(fetch, "download_video", refused)
+    res = pipeline.process("abcdefghijk", cfg, log=lambda m: None)
+    assert res["status"] == "done" and res["degraded"] == "vision"

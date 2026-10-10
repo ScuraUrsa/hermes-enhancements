@@ -155,7 +155,9 @@ def process(url: str, cfg: dict, *, account: str | None = None, playlists: list[
                 if bundle["frames"]:
                     _describe_frames(client, route, cfg, bundle_dir, bundle, tr["segments"], run, log)
             except Exception as exc:
-                log(f"[{vid}] visual analysis skipped: {str(exc)[:200]}")
+                log(f"[{vid}] WARNING visual analysis skipped: {str(exc)[:200]}")
+                run["visual"] = False
+                run["degraded"] = "vision"  # e.g. YouTube refused the download (403): report is transcript-only
         log(f"[{vid}] report ({route['report']})")
         rep = report.build(client, route["report"], bundle, cfg, vtype)
     if cfg.get("clean_auto_transcript") and tr["source"] == "youtube_auto" and tr["segments"]:
