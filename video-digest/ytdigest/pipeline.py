@@ -157,10 +157,10 @@ def _describe_frames(client, route: dict, cfg: dict, bundle_dir: Path, bundle: d
     """Caption the key frames; if the routed vision model fails on every frame, try the
     fallback model once, and if that fails too mark the run degraded instead of
     pretending the report saw the picture."""
-    refs = [route["vision"]]
     fb = route.get("vision_fallback") or cfg.get("vision_fallback") or routing.VISION_FALLBACK
-    if fb and fb not in refs:
-        refs.append(fb)
+    refs = llm.live_refs(cfg, [route["vision"], fb], routing.VISION_CANDIDATES)[:3]
+    if refs and refs[0] != route["vision"]:
+        log(f"[{bundle['video_id']}] vision {route['vision']} is not offered any more; using {refs[0]}")
     for ref in refs:
         for f in bundle["frames"]:
             f.pop("error", None)

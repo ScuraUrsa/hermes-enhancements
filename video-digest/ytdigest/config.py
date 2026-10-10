@@ -83,8 +83,6 @@ DEFAULTS: dict[str, Any] = {
         "glm-5.3-flash": [0.15, 0.50],
         "deepseek-v4.1-flash": [0.30, 1.20],
         "deepseek-v4-pro": [1.32, 3.96],
-        "gemma3:27b": [0.10, 0.20],
-        "gemma3:12b": [0.05, 0.10],
         "gemma4:31b": [0.15, 0.40],
         "gemini-flash-lite-latest": [0.10, 0.40],
         "gemini-flash-latest": [0.30, 2.50],

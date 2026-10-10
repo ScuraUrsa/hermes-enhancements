@@ -32,7 +32,7 @@ link ─► yt-dlp metadata ─► music rule ──(artistic)──► Notion r
 
 Model choice per video type comes from the benchmark thread's `vbench/routing.json`
 (same repo). Until it exists, `ytdigest/routing.py` uses `deepseek-v4.1-flash` (report),
-`gpt-oss:120b` (classify) and `gemma3:27b` (vision, falls back to `gemma3:12b`) on Ollama Cloud,
+`gpt-oss:120b` (classify) and `gemma4:31b` (vision, falls back to `glm-5.3-flash`; retired models are skipped using the live model list) on Ollama Cloud,
 which Filip's plan already covers. The Gemini URL path is paid per token, so it only runs
 with `gemini_enabled: true` in the config.
 

@@ -33,3 +33,10 @@ def synthetic_video(tmp_path_factory):
     lst.write_text("".join(f"file '{p}'\n" for p in parts))
     subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(out)], check=True)
     return out
+
+
+@pytest.fixture(autouse=True)
+def _no_live_model_list(monkeypatch):
+    """Tests never ask a provider which models exist."""
+    from ytdigest import llm
+    monkeypatch.setattr(llm, "_MODEL_CACHE", {"ollama-cloud": None})

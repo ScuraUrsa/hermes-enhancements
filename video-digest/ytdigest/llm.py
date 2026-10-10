@@ -194,3 +194,41 @@ def spent_today(ledger: Path, tag: str = "backlog") -> float:
         if rec.get("tag") == tag and str(rec.get("ts", "")).startswith(today):
             total += float(rec.get("cost_usd") or 0)
     return round(total, 4)
+
+
+_MODEL_CACHE: dict[str, set[str] | None] = {}
+
+
+def available_models(cfg: dict, provider: str) -> set[str] | None:
+    """Model names the provider lists right now (OpenAI-compatible GET /models), or None
+    when the list can't be fetched; callers then keep their refs as they are."""
+    if provider in _MODEL_CACHE:
+        return _MODEL_CACHE[provider]
+    import requests
+
+    names = None
+    pcfg = (cfg.get("providers") or {}).get(provider)
+    if pcfg:
+        key = os.environ.get(pcfg.get("key_env") or "", "")
+        headers = {"Authorization": f"Bearer {key}"} if key else {}
+        try:
+            r = requests.get(pcfg["base_url"].rstrip("/") + "/models", headers=headers, timeout=20)
+            if r.ok:
+                names = {m.get("id") for m in r.json().get("data") or [] if m.get("id")} or None
+        except Exception:
+            names = None
+    _MODEL_CACHE[provider] = names
+    return names
+
+
+def live_refs(cfg: dict, refs: list[str], candidates: list[str] = ()) -> list[str]:
+    """refs (then candidates) in order, minus models their provider no longer lists."""
+    out = []
+    for ref in [*refs, *candidates]:
+        if not ref or ref in out:
+            continue
+        provider, model = split_ref(ref)
+        names = available_models(cfg, provider) if provider.startswith("ollama-cloud") else None
+        if names is None or model in names:
+            out.append(ref)
+    return out

@@ -16,3 +16,14 @@ def test_ledger_and_spend(tmp_path, cfg):
     assert abs(c.usage.cost_usd - 0.75) < 1e-9
     assert llm.spent_today(tmp_path / "s.jsonl", "backlog") == 0.75
     assert llm.spent_today(tmp_path / "s.jsonl", "manual") == 0.0
+
+
+def test_live_refs_drops_retired_models(cfg, monkeypatch):
+    from ytdigest import llm as L
+    monkeypatch.setattr(L, "_MODEL_CACHE", {"ollama-cloud": {"gemma4:31b", "glm-5.3-flash"}})
+    refs = L.live_refs(cfg, ["ollama-cloud:gemma3:27b", "ollama-cloud:gemma3:12b"],
+                       ["ollama-cloud:gemma4:31b", "ollama-cloud:glm-5.3-flash"])
+    assert refs == ["ollama-cloud:gemma4:31b", "ollama-cloud:glm-5.3-flash"]
+    # unknown list (fetch failed) keeps refs as given; other providers are never filtered
+    monkeypatch.setattr(L, "_MODEL_CACHE", {"ollama-cloud": None})
+    assert L.live_refs(cfg, ["ollama-cloud:x", "claude-code:sonnet"]) == ["ollama-cloud:x", "claude-code:sonnet"]

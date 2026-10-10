@@ -91,7 +91,7 @@ def test_falls_back_to_frames_when_gemini_fails(cfg, faked, monkeypatch, synthet
     assert res["status"] == "done"
     bundle, rep, run = faked["notion"][-1]
     assert bundle["frames"] and all(f["caption"] for f in bundle["frames"])
-    assert any("gemma3:27b" in r for r in faked["llm"])  # vision model used
+    assert any("gemma4:31b" in r for r in faked["llm"])  # vision model used
     assert run["visual"] and not run.get("degraded")
 
 
@@ -105,14 +105,14 @@ def test_retired_vision_model_falls_back(cfg, faked, monkeypatch, synthetic_vide
     real = llm.Client.json
 
     def json_410_for_main(self, ref, system, user, images=None, max_tokens=4000):
-        if images and "gemma3:27b" in ref:
+        if images and "gemma4:31b" in ref:
             raise llm.LLMError(f"{ref} -> 410: model was retired")
         return real(self, ref, system, user, images=images, max_tokens=max_tokens)
 
     monkeypatch.setattr(llm.Client, "json", json_410_for_main)
     res = pipeline.process("abcdefghijk", cfg, log=lambda m: None)
     _, _, run = faked["notion"][-1]
-    assert res["status"] == "done" and run["visual"] and run["vision_model"].endswith("gemma3:12b")
+    assert res["status"] == "done" and run["visual"] and run["vision_model"].endswith("glm-5.3-flash")
     assert not res["degraded"]
 
 

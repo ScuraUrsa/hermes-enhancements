@@ -18,9 +18,16 @@ VIDEO_TYPES = [
 
 CHEAP_TEXT = "ollama-cloud:deepseek-v4.1-flash"
 CHEAP_CLASSIFY = "ollama-cloud:gpt-oss:120b"
-CHEAP_VISION = "ollama-cloud:gemma3:27b"
+CHEAP_VISION = "ollama-cloud:gemma4:31b"
 # Tried when the main vision model is gone or failing (Ollama retires models; 410/404).
-VISION_FALLBACK = "ollama-cloud:gemma3:12b"
+VISION_FALLBACK = "ollama-cloud:glm-5.3-flash"
+# Ollama Cloud retires models every few weeks. When the live model list is reachable,
+# refs that are no longer listed are dropped and these (vision-capable, cheapest
+# first, 2026-10-10) fill in, so a stale routing table doesn't blind the pipeline.
+VISION_CANDIDATES = [
+    "ollama-cloud:gemma4:31b", "ollama-cloud:glm-5.3-flash", "ollama-cloud:deepseek-v4.1-flash",
+    "ollama-cloud:mistral-large-4",
+]
 URL_MODEL = "gemini:gemini-flash-lite-latest"
 
 # analyzer "gemini_url": one Gemini call reads the YouTube URL (speech + frames).
