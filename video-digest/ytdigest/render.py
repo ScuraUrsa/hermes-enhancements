@@ -8,6 +8,8 @@ the whole transcript and the link to the video and suggested related things."
 
 from __future__ import annotations
 
+import re
+
 HEADINGS = {
     "pl": {
         "intro": "Raport z filmu",
@@ -25,6 +27,7 @@ HEADINGS = {
         "transcript": "Pełny transkrypt",
         "artistic": "Treść artystyczna: tylko zapisana na liście, bez analizy.",
         "no_transcript": "Brak transkryptu dla tego filmu.",
+        "links": "Linki i opis od autora", "description": "Pełny opis filmu", "no_links": "Autor nie podał linków.",
         "vision_failed": "Uwaga: analiza obrazu nie powiodła się, ten raport opiera się tylko na transkrypcie.",
         "tags": "Tagi", "channel": "Kanał", "duration": "Czas trwania", "published": "Opublikowano",
         "type": "Typ", "source": "Źródło transkryptu", "model": "Modele", "cost": "Koszt",
@@ -46,6 +49,7 @@ HEADINGS = {
         "artistic": "Artistic content: listed only, not analysed.",
         "vision_failed": "Note: frame analysis failed, so this report is based on the transcript only.",
         "no_transcript": "No transcript available for this video.",
+        "links": "Links and description from the author", "description": "Full video description", "no_links": "The author gave no links.",
         "tags": "Tags", "channel": "Channel", "duration": "Duration", "published": "Published",
         "type": "Type", "source": "Transcript source", "model": "Models", "cost": "Cost",
     },
@@ -105,6 +109,43 @@ def image_block(upload_id: str, caption: str) -> dict:
     }
 
 
+_URL = re.compile(r"https?://[^\s<>()\"']+")
+
+
+def description_links(description: str) -> list[tuple[str, str]]:
+    """[(label, url)] from a YouTube description: the label is the text on the same
+    line before the URL (e.g. "GitHub repo: https://..."), or the line above it."""
+    out, seen, prev = [], set(), ""
+    for line in (description or "").splitlines():
+        line = line.strip()
+        for m in _URL.finditer(line):
+            url = m.group(0).rstrip(".,;:!?")
+            if url in seen:
+                continue
+            seen.add(url)
+            label = line[: m.start()].strip(" -–—:|•*>") or (prev if not _URL.search(prev) else "")
+            out.append((label[:200], url))
+        if line:
+            prev = line.strip(" -–—:|•*>")
+    return out
+
+
+def _description_section(bundle: dict, H: dict) -> list[dict]:
+    desc = (bundle.get("description") or "").strip()
+    if not desc:
+        return []
+    links = description_links(desc)
+    out = [h2(H["links"])]
+    if links:
+        for label, url in links[:80]:
+            out.append(block("bulleted_list_item", (rt(label + ": ") if label else []) + rt(url, link=url)))
+    else:
+        out.append(block("paragraph", rt(H["no_links"])))
+    out.append(block("toggle", rt(H["description"]), children=[block("paragraph", rt(p)) for p in
+                                                               [x for x in desc.split("\n\n") if x.strip()][:90]]))
+    return out
+
+
 def _meta_lines(bundle: dict, report: dict, run: dict, H: dict) -> list[str]:
     return [
         f"{H['tags']}: " + (", ".join(f"#{t}" for t in report.get("tags", [])) or "—"),
@@ -161,6 +202,7 @@ def notion_blocks(bundle: dict, report: dict, run: dict, lang: str, frame_upload
             out.append(block("quote", rt(f"„{q['quote']}” ") + rt(f"({mmss(q.get('t', 0))})", link=at(url, q.get("t", 0)))))
     if report.get("related_suggestions"):
         out += [h2(H["related"])] + bullets(report["related_suggestions"])
+    out += _description_section(bundle, H)
     out += [h2(H["meta"])] + bullets(_meta_lines(bundle, report, run, H))
     out.append(h2(H["video"]))
     out.append(block("paragraph", rt(bundle.get("title") or url, link=url)))
@@ -215,5 +257,10 @@ def markdown(bundle: dict, report: dict, run: dict, lang: str, notion_url: str |
         lines += [f"## {H['chapters']}"] + [f"- [{mmss(c['t'])}]({at(url, c['t'])}) {c.get('title', '')}" for c in report["chapters"]] + [""]
     if report.get("notable_quotes"):
         lines += [f"## {H['quotes']}"] + [f"> „{q['quote']}” ({mmss(q.get('t', 0))})" for q in report["notable_quotes"]] + [""]
+    desc = (bundle.get("description") or "").strip()
+    if desc:
+        links = description_links(desc)
+        lines += [f"## {H['links']}"] + ([f"- {l + ': ' if l else ''}{u}" for l, u in links] or [H["no_links"]])
+        lines += ["", f"<details><summary>{H['description']}</summary>", "", desc, "", "</details>", ""]
     lines += [f"## {H['meta']}"] + [f"- {m}" for m in _meta_lines(bundle, report, run, H)] + ["", f"## {H['video']}", url, ""]
     return "\n".join(lines)

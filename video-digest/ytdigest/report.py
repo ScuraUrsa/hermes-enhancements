@@ -57,7 +57,7 @@ def _meta(bundle: dict) -> str:
     return (
         f"title: {bundle['title']}\nchannel: {bundle['channel']}\nduration_sec: {bundle['duration_sec']}\n"
         f"published_at: {bundle.get('published_at')}\nyoutube tags: {bundle.get('yt_tags', [])[:20]}\n"
-        f"chapters: {ch}\ndescription: {(bundle.get('description') or '')[:1500]}"
+        f"chapters: {ch}\ndescription (the author's own text and links): {(bundle.get('description') or '')[:4000]}"
     )
 
 
@@ -74,7 +74,9 @@ Return JSON with: {FIELDS}.
 - tags: 4-10 lowercase topic tags in {_lang_name(lang)}.
 - chapters: [{{"t": seconds, "title": "..."}}]; reuse YouTube chapters if given, else make 3-8 from the [mm:ss] marks.
 - notable_quotes: up to 4 short verbatim quotes with their time in seconds.
-- related_suggestions: 2-5 related topics, books, people or searches to explore next.
+- related_suggestions: 2-5 related topics, books, people or searches to explore next; when the
+  description links to the tools, repos, papers or resources the video talks about, name them here
+  with their URL (all description links are also listed on the page separately).
 - confidence: 0.0-1.0, how complete your source material was."""
 
 

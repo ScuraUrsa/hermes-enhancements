@@ -8,6 +8,7 @@
   ytdigest compare --refs A,B --file ids.txt [--notion-parent ID]   same videos, several models
   ytdigest discover [--days 730] [--ids-file wl.txt] [--queue]      recent uploads of followed/saved channels
   ytdigest categorize list.jsonl --out dir/                         topic categories, AI+software list
+  ytdigest rerender [--notion] [--video ID]                         rebuild old reports (adds description/links)
   ytdigest gate                                                     show the idle checks
   ytdigest status                                                   queue counts and spend
   ytdigest serve --host 127.0.0.1 --port 8765                       one-click endpoint
@@ -135,6 +136,35 @@ def cmd_categorize(cfg, a) -> int:
     return 0
 
 
+def cmd_rerender(cfg, a) -> int:
+    """Rebuild report.md (and the Notion page) from saved bundles with the current
+    template, e.g. to add the author's description and links to older reports."""
+    from . import notion, render
+
+    root = Path(a.data_dir or cfg["data_dir"]) / "bundles"
+    dirs = [root / v for v in a.video] if a.video else sorted(d for d in root.iterdir() if (d / "report.json").is_file())
+    nt = notion.Notion(cfg["notion_data_source_id"]) if a.notion else None
+    done = 0
+    for d in dirs:
+        try:
+            bundle = json.loads((d / "bundle.json").read_text(encoding="utf-8"))
+            saved = json.loads((d / "report.json").read_text(encoding="utf-8"))
+            rep, run = saved["report"], saved.get("run") or {}
+            if not bundle.get("description") and a.refetch:
+                bundle["description"] = fetch.probe(bundle["url"]).get("description") or ""
+                (d / "bundle.json").write_text(json.dumps(bundle, ensure_ascii=False, indent=1), encoding="utf-8")
+            url = None
+            if nt and nt.find(bundle["video_id"]):
+                url = notion.write_report(nt, d, bundle, rep, run, cfg)
+            (d / "report.md").write_text(render.markdown(bundle, rep, run, cfg["report_language"], url), encoding="utf-8")
+            done += 1
+            print(f"{bundle['video_id']}: ok" + (f" {url}" if url else ""), flush=True)
+        except Exception as exc:
+            print(f"{d.name}: {exc}", flush=True)
+    print(f"re-rendered {done} of {len(dirs)}")
+    return 0
+
+
 def cmd_worker(cfg, a) -> int:
     lock_path = Path(cfg["data_dir"]) / "worker.lock"
     lock = lock_path.open("w")
@@ -242,6 +272,12 @@ def main(argv: list[str] | None = None) -> int:
     ct.add_argument("--out", required=True, help="output directory")
     ct.add_argument("--min-score", type=int, default=3)
     ct.set_defaults(fn=cmd_categorize)
+    rr = sub.add_parser("rerender", help="rebuild reports from saved bundles with the current template")
+    rr.add_argument("--video", action="append", help="video id (repeatable); default all")
+    rr.add_argument("--data-dir", help="another data dir, e.g. a compare run's model folder")
+    rr.add_argument("--notion", action="store_true", help="also rewrite the Notion page when one exists")
+    rr.add_argument("--refetch", action="store_true", help="fetch the description again when a bundle lacks it")
+    rr.set_defaults(fn=cmd_rerender)
     w = sub.add_parser("worker", help="process queued videos")
     w.add_argument("--idle-only", action="store_true", help="backlog only when the idle gate is open")
     w.add_argument("--only-user", action="store_true", help="only Filip's priority-100 items")
