@@ -1,4 +1,5 @@
 #!/bin/bash
+export PATH="$HOME/.local/bin:$HOME/.deno/bin:$PATH"  # deno for yt-dlp
 # Hermes cron (no agent, daily 04:30): queue new videos from every account's playlists
 # and Watch Later. Costs no model tokens (YouTube API + yt-dlp metadata only).
 #   hermes cron create "30 4 * * *" --name ytdigest-backlog-sync --script ytdigest_backlog_sync.sh --no-agent --deliver local

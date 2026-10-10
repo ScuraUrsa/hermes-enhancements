@@ -29,8 +29,17 @@ def watch_url(vid: str) -> str:
 
 
 def _ydl(opts: dict[str, Any], cookies: str | None):
+    import os
+
     import yt_dlp  # imported lazily so tests run without it
 
+    # yt-dlp finds its JS runtime (deno) on PATH; cron and systemd start with a bare PATH.
+    extra = [d for d in (Path.home() / ".local/bin", Path.home() / ".deno/bin") if (d / "deno").exists()]
+    path = os.environ.get("PATH", "")
+    for d in extra:
+        if str(d) not in path.split(os.pathsep):
+            path = f"{d}{os.pathsep}{path}"
+    os.environ["PATH"] = path
     base = {"quiet": True, "no_warnings": True, "noprogress": True, "retries": 3}
     if cookies and Path(cookies).is_file():
         base["cookiefile"] = cookies

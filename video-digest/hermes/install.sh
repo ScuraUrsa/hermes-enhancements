@@ -30,8 +30,16 @@ fi
 if [ -f "$HERE/../vbench/routing.json" ] && [ -f "$H/ytdigest/config.yaml" ]; then
   sed -i "s|^routing_file:.*|routing_file: \"$(cd "$HERE/.." && pwd)/vbench/routing.json\"|" "$H/ytdigest/config.yaml"
 fi
-# yt-dlp needs a JS runtime for YouTube since late 2025; use deno when present.
-command -v deno >/dev/null || echo "note: deno not found; if yt-dlp reports a missing JS runtime, install deno (https://deno.com)"
+# yt-dlp needs a JS runtime (deno) for YouTube; without it many downloads fail with HTTP 403.
+DENO_VERSION="${DENO_VERSION:-2.4.5}"
+if ! command -v deno >/dev/null && [ ! -x "$HOME/.local/bin/deno" ]; then
+  echo "installing deno $DENO_VERSION to ~/.local/bin"
+  tmp="$(mktemp -d)"
+  curl -fsSL -o "$tmp/deno.zip" "https://github.com/denoland/deno/releases/download/v${DENO_VERSION}/deno-x86_64-unknown-linux-gnu.zip"
+  python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$tmp/deno.zip" "$tmp"
+  mkdir -p "$HOME/.local/bin" && install -m 0755 "$tmp/deno" "$HOME/.local/bin/deno"
+  rm -rf "$tmp"
+fi
 
 install -m 0644 "$HERE/hermes/skills/youtube-digest/SKILL.md" "$H/skills/media/youtube-digest/SKILL.md"
 install -m 0755 "$HERE/hermes/scripts/ytdigest_idle.sh" "$H/scripts/ytdigest_idle.sh"

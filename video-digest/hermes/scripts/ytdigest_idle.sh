@@ -1,4 +1,5 @@
 #!/bin/bash
+export PATH="$HOME/.local/bin:$HOME/.deno/bin:$PATH"  # deno for yt-dlp
 # Hermes cron (no agent, every 30 min): process the YouTube backlog only when idle.
 #   hermes cron create "every 30m" --name ytdigest-idle --script ytdigest_idle.sh --no-agent --deliver local
 # Hermes kills cron scripts after 120 s, so the worker is started detached at the

@@ -8,6 +8,7 @@ After=network-online.target tailscaled.service
 [Service]
 EnvironmentFile=%h/.hermes/.env
 Environment=HERMES_REAL_HOME=%h
+Environment=PATH=%h/.local/bin:%h/.deno/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/bin/sh -c 'exec %h/.hermes/ytdigest/venv/bin/ytdigest serve --host "$(tailscale ip -4 | head -1)" --port 8765'
 Restart=on-failure
 RestartSec=10
