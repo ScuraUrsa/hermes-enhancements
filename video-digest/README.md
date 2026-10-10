@@ -151,3 +151,38 @@ once; it is generic on screens, slides and code but fine on talking heads. Hence
 `claude_light`: AI/software talking heads (podcast, interview, news, vlog) go to
 Haiku, everything else on the Claude route and Filip's own links stay on Sonnet.
 One 5-hour subscription window held ~45-50 Sonnet digests of 20-30 min videos.
+
+## Course websites (sitedigest)
+
+The same treatment for courses and documentation Filip bought: log in once, map the
+site, download what can be downloaded, and get one report per lesson plus a course
+overview in the Notion database **Kursy: lekcje** (one row per lesson, grouped by site
+and section, ordered like the course).
+
+```bash
+sitedigest import-cookies cookies.txt --url https://academy.example.com   # or: sitedigest login URL [--auto]
+sitedigest map https://academy.example.com/courses/abc                  # outline: sections, lessons, videos, files
+sitedigest digest example-com --limit 5 [--model claude-code:sonnet]    # lessons now
+sitedigest course example-com                                           # course overview
+sitedigest status
+```
+
+Per lesson page:
+
+| Source | How |
+|---|---|
+| Page text | rendered in Chromium (Playwright), main content as Markdown, links kept |
+| Page look | screenshot slices captioned by the vision model (diagrams, tables, code) |
+| Files | PDF, DOCX, PPTX (with speaker notes), XLSX, ODF, notebooks, text, ZIP listing; image-only PDFs rendered and captioned |
+| Videos | yt-dlp with the lesson as Referer (Vimeo, Wistia, YouTube, Loom, Vidyard, Bunny, Mux, JW Player, Brightcove, HLS/DASH/MP4); captions from the player, else the Whisper chain; key frames + vision |
+| Report | one model call over all of it (notes first when long); same routing as YouTube: cheap models by default, Claude via the subscription for AI/software lessons or `--model` |
+
+Safety: GET navigation only, nothing clicked or submitted; logout, cart, checkout,
+delete, unenrol and "mark complete" links are never opened; 1.5-3.5 s between pages.
+DRM-protected (Widevine) videos are recorded and skipped, not circumvented. Sessions are
+`~/.hermes/sitedigest/<site>/session.json` and `cookies.txt`, mode 600. Everything stays
+private (VM disk, private Notion).
+
+Unattended: cron `sitedigest-idle` (at :15 and :45) digests 4 lessons per run while the
+YouTube idle gate is open and writes the overview after a site's last lesson. Mapping is
+started by hand or by the Hermes skill `course-digest` ("Hermes, przerób kurs <link>").
