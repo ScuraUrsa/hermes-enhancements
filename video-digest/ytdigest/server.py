@@ -3,6 +3,7 @@
   POST /digest  {"url": "...", "token": "..."}        -> 202, runs now (priority 100)
   GET  /digest?url=...&token=...                      -> same, for bookmarklets
   POST /queue   {"url": "...", "token": "..."}        -> 202, backlog priority
+  GET  /report?url=...&token=...                      -> status, Notion link and report Markdown
   GET  /health
 
 Bind it to localhost or the Tailscale address only (never 0.0.0.0): Filip's
@@ -69,6 +70,8 @@ def make_handler(cfg: dict, q_path, notify=None):
             except ValueError as exc:
                 return self._reply(400, {"error": str(exc)})
             url = fetch.watch_url(vid)
+            if path == "/report":
+                return self._reply(200, report_status(cfg, q_path, vid))
             if path == "/digest":
                 threading.Thread(target=run_now, args=(vid, url), daemon=True).start()
                 return self._reply(202, {"queued": vid, "priority": "now"})
@@ -96,6 +99,18 @@ def make_handler(cfg: dict, q_path, notify=None):
             pass
 
     return H
+
+
+def report_status(cfg: dict, q_path, vid: str) -> dict:
+    from pathlib import Path
+
+    row = Queue(q_path).db.execute("SELECT status, notion_url, last_error FROM videos WHERE video_id=?", (vid,)).fetchone()
+    md = Path(cfg["data_dir"]) / "bundles" / vid / "report.md"
+    out = {"video_id": vid, "status": row["status"] if row else ("done" if md.is_file() else "unknown"),
+           "notion_url": row["notion_url"] if row else None, "error": row["last_error"] if row else None}
+    if md.is_file() and out["status"] in ("done", "artistic"):
+        out["report_md"] = md.read_text(encoding="utf-8")
+    return out
 
 
 def serve(cfg: dict, q_path, host: str, port: int, notify=None) -> None:

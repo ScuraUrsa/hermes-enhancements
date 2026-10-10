@@ -12,6 +12,7 @@ Liked videos are left out unless config "include_liked" is true.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from . import fetch
@@ -24,12 +25,24 @@ class AuthError(RuntimeError):
     pass
 
 
-def _access_token(token_file: Path) -> str:
-    import requests
+def token_for(cfg: dict, alias: str) -> str:
+    """Access token for one Google account: ~/.hermes/google-accounts/<alias>/google_token.json,
+    or env GOOGLE_<ALIAS>_TOKEN_JSON (how Bitwarden hands it to Hermes)."""
+    raw = os.environ.get(f"GOOGLE_{alias.upper()}_TOKEN_JSON")
+    if raw:
+        return _refresh(json.loads(raw), alias)
+    return _access_token(Path(cfg["google_accounts_dir"]) / alias / "google_token.json")
 
+
+def _access_token(token_file: Path) -> str:
     if not token_file.is_file():
         raise AuthError(f"no token at {token_file}")
-    tok = json.loads(token_file.read_text())
+    return _refresh(json.loads(token_file.read_text()), token_file.parent.name)
+
+
+def _refresh(tok: dict, alias: str) -> str:
+    import requests
+
     r = requests.post(
         tok.get("token_uri") or "https://oauth2.googleapis.com/token",
         data={"client_id": tok["client_id"], "client_secret": tok["client_secret"],
@@ -37,7 +50,7 @@ def _access_token(token_file: Path) -> str:
         timeout=30,
     )
     if r.status_code >= 400:
-        raise AuthError(f"refresh failed for {token_file.parent.name}: {r.text[:200]} (re-auth with google_auth_queue.sh)")
+        raise AuthError(f"refresh failed for {alias}: {r.text[:200]} (re-auth with google_auth_queue.sh)")
     return r.json()["access_token"]
 
 
@@ -82,7 +95,7 @@ def sync(cfg: dict, q: Queue, accounts: list[str] | None = None, log=print) -> d
         n = 0
         # 1. API playlists
         try:
-            token = _access_token(Path(cfg["google_accounts_dir"]) / alias / "google_token.json")
+            token = token_for(cfg, alias)
             for pid, ptitle in api_playlists(token, cfg.get("include_liked", False)):
                 if _skip(ptitle, cfg):
                     continue

@@ -5,6 +5,7 @@
   ytdigest add --file ids.txt --account A --playlist P              queue a list (one URL/id per line)
   ytdigest worker [--idle-only] [--max-videos N] [--max-minutes M]  drain the queue
   ytdigest backlog-sync [--account fjkazmierczak]                  queue all playlists
+  ytdigest compare --refs A,B --file ids.txt [--notion-parent ID]   same videos, several models
   ytdigest gate                                                     show the idle checks
   ytdigest status                                                   queue counts and spend
   ytdigest serve --host 127.0.0.1 --port 8765                       one-click endpoint
@@ -20,7 +21,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import backlog, config, fetch, gate, llm, pipeline
+from . import backlog, compare, config, fetch, gate, llm, pipeline
 from .queue import BACKLOG_PRIORITY, USER_PRIORITY, Queue
 
 
@@ -94,6 +95,19 @@ def cmd_add(cfg, a) -> int:
             print(f"{'queued' if new else 'already known'}: {vid}")
     if a.file:
         print(f"{a.file}: {added} queued, {known} already known, {bad} skipped")
+    return 0
+
+
+def cmd_compare(cfg, a) -> int:
+    urls = list(a.urls)
+    if a.file:
+        lines = Path(a.file).read_text(encoding="utf-8").splitlines()
+        urls += [ln.split()[0] for ln in lines if ln.strip() and not ln.lstrip().startswith("#")]
+    refs = [r.strip() for r in a.refs.split(",") if r.strip()]
+    res = compare.run(cfg, urls, refs, log=lambda m: print(m, flush=True))
+    print(f"results: {res['dir']}/results.json and comparison.md")
+    if a.notion_parent:
+        print("notion:", compare.publish_notion(res, refs, a.notion_parent, a.title))
     return 0
 
 
@@ -181,6 +195,13 @@ def main(argv: list[str] | None = None) -> int:
     ad.add_argument("--playlist", help="playlist name shown in Notion, e.g. 'Do obejrzenia'")
     ad.add_argument("--backlog", action="store_true", help="queue at backlog priority (idle gate)")
     ad.set_defaults(fn=cmd_add)
+    cp = sub.add_parser("compare", help="same videos through several models; tokens, time, output")
+    cp.add_argument("urls", nargs="*")
+    cp.add_argument("--file", help="one URL / video id per line")
+    cp.add_argument("--refs", default="claude-code:sonnet,claude-code:haiku")
+    cp.add_argument("--notion-parent", help="Notion page id to put the comparison page under")
+    cp.add_argument("--title", default="Porównanie modeli: Sonnet vs Haiku")
+    cp.set_defaults(fn=cmd_compare)
     w = sub.add_parser("worker", help="process queued videos")
     w.add_argument("--idle-only", action="store_true", help="backlog only when the idle gate is open")
     w.add_argument("--only-user", action="store_true", help="only Filip's priority-100 items")

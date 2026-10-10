@@ -57,3 +57,22 @@ def test_digest_runs_now(srv):
 def test_refuses_public_bind(cfg, tmp_path):
     with pytest.raises(SystemExit):
         server.serve(cfg, tmp_path / "q.db", "0.0.0.0", 0)
+
+
+def test_mcp_bridge_lists_and_calls(monkeypatch, capsys):
+    import io
+    import json as _j
+
+    from ytdigest import mcp_bridge
+
+    monkeypatch.setattr(mcp_bridge, "_http", lambda m, p, params: {"status": "done", "report_md": "# R", "notion_url": "https://n"})
+    msgs = [{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}},
+            {"jsonrpc": "2.0", "method": "notifications/initialized"},
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+            {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "digest_youtube_video", "arguments": {"url": "dQw4w9WgXcQ"}}}]
+    monkeypatch.setattr("sys.stdin", io.StringIO("\n".join(_j.dumps(m) for m in msgs) + "\n"))
+    mcp_bridge.main()
+    out = [_j.loads(x) for x in capsys.readouterr().out.splitlines()]
+    assert [o["id"] for o in out] == [1, 2, 3]
+    assert len(out[1]["result"]["tools"]) == 2
+    assert "# R" in out[2]["result"]["content"][0]["text"] and "https://n" in out[2]["result"]["content"][0]["text"]

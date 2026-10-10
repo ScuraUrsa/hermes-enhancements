@@ -98,3 +98,46 @@ account's cookies at `~/.hermes/ytdigest/cookies/<account>.txt`.
 ```bash
 pip install -e '.[dev]' && pytest -q      # no network; ffmpeg needed for the frame tests
 ```
+
+## Claude (subscription) routing
+
+`topic_routes` in the config sends AI/software videos (keyword score over title,
+tags, description and transcript start, `ytdigest/topics.py`) and links Filip sends
+himself to `claude-code:sonnet` for both frame descriptions and the report. Calls
+go through the Claude Code CLI with the subscription login (any `ANTHROPIC_API_KEY`
+is removed from its environment), cost $0, and are logged in `spend.jsonl` with
+input/output/cache tokens and Claude's own API-price estimate (`api_equiv_usd`).
+Everything else stays on Ollama Cloud. Add `off: true` to a route to disable it.
+
+## Compare models
+
+```bash
+ytdigest compare --refs claude-code:sonnet,claude-code:haiku --file ten.txt --notion-parent <page id>
+```
+
+Same videos, same frames and prompts, one model per run for both frame
+descriptions and the report (no fallback). Writes `compare/<stamp>/results.json`
+and `comparison.md` (tokens in/out/cache, API-equivalent $, seconds, frames
+captioned) and, with `--notion-parent`, a Notion page with both reports per video.
+
+## Transcript cleanup
+
+YouTube auto captions have no punctuation. With `clean_auto_transcript` (default
+on), a cheap model punctuates the one-minute paragraphs that go into Notion; the
+timestamps stay, and any batch the model mangles is kept raw.
+
+## "Processed" playlist
+
+Every finished (non-artistic) video is added to the private playlist
+`processed_playlist.title` on `processed_playlist.account` (default fjkazmierczak,
+"Przetworzone przez Hermesa"), created on first use. The YouTube API cannot read or
+change Watch Later, so removing videos from it is done in the browser. The Google
+token comes from `~/.hermes/google-accounts/<alias>/google_token.json` or env
+`GOOGLE_<ALIAS>_TOKEN_JSON` and needs the full `youtube` scope.
+
+## Claude Desktop
+
+`ytdigest/mcp_bridge.py` is a dependency-free MCP server for Claude Desktop on the
+PC. It calls `ytdigest serve` on the VM (`/digest`, then `/report`) over Tailscale
+and returns the report, so "summarise this video: <link>" works in any Claude
+Desktop chat. Setup is in the file's docstring.

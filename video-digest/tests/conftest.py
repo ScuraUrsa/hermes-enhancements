@@ -12,6 +12,8 @@ def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("YTDIGEST_CONFIG", str(tmp_path / "none.yaml"))
     c = config.load(None)
     c["routing_file"] = str(tmp_path / "no-routing.json")
+    c["topic_routes"] = {}  # topic overrides have their own tests
+    c["processed_playlist"] = {"enabled": False}
     return c
 
 

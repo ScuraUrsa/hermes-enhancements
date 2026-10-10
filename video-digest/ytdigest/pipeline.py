@@ -17,7 +17,7 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import classify, fetch, frames, gemini, llm, notion, render, report, routing, transcript, vision
+from . import classify, cleanup, fetch, frames, gemini, llm, notion, render, report, routing, topics, transcript, vision, youtube
 
 
 def _cookies(cfg: dict, account: str | None) -> str | None:
@@ -59,7 +59,8 @@ def _save(path: Path, data) -> None:
 
 
 def process(url: str, cfg: dict, *, account: str | None = None, playlists: list[str] | None = None,
-            tag: str = "manual", write_notion: bool = True, force_analyzer: str | None = None, log=print) -> dict:
+            tag: str = "manual", write_notion: bool = True, force_analyzer: str | None = None,
+            route_override: dict | None = None, log=print) -> dict:
     """Returns {video_id, status, notion_url, report_md, cost_usd, models, error?}."""
     data_dir = Path(cfg["data_dir"])
     client = llm.Client(cfg, ledger=data_dir / "spend.jsonl", tag=tag)
@@ -116,6 +117,13 @@ def process(url: str, cfg: dict, *, account: str | None = None, playlists: list[
         return _finish(nt, cfg, bundle_dir, bundle, report.artistic_stub(bundle, f"skipped by routing ({vtype})"),
                        run, client, "artistic", log)
 
+    route, why = topics.apply(route, cfg, info, head, tag)
+    if route_override:
+        route, why = {**route, **route_override}, "override"
+    if why:
+        run["route_reason"] = why
+        log(f"[{vid}] {why}: report={route['report']} vision={route['vision']}")
+
     # 5. analyse
     analyzer = force_analyzer or route.get("analyzer", "gemini_url")
     if analyzer == "gemini_url" and not force_analyzer and not cfg.get("gemini_enabled"):
@@ -150,6 +158,12 @@ def process(url: str, cfg: dict, *, account: str | None = None, playlists: list[
                 log(f"[{vid}] visual analysis skipped: {str(exc)[:200]}")
         log(f"[{vid}] report ({route['report']})")
         rep = report.build(client, route["report"], bundle, cfg, vtype)
+    if cfg.get("clean_auto_transcript") and tr["source"] == "youtube_auto" and tr["segments"]:
+        try:
+            log(f"[{vid}] punctuating auto captions ({cfg['cleanup_model']})")
+            tr["paragraphs"] = cleanup.paragraphs(client, cfg["cleanup_model"], tr["segments"], cfg["report_language"])
+        except Exception as exc:
+            log(f"[{vid}] transcript cleanup skipped: {str(exc)[:200]}")
     return _finish(nt, cfg, bundle_dir, bundle, rep, run, client, "done", log, work)
 
 
@@ -158,7 +172,10 @@ def _describe_frames(client, route: dict, cfg: dict, bundle_dir: Path, bundle: d
     fallback model once, and if that fails too mark the run degraded instead of
     pretending the report saw the picture."""
     fb = route.get("vision_fallback") or cfg.get("vision_fallback") or routing.VISION_FALLBACK
-    refs = llm.live_refs(cfg, [route["vision"], fb], routing.VISION_CANDIDATES)[:3]
+    if route.get("vision_strict"):  # model comparisons: no silent switch to another model
+        refs = [route["vision"]]
+    else:
+        refs = llm.live_refs(cfg, [route["vision"], fb], routing.VISION_CANDIDATES)[:3]
     if refs and refs[0] != route["vision"]:
         log(f"[{bundle['video_id']}] vision {route['vision']} is not offered any more; using {refs[0]}")
     for ref in refs:
@@ -180,6 +197,8 @@ def _describe_frames(client, route: dict, cfg: dict, bundle_dir: Path, bundle: d
 def _finish(nt, cfg, bundle_dir: Path, bundle: dict, rep: dict, run: dict, client, status: str, log, work: Path | None = None) -> dict:
     run["models"] = client.usage.models
     run["cost_usd"] = client.usage.cost_usd
+    run["usage"] = client.usage.by_model
+    run["seconds"] = round((datetime.now(timezone.utc) - datetime.fromisoformat(run["started"])).total_seconds(), 1)
     run["tier"] = 0 if not client.usage.calls else 1
     _save(bundle_dir / "bundle.json", bundle)
     _save(bundle_dir / "report.json", {"report": rep, "run": run})
@@ -190,12 +209,20 @@ def _finish(nt, cfg, bundle_dir: Path, bundle: dict, rep: dict, run: dict, clien
         url = notion.write_report(nt, bundle_dir, bundle, rep, run, cfg)
         md = render.markdown(bundle, rep, run, cfg["report_language"], url)
     (bundle_dir / "report.md").write_text(md, encoding="utf-8")
+    pp = cfg.get("processed_playlist") or {}
+    if nt and status == "done" and pp.get("enabled"):
+        try:
+            if youtube.add_to_playlist(cfg, pp["account"], pp["title"], bundle["video_id"]):
+                log(f"[{bundle['video_id']}] added to YouTube playlist '{pp['title']}'")
+        except Exception as exc:  # the report is done; a playlist hiccup must not fail it
+            log(f"[{bundle['video_id']}] YouTube playlist skipped: {str(exc)[:200]}")
     if work and not cfg.get("keep_media"):
         shutil.rmtree(work, ignore_errors=True)
     log(f"[{bundle['video_id']}] {status}, ${run['cost_usd']:.4f}" + (f", {url}" if url else ""))
     return {"video_id": bundle["video_id"], "title": bundle.get("title"), "status": status, "notion_url": url,
             "report_md": md, "cost_usd": run["cost_usd"], "models": run["models"], "one_line": rep.get("one_line"),
-            "degraded": run.get("degraded")}
+            "degraded": run.get("degraded"), "usage": run["usage"], "seconds": run["seconds"],
+            "route_reason": run.get("route_reason"), "video_type": rep.get("video_type"), "bundle_dir": str(bundle_dir)}
 
 
 def safe_process(url: str, cfg: dict, **kw) -> dict:

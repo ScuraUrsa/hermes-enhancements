@@ -177,6 +177,9 @@ def transcript_blocks(bundle: dict, lang: str, every: float = 60.0) -> list[dict
     if not segs:
         return [block("paragraph", rt(H["no_transcript"]))]
     url = bundle["url"]
+    if bundle["transcript"].get("paragraphs"):  # punctuated by cleanup.py
+        return [block("paragraph", rt(mmss(p["t"]), link=at(url, p["t"])) + rt(" " + p["text"]))
+                for p in bundle["transcript"]["paragraphs"]]
     out, buf, start = [], [], segs[0]["start"]
     for s in segs:
         if buf and s["start"] - start >= every:

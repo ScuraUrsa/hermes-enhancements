@@ -40,6 +40,19 @@ DEFAULTS: dict[str, Any] = {
     # Gemini reading the YouTube URL is paid per token; off by default, Ollama Cloud
     # (already on Filip's plan) does frames + report instead. Set true to allow it.
     "gemini_enabled": False,
+    # Overrides on top of the per-type routing (ytdigest/topics.py). AI and software
+    # videos, and links Filip sends himself, go fully to Claude Sonnet through the
+    # Claude Code CLI (subscription, no API key). Add off: true to a route to turn it off.
+    "topic_routes": {
+        "ai_software": {"report": "claude-code:sonnet", "vision": "claude-code:sonnet"},
+        "manual": {"report": "claude-code:sonnet", "vision": "claude-code:sonnet"},
+    },
+    "ai_software_threshold": 6,
+    # Punctuate YouTube auto captions before they go to Notion (cheap model).
+    "clean_auto_transcript": True,
+    "cleanup_model": "ollama-cloud:gpt-oss:120b",
+    # Add every processed (non-artistic) video to this playlist on this account.
+    "processed_playlist": {"account": "fjkazmierczak", "title": "Przetworzone przez Hermesa", "enabled": True},
     # yt-dlp: cookies file (Netscape format) for Watch Later and for when the
     # VM's IP gets rate limited. Optional.
     "cookies_file": str(HERMES_HOME / "ytdigest" / "cookies" / "{account}.txt"),

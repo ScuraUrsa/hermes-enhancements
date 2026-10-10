@@ -32,14 +32,28 @@ class Usage:
     output_tokens: int = 0
     cost_usd: float = 0.0
     models: list[str] = field(default_factory=list)
+    # per model ref: calls, tokens (incl. prompt cache), wall seconds and, for the
+    # Claude Code CLI, what the same tokens would cost on the API (subscription = $0)
+    by_model: dict = field(default_factory=dict)
 
-    def add(self, model: str, i: int, o: int, cost: float) -> None:
+    def add(self, model: str, i: int, o: int, cost: float, *, cache_read: int = 0, cache_write: int = 0,
+            api_equiv_usd: float = 0.0, seconds: float = 0.0) -> None:
         self.calls += 1
         self.input_tokens += i
         self.output_tokens += o
         self.cost_usd = round(self.cost_usd + cost, 6)
         if model not in self.models:
             self.models.append(model)
+        d = self.by_model.setdefault(model, {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0,
+                                             "cache_write_tokens": 0, "cost_usd": 0.0, "api_equiv_usd": 0.0, "seconds": 0.0})
+        d["calls"] += 1
+        d["input_tokens"] += i
+        d["output_tokens"] += o
+        d["cache_read_tokens"] += cache_read
+        d["cache_write_tokens"] += cache_write
+        d["cost_usd"] = round(d["cost_usd"] + cost, 6)
+        d["api_equiv_usd"] = round(d["api_equiv_usd"] + api_equiv_usd, 6)
+        d["seconds"] = round(d["seconds"] + seconds, 1)
 
 
 def split_ref(ref: str) -> tuple[str, str]:
@@ -131,6 +145,7 @@ class Client:
             headers["Authorization"] = f"Bearer {key}"
         url = pcfg["base_url"].rstrip("/") + "/chat/completions"
         last = ""
+        t0 = time.time()
         for attempt in range(4):
             r = requests.post(url, headers=headers, json=body, timeout=600)
             if r.status_code == 400 and "response_format" in body:
@@ -145,38 +160,52 @@ class Client:
             data = r.json()
             u = data.get("usage") or {}
             i, o = int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0)
-            self._record(f"{provider}:{model}", model, i, o)
+            self._record(f"{provider}:{model}", model, i, o, seconds=round(time.time() - t0, 1))
             return (data["choices"][0]["message"].get("content") or "").strip()
         raise LLMError(f"{provider}:{model} kept failing: {last}")
 
     def _claude_code(self, alias, system, user, images) -> str:
         """Claude Code CLI on the VM (Filip's subscription). Images are passed as
         file paths the CLI reads itself."""
+        import tempfile
+
         prompt = f"{system}\n\n{user}"
         cmd = ["claude", "-p", "--model", alias, "--output-format", "json"]
         if images:
-            prompt += "\n\nImages to look at (read each file):\n" + "\n".join(str(p) for p in images)
+            prompt += "\n\nImages to look at (read each file):\n" + "\n".join(str(Path(p).resolve()) for p in images)
             cmd += ["--allowedTools", "Read"]
-        r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=1800, check=False)
+        # Subscription login only: an API key in the env would bill the API instead.
+        env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
+        t0 = time.time()
+        with tempfile.TemporaryDirectory(prefix="ytdigest-cc-") as cwd:  # no project CLAUDE.md/hooks
+            r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=1800, check=False,
+                               env=env, cwd=cwd)
         if r.returncode != 0:
-            raise LLMError(f"claude-code exit {r.returncode}: {r.stderr[:300]}")
+            raise LLMError(f"claude-code exit {r.returncode}: {(r.stderr or r.stdout)[:300]}")
         out = json.loads(r.stdout)
+        if out.get("is_error"):
+            raise LLMError(f"claude-code:{alias} -> {str(out.get('result'))[:300]}")
         u = out.get("usage") or {}
-        self.usage.add(f"claude-code:{alias}", int(u.get("input_tokens") or 0), int(u.get("output_tokens") or 0), 0.0)
-        self._ledger(f"claude-code:{alias}", 0.0)
+        i, o = int(u.get("input_tokens") or 0), int(u.get("output_tokens") or 0)
+        cr, cw = int(u.get("cache_read_input_tokens") or 0), int(u.get("cache_creation_input_tokens") or 0)
+        equiv = float(out.get("total_cost_usd") or 0.0)
+        ref = f"claude-code:{alias}"
+        self.usage.add(ref, i, o, 0.0, cache_read=cr, cache_write=cw, api_equiv_usd=equiv,
+                       seconds=round(time.time() - t0, 1))
+        self._ledger(ref, 0.0, i, o, extra={"cache_read": cr, "cache_write": cw, "api_equiv_usd": equiv})
         return (out.get("result") or "").strip()
 
-    def _record(self, ref: str, model: str, i: int, o: int) -> None:
+    def _record(self, ref: str, model: str, i: int, o: int, seconds: float = 0.0) -> None:
         cost = price(self.cfg, model, i, o)
-        self.usage.add(ref, i, o, cost)
+        self.usage.add(ref, i, o, cost, seconds=seconds)
         self._ledger(ref, cost, i, o)
 
-    def _ledger(self, ref: str, cost: float, i: int = 0, o: int = 0) -> None:
+    def _ledger(self, ref: str, cost: float, i: int = 0, o: int = 0, extra: dict | None = None) -> None:
         if not self.ledger:
             return
         self.ledger.parent.mkdir(parents=True, exist_ok=True)
         rec = {"ts": datetime.now(timezone.utc).isoformat(), "tag": self.tag, "model": ref,
-               "input_tokens": i, "output_tokens": o, "cost_usd": round(cost, 6)}
+               "input_tokens": i, "output_tokens": o, "cost_usd": round(cost, 6), **(extra or {})}
         with self.ledger.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(rec) + "\n")
 
