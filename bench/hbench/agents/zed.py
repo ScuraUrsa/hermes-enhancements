@@ -2,7 +2,8 @@
 
 The Zed editor has no headless agent mode; ``crates/eval_cli`` in the Zed repo
 runs the same NativeAgent + AcpThread loop without a GUI and is what Zed uses
-for its own Terminal-Bench / SWE runs. Build it once on the dev VM:
+for its own Terminal-Bench / SWE runs. Build it once (about 27 min on 4 cores, 15 GB RAM;
+not on the 6 GB dev VM), or use the prebuilt binary below:
 
     git clone https://github.com/zed-industries/zed && cd zed
     cargo build --release -p eval_cli   # -> target/release/eval-cli
@@ -11,8 +12,10 @@ It writes ``result.json`` (status, duration, tokens, step and tool-call counts)
 to ``--output-dir``. Non-Anthropic endpoints are registered through the
 ``ZED_OPENAI_COMPATIBLE_PROVIDERS`` env var (same JSON shape as Zed's
 ``language_models.openai_compatible`` setting), which is how Ollama's ``/v1`` is
-plugged in here. How eval-cli authenticates such a provider (an
-``<ID>_API_KEY`` variable) is unverified; Ollama ignores the key anyway.
+plugged in here; Zed reads that provider's key from ``<ID>_API_KEY`` (``HBENCH_API_KEY``,
+see ``crates/language_models/src/provider/api_compatible.rs``).
+
+A prebuilt static binary (Zed f16f965) is on this repo's ``tools/zed-eval-cli`` branch.
 """
 
 from __future__ import annotations
