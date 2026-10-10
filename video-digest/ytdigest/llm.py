@@ -174,6 +174,8 @@ class Client:
         if images:
             prompt += "\n\nImages to look at (read each file):\n" + "\n".join(str(Path(p).resolve()) for p in images)
             cmd += ["--allowedTools", "Read"]
+            for d in sorted({str(Path(p).resolve().parent) for p in images}):
+                cmd += ["--add-dir", d]  # the CLI only reads inside its working dirs
         # Subscription login only: an API key in the env would bill the API instead.
         env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
         t0 = time.time()
