@@ -54,7 +54,7 @@ session for 20 min, none of his kanban tasks run, and the VM has spare CPU/RAM.
 | Symptom | Fix |
 |---|---|
 | `NOTION_API_KEY not set` | it lives in Bitwarden; re-run the env sync |
-| `GEMINI_API_KEY not set` in the log | the tool falls back to frames + Ollama models; ask Filip to add the key to Bitwarden |
+| `GEMINI_API_KEY not set` in the log | only happens with `gemini_enabled: true`; the tool falls back to frames + Ollama models. Gemini is off by default because it is paid |
 | `Sign in to confirm you're not a bot` | export fresh YouTube cookies to `~/.hermes/ytdigest/cookies/<account>.txt` (Netscape format) |
 | `refresh failed for <account>` | Google token expired: `~/.hermes/scripts/google_auth_queue.sh` |
 | a video stuck in "processing" | the next worker run releases it after 2 h |

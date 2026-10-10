@@ -22,7 +22,7 @@ link ─► yt-dlp metadata ─► music rule ──(artistic)──► Notion r
                               │
           ┌───────────────────┴────────────────────┐
           ▼                                        ▼
-  gemini_url (default): Gemini reads       frames (fallback, or chosen by routing):
+  gemini_url (opt-in, paid): Gemini reads  frames (default): Ollama Cloud models
   the YouTube URL, audio + frames,         ffmpeg scene keyframes + dedupe (+ OCR)
   writes the report in one call            ─► vision model captions ─► text model report
           └───────────────────┬────────────────────┘
@@ -31,9 +31,10 @@ link ─► yt-dlp metadata ─► music rule ──(artistic)──► Notion r
 ```
 
 Model choice per video type comes from the benchmark thread's `vbench/routing.json`
-(same repo). Until it exists, `ytdigest/routing.py` uses cheap defaults: Gemini
-Flash-Lite for the URL path, `deepseek-v4.1-flash` / `gpt-oss:120b` / `gemma3:27b` (vision, falls back to `gemma3:12b`) on
-Ollama Cloud for the fallback path.
+(same repo). Until it exists, `ytdigest/routing.py` uses `deepseek-v4.1-flash` (report),
+`gpt-oss:120b` (classify) and `gemma3:27b` (vision, falls back to `gemma3:12b`) on Ollama Cloud,
+which Filip's plan already covers. The Gemini URL path is paid per token, so it only runs
+with `gemini_enabled: true` in the config.
 
 ## Report template (Notion page body)
 
@@ -88,7 +89,7 @@ git clone … hermes-enhancements && bash hermes-enhancements/video-digest/herme
 ```
 
 Needs in `~/.hermes/.env` (from Bitwarden): `NOTION_API_KEY`, `GEMINI_API_KEY`
-(main path), `GROQ_API_KEY` (transcripts without captions), `OLLAMA_API_KEY`
+(only if `gemini_enabled`), `GROQ_API_KEY` (transcripts without captions), `OLLAMA_API_KEY`
 (fallback models), `YTDIGEST_TOKEN` (one-click endpoint). Watch Later needs that
 account's cookies at `~/.hermes/ytdigest/cookies/<account>.txt`.
 

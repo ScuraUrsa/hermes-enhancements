@@ -118,6 +118,8 @@ def process(url: str, cfg: dict, *, account: str | None = None, playlists: list[
 
     # 5. analyse
     analyzer = force_analyzer or route.get("analyzer", "gemini_url")
+    if analyzer == "gemini_url" and not force_analyzer and not cfg.get("gemini_enabled"):
+        analyzer = "frames"
     rep = None
     if analyzer == "gemini_url":
         model = llm.split_ref(route["url_model"])[1]

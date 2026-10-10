@@ -60,6 +60,7 @@ def test_gemini_url_path(cfg, faked, monkeypatch):
         return normalise(dict(REPORT), "explainer_visual", bundle, "pl"), [{"t": 12, "caption": "wykres CPI"}]
 
     monkeypatch.setattr(gemini, "analyse", fake_analyse)
+    cfg["gemini_enabled"] = True
     res = pipeline.process("https://youtu.be/abcdefghijk", cfg, log=lambda m: None)
     assert res["status"] == "done" and res["notion_url"]
     assert faked["gemini"] == 1
@@ -72,7 +73,15 @@ def test_gemini_url_path(cfg, faked, monkeypatch):
     assert "Krótko o inflacji" in res["report_md"]
 
 
+def test_gemini_is_off_by_default(cfg, faked, monkeypatch, synthetic_video):
+    monkeypatch.setattr(gemini, "analyse", lambda *a, **k: pytest.fail("Gemini must not be called"))
+    monkeypatch.setattr(fetch, "download_video", lambda url, out, h, cookies=None: synthetic_video)
+    res = pipeline.process("abcdefghijk", cfg, log=lambda m: None)
+    assert res["status"] == "done" and not any("gemini" in m for m in res["models"])
+
+
 def test_falls_back_to_frames_when_gemini_fails(cfg, faked, monkeypatch, synthetic_video):
+    cfg["gemini_enabled"] = True
     def boom(*a, **k):
         raise llm.LLMError("GEMINI_API_KEY not set")
 

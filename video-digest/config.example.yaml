@@ -19,3 +19,6 @@ notion_data_source_id: 561ac2c0-89c5-4d5a-aa40-67ab0f248e9c
 # Vision model tried when the routed one fails on every frame (e.g. retired, HTTP 410).
 # If both fail the run is marked degraded and the report says it is transcript-only.
 # vision_fallback: ollama-cloud:gemma3:12b
+
+# Let Gemini watch the YouTube URL itself (paid API). Off: Ollama Cloud models do everything.
+# gemini_enabled: false
