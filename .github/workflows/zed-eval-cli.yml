@@ -28,6 +28,24 @@ jobs:
           git checkout -q FETCH_HEAD
           git log -1 --format='%H %cs %s'
 
+      # Upstream bug (still on main 2026-10-10): eval-cli's agent settings template ends with `}}"`
+      # inside the raw string, so every run fails with "Failed to migrate settings: trailing
+      # characters at line 14 column 18". Drop the stray quote.
+      - name: Patch eval-cli's settings JSON
+        working-directory: zed
+        run: |
+          cat > /tmp/patch.py <<'PY'
+          import re
+          p = "crates/eval_cli/src/main.rs"
+          s = open(p).read()
+          pattern = re.compile(r'("format_on_save": "off"\n[ ]*[}][}])"(\n[ ]*"#)')
+          new, n = pattern.subn(lambda m: m.group(1) + m.group(2), s)
+          assert n == 1, "patch target not found: %d" % n
+          open(p, "w").write(new)
+          PY
+          python3 /tmp/patch.py
+          git diff
+
       - name: Install the toolchain
         working-directory: zed
         run: |
@@ -53,11 +71,11 @@ jobs:
           ./out/eval-cli --help | head -40
           xz -9 -k out/eval-cli
           (cd out && sha256sum eval-cli eval-cli.xz | tee SHA256SUMS)
-          echo "zed $ZED_COMMIT target $TARGET run $GITHUB_RUN_ID" > out/BUILD_INFO
+          echo "zed $ZED_COMMIT + settings-quote patch, target $TARGET, run $GITHUB_RUN_ID" > out/BUILD_INFO
 
       - uses: actions/upload-artifact@v4
         with:
-          name: eval-cli-${{ env.ZED_COMMIT }}
+          name: eval-cli-${{ env.ZED_COMMIT }}-p1
           path: |
             out/eval-cli.xz
             out/SHA256SUMS
