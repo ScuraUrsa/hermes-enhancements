@@ -2,8 +2,9 @@
 
   ytdigest run <url> [--no-notion] [--analyzer frames|gemini_url]   one video, now
   ytdigest add <url>... [--now]                                     queue (backlog, or --now = priority 100)
+  ytdigest add --file ids.txt --account A --playlist P              queue a list (one URL/id per line)
   ytdigest worker [--idle-only] [--max-videos N] [--max-minutes M]  drain the queue
-  ytdigest backlog-sync [--account fjkazmierczak]                       queue all playlists
+  ytdigest backlog-sync [--account fjkazmierczak]                  queue all playlists
   ytdigest gate                                                     show the idle checks
   ytdigest status                                                   queue counts and spend
   ytdigest serve --host 127.0.0.1 --port 8765                       one-click endpoint
@@ -68,10 +69,31 @@ def cmd_run(cfg, a) -> int:
 
 def cmd_add(cfg, a) -> int:
     q = _q(cfg)
-    for u in a.urls:
-        vid = fetch.video_id(u)
-        new = q.add(vid, fetch.watch_url(vid), priority=USER_PRIORITY if a.now else BACKLOG_PRIORITY + 20, account="ręcznie")
-        print(f"{'queued' if new else 'already known'}: {vid}")
+    urls = list(a.urls)
+    if a.file:
+        # one URL or video id per line; blanks and # comments ignored (e.g. a Watch later export)
+        lines = Path(a.file).read_text(encoding="utf-8").splitlines()
+        urls += [ln.strip() for ln in lines if ln.strip() and not ln.lstrip().startswith("#")]
+    if a.now:
+        prio = USER_PRIORITY
+    elif a.file or a.backlog:
+        prio = BACKLOG_PRIORITY
+    else:
+        prio = BACKLOG_PRIORITY + 20
+    added = known = bad = 0
+    for u in urls:
+        try:
+            vid = fetch.video_id(u)
+        except ValueError:
+            bad += 1
+            print(f"skipped (not a video): {u[:80]}")
+            continue
+        new = q.add(vid, fetch.watch_url(vid), priority=prio, account=a.account or "ręcznie", playlist=a.playlist)
+        added, known = added + new, known + (not new)
+        if not a.file:
+            print(f"{'queued' if new else 'already known'}: {vid}")
+    if a.file:
+        print(f"{a.file}: {added} queued, {known} already known, {bad} skipped")
     return 0
 
 
@@ -152,8 +174,12 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--json", action="store_true")
     r.set_defaults(fn=cmd_run)
     ad = sub.add_parser("add", help="queue videos")
-    ad.add_argument("urls", nargs="+")
+    ad.add_argument("urls", nargs="*")
     ad.add_argument("--now", action="store_true", help="priority 100: next worker run takes it, no idle gate")
+    ad.add_argument("--file", help="read URLs / video ids from a file, one per line (queued as backlog)")
+    ad.add_argument("--account", help="account the videos came from, e.g. fjkazmierczak")
+    ad.add_argument("--playlist", help="playlist name shown in Notion, e.g. 'Do obejrzenia'")
+    ad.add_argument("--backlog", action="store_true", help="queue at backlog priority (idle gate)")
     ad.set_defaults(fn=cmd_add)
     w = sub.add_parser("worker", help="process queued videos")
     w.add_argument("--idle-only", action="store_true", help="backlog only when the idle gate is open")

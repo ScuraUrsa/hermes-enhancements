@@ -42,6 +42,8 @@ set -a; . ~/.hermes/.env; set +a
 ~/.hermes/ytdigest/venv/bin/ytdigest status     # queue counts and today's spend
 ~/.hermes/ytdigest/venv/bin/ytdigest gate       # why the idle worker is or isn't running
 ~/.hermes/ytdigest/venv/bin/ytdigest backlog-sync --account fjkazmierczak   # re-read playlists now
+# Watch later is not in the YouTube API; it is read from the page into a file, then:
+~/.hermes/ytdigest/venv/bin/ytdigest add --file ~/.hermes/ytdigest-inbox/fjkazmierczak_WL.txt --account fjkazmierczak --playlist "Do obejrzenia"
 ```
 
 The idle worker runs from the no-agent cron job `ytdigest-idle` (every 30 min) and
