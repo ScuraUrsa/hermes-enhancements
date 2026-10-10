@@ -7,6 +7,7 @@
   ytdigest backlog-sync [--account fjkazmierczak]                  queue all playlists
   ytdigest compare --refs A,B --file ids.txt [--notion-parent ID]   same videos, several models
   ytdigest discover [--days 730] [--ids-file wl.txt] [--queue]      recent uploads of followed/saved channels
+  ytdigest categorize list.jsonl --out dir/                         topic categories, AI+software list
   ytdigest gate                                                     show the idle checks
   ytdigest status                                                   queue counts and spend
   ytdigest serve --host 127.0.0.1 --port 8765                       one-click endpoint
@@ -22,7 +23,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import backlog, compare, config, discover, fetch, gate, llm, pipeline
+from . import backlog, categorize, compare, config, discover, fetch, gate, llm, pipeline
 from .queue import BACKLOG_PRIORITY, USER_PRIORITY, Queue
 
 
@@ -123,6 +124,14 @@ def cmd_discover(cfg, a) -> int:
                       playlist=f"Kanał: {r['channel']}", priority=discover.DISCOVER_PRIORITY) for r in res["rows"])
         print(f"queued {n} new videos at priority {discover.DISCOVER_PRIORITY} (after all other backlog)")
     print(json.dumps(res["summary"], ensure_ascii=False))
+    return 0
+
+
+def cmd_categorize(cfg, a) -> int:
+    summary = categorize.run(Path(a.input), Path(a.out), min_score=a.min_score)
+    for cat, v in summary.items():
+        print(f"{cat:24} {v['videos']:>7} videos {v['hours']:>9} h   {', '.join(v.get('top_channels', [])[:3])}")
+    print(f"files in {a.out}")
     return 0
 
 
@@ -228,6 +237,11 @@ def main(argv: list[str] | None = None) -> int:
     ds.add_argument("--out", help="TSV path (default data_dir/discover_<account>_<days>d.tsv)")
     ds.add_argument("--queue", action="store_true", help="also queue them, below all other backlog")
     ds.set_defaults(fn=cmd_discover)
+    ct = sub.add_parser("categorize", help="sort a discovered list into topic categories (no model calls)")
+    ct.add_argument("input", help="discover TSV, or JSONL/JSON rows with video_id, title, channel")
+    ct.add_argument("--out", required=True, help="output directory")
+    ct.add_argument("--min-score", type=int, default=3)
+    ct.set_defaults(fn=cmd_categorize)
     w = sub.add_parser("worker", help="process queued videos")
     w.add_argument("--idle-only", action="store_true", help="backlog only when the idle gate is open")
     w.add_argument("--only-user", action="store_true", help="only Filip's priority-100 items")
