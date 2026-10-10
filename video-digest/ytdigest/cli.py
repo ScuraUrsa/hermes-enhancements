@@ -6,6 +6,7 @@
   ytdigest worker [--idle-only] [--max-videos N] [--max-minutes M]  drain the queue
   ytdigest backlog-sync [--account fjkazmierczak]                  queue all playlists
   ytdigest compare --refs A,B --file ids.txt [--notion-parent ID]   same videos, several models
+  ytdigest discover [--days 730] [--ids-file wl.txt] [--queue]      recent uploads of followed/saved channels
   ytdigest gate                                                     show the idle checks
   ytdigest status                                                   queue counts and spend
   ytdigest serve --host 127.0.0.1 --port 8765                       one-click endpoint
@@ -21,7 +22,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import backlog, compare, config, fetch, gate, llm, pipeline
+from . import backlog, compare, config, discover, fetch, gate, llm, pipeline
 from .queue import BACKLOG_PRIORITY, USER_PRIORITY, Queue
 
 
@@ -108,6 +109,19 @@ def cmd_compare(cfg, a) -> int:
     print(f"results: {res['dir']}/results.json and comparison.md")
     if a.notion_parent:
         print("notion:", compare.publish_notion(res, refs, a.notion_parent, a.title))
+    return 0
+
+
+def cmd_discover(cfg, a) -> int:
+    out = Path(a.out or Path(cfg["data_dir"]) / f"discover_{a.account}_{a.days}d.tsv")
+    res = discover.run(cfg, a.account, a.days, out, id_files=a.ids_file or [], include_subs=not a.no_subs,
+                       skip_shorts=a.skip_shorts, log=lambda m: print(m, flush=True))
+    if a.queue:
+        q = _q(cfg)
+        n = sum(q.add(r["video_id"], fetch.watch_url(r["video_id"]), title=r["title"], account=a.account,
+                      playlist=f"Kanał: {r['channel']}", priority=discover.DISCOVER_PRIORITY) for r in res["rows"])
+        print(f"queued {n} new videos at priority {discover.DISCOVER_PRIORITY} (after all other backlog)")
+    print(json.dumps(res["summary"], ensure_ascii=False))
     return 0
 
 
@@ -202,6 +216,15 @@ def main(argv: list[str] | None = None) -> int:
     cp.add_argument("--notion-parent", help="Notion page id to put the comparison page under")
     cp.add_argument("--title", default="Porównanie modeli: Sonnet vs Haiku")
     cp.set_defaults(fn=cmd_compare)
+    ds = sub.add_parser("discover", help="recent videos from every channel you save or subscribe to")
+    ds.add_argument("--account", default="fjkazmierczak")
+    ds.add_argument("--days", type=int, default=730)
+    ds.add_argument("--ids-file", action="append", help="extra saved ids (e.g. the Watch later export); repeatable")
+    ds.add_argument("--no-subs", action="store_true", help="leave subscriptions out")
+    ds.add_argument("--skip-shorts", action="store_true", help="drop videos of 60 s or less")
+    ds.add_argument("--out", help="TSV path (default data_dir/discover_<account>_<days>d.tsv)")
+    ds.add_argument("--queue", action="store_true", help="also queue them, below all other backlog")
+    ds.set_defaults(fn=cmd_discover)
     w = sub.add_parser("worker", help="process queued videos")
     w.add_argument("--idle-only", action="store_true", help="backlog only when the idle gate is open")
     w.add_argument("--only-user", action="store_true", help="only Filip's priority-100 items")
