@@ -114,7 +114,8 @@ def durations(token: str, ids: list[str]) -> dict[str, int]:
 
 
 def run(cfg: dict, account: str, days: int, out_path: Path, id_files: list[str] = (), include_subs: bool = True,
-        skip_shorts: bool = False, skip_topic_channels: bool = True, log=print) -> dict:
+        skip_shorts: bool = False, skip_topic_channels: bool = True, min_seconds: int = 0,
+        max_per_channel: int = 0, log=print) -> dict:
     token = token_for(cfg, account)
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
@@ -154,7 +155,16 @@ def run(cfg: dict, account: str, days: int, out_path: Path, id_files: list[str] 
     shorts = sum(1 for r in rows if 0 < r["seconds"] <= 60)
     if skip_shorts:
         rows = [r for r in rows if not (0 < r["seconds"] <= 60)]
+    if min_seconds:
+        rows = [r for r in rows if r["seconds"] >= min_seconds]
     rows.sort(key=lambda r: r["published"], reverse=True)
+    if max_per_channel:  # mass uploaders (several videos a day) would bury everything else
+        kept, per = [], {}
+        for r in rows:
+            per[r["channel_id"]] = per.get(r["channel_id"], 0) + 1
+            if per[r["channel_id"]] <= max_per_channel:
+                kept.append(r)
+        rows = kept
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8", newline="") as fh:

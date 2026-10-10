@@ -115,7 +115,8 @@ def cmd_compare(cfg, a) -> int:
 def cmd_discover(cfg, a) -> int:
     out = Path(a.out or Path(cfg["data_dir"]) / f"discover_{a.account}_{a.days}d.tsv")
     res = discover.run(cfg, a.account, a.days, out, id_files=a.ids_file or [], include_subs=not a.no_subs,
-                       skip_shorts=a.skip_shorts, log=lambda m: print(m, flush=True))
+                       skip_shorts=a.skip_shorts, min_seconds=a.min_seconds, max_per_channel=a.max_per_channel,
+                       log=lambda m: print(m, flush=True))
     if a.queue:
         q = _q(cfg)
         n = sum(q.add(r["video_id"], fetch.watch_url(r["video_id"]), title=r["title"], account=a.account,
@@ -222,6 +223,8 @@ def main(argv: list[str] | None = None) -> int:
     ds.add_argument("--ids-file", action="append", help="extra saved ids (e.g. the Watch later export); repeatable")
     ds.add_argument("--no-subs", action="store_true", help="leave subscriptions out")
     ds.add_argument("--skip-shorts", action="store_true", help="drop videos of 60 s or less")
+    ds.add_argument("--min-seconds", type=int, default=0, help="drop videos shorter than this (e.g. 180)")
+    ds.add_argument("--max-per-channel", type=int, default=0, help="keep only the newest N per channel")
     ds.add_argument("--out", help="TSV path (default data_dir/discover_<account>_<days>d.tsv)")
     ds.add_argument("--queue", action="store_true", help="also queue them, below all other backlog")
     ds.set_defaults(fn=cmd_discover)
