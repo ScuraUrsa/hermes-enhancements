@@ -1,10 +1,10 @@
 # ~/.hermes/ytdigest/config.yaml  (everything optional; defaults in ytdigest/config.py)
 report_language: pl
 # accounts processed by the backlog, in this order
-accounts: [koalamis6, fjkazmierczak, kazmierczakfilipjan, praktyki]
+accounts: [fjkazmierczak, koalamis6, kazmierczakfilipjan, praktyki]
 # playlists not owned through the API (e.g. a koalamis brand channel), by URL
 extra_playlists: []
-#  - {account: koalamis6, name: "Do obejrzenia", url: "https://www.youtube.com/playlist?list=PL..."}
+#  - {account: fjkazmierczak, name: "Do obejrzenia", url: "https://www.youtube.com/playlist?list=PL..."}
 skip_playlists: []
 include_liked: false
 # USD per day for unattended backlog work (Filip's own requests are not capped)

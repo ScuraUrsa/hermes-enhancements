@@ -1,6 +1,6 @@
 """Fill the queue from Filip's YouTube accounts.
 
-Sources per account (config "accounts", koalamis6 first):
+Sources per account (config "accounts", fjkazmierczak first):
   - own playlists through the YouTube Data API, with the token Hermes already
     keeps at ~/.hermes/google-accounts/<alias>/google_token.json
   - Watch Later ("Do obejrzenia") through yt-dlp + that account's cookies,

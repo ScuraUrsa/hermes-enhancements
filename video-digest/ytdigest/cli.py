@@ -3,7 +3,7 @@
   ytdigest run <url> [--no-notion] [--analyzer frames|gemini_url]   one video, now
   ytdigest add <url>... [--now]                                     queue (backlog, or --now = priority 100)
   ytdigest worker [--idle-only] [--max-videos N] [--max-minutes M]  drain the queue
-  ytdigest backlog-sync [--account koalamis6]                       queue all playlists
+  ytdigest backlog-sync [--account fjkazmierczak]                       queue all playlists
   ytdigest gate                                                     show the idle checks
   ytdigest status                                                   queue counts and spend
   ytdigest serve --host 127.0.0.1 --port 8765                       one-click endpoint

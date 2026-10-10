@@ -59,8 +59,8 @@ DEFAULTS: dict[str, Any] = {
     "idle_user_quiet_minutes": 20,
     "idle_max_load_per_cpu": 0.7,
     "idle_min_free_mem_mb": 1500,
-    # Accounts processed by the backlog, in order (koalamis6 first: most playlists).
-    "accounts": ["koalamis6", "fjkazmierczak", "kazmierczakfilipjan", "praktyki"],
+    # Accounts processed by the backlog, in order (fjkazmierczak first: owns @scuraursa and its Watch later).
+    "accounts": ["fjkazmierczak", "koalamis6", "kazmierczakfilipjan", "praktyki"],
     "google_accounts_dir": str(HERMES_HOME / "google-accounts"),
     # Playlists to skip by title (case-insensitive substring).
     "skip_playlists": [],

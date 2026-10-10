@@ -41,7 +41,7 @@ set -a; . ~/.hermes/.env; set +a
 ```bash
 ~/.hermes/ytdigest/venv/bin/ytdigest status     # queue counts and today's spend
 ~/.hermes/ytdigest/venv/bin/ytdigest gate       # why the idle worker is or isn't running
-~/.hermes/ytdigest/venv/bin/ytdigest backlog-sync --account koalamis6   # re-read playlists now
+~/.hermes/ytdigest/venv/bin/ytdigest backlog-sync --account fjkazmierczak   # re-read playlists now
 ```
 
 The idle worker runs from the no-agent cron job `ytdigest-idle` (every 30 min) and
