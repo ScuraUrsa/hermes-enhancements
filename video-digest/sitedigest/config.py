@@ -12,7 +12,7 @@ from ytdigest import config as ytconfig
 DEFAULTS = {
     "root": str(ytconfig.HERMES_HOME / "sitedigest"),
     # Notion database for lessons ("Kursy: lekcje"); `sitedigest notion-setup` creates it
-    "notion_data_source_id": "",
+    "notion_data_source_id": "27ebf9d7-0cae-4a91-95cd-fcca1c0547c6",
     "max_pages": 800,
     "delay_sec": [1.5, 3.5],          # pause between pages: polite, and keeps the account safe
     "page_timeout_sec": 45,

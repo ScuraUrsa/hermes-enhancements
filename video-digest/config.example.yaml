@@ -25,7 +25,7 @@ notion_data_source_id: 561ac2c0-89c5-4d5a-aa40-67ab0f248e9c
 
 # Course and documentation websites (sitedigest). Same models, transcription and idle gate as above.
 site:
-  notion_data_source_id: ""     # `sitedigest notion-setup --parent <page id>` prints it
+  notion_data_source_id: 27ebf9d7-0cae-4a91-95cd-fcca1c0547c6   # "Kursy: lekcje"; notion-setup makes a new one
   max_pages: 800                # per map run; re-run to continue
   delay_sec: [1.5, 3.5]         # pause between pages
   max_videos_per_page: 6

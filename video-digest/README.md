@@ -157,7 +157,7 @@ One 5-hour subscription window held ~45-50 Sonnet digests of 20-30 min videos.
 The same treatment for courses and documentation Filip bought: log in once, map the
 site, download what can be downloaded, and get one report per lesson plus a course
 overview in the Notion database **Kursy: lekcje** (one row per lesson, grouped by site
-and section, ordered like the course).
+and section, ordered like the course; data source `27ebf9d7-0cae-4a91-95cd-fcca1c0547c6`).
 
 ```bash
 sitedigest import-cookies cookies.txt --url https://academy.example.com   # or: sitedigest login URL [--auto]
