@@ -145,11 +145,26 @@ def parse_vtt(text: str) -> list[dict]:
     return segments
 
 
+def _download(opts: dict, url: str, cookies: str | None, attempts: int = 3, wait: float = 20.0) -> None:
+    """yt-dlp download with retries: YouTube refuses streams intermittently (HTTP 403)
+    and a fresh attempt a little later usually gets through."""
+    import time
+
+    for n in range(1, attempts + 1):
+        try:
+            with _ydl(opts, cookies) as y:
+                y.download([url])
+            return
+        except Exception as exc:
+            if n == attempts or not any(s in str(exc) for s in ("403", "Forbidden", "429", "timed out", "Connection")):
+                raise
+            time.sleep(wait * n)
+
+
 def download_audio(url: str, out_dir: Path, cookies: str | None = None) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     opts = {"format": "bestaudio[ext=m4a]/bestaudio/best", "outtmpl": str(out_dir / "audio.%(ext)s")}
-    with _ydl(opts, cookies) as y:
-        y.download([url])
+    _download(opts, url, cookies)
     found = sorted(p for p in out_dir.glob("audio.*") if p.suffix not in (".part", ".ytdl"))
     if not found:
         raise RuntimeError("audio download produced no file")
@@ -161,8 +176,7 @@ def download_video(url: str, out_dir: Path, max_height: int = 480, cookies: str 
     out_dir.mkdir(parents=True, exist_ok=True)
     fmt = f"bv*[height<={max_height}][ext=mp4]/bv*[height<={max_height}]/b[height<={max_height}]/b"
     opts = {"format": fmt, "outtmpl": str(out_dir / "video.%(ext)s")}
-    with _ydl(opts, cookies) as y:
-        y.download([url])
+    _download(opts, url, cookies)
     found = sorted(p for p in out_dir.glob("video.*") if p.suffix not in (".part", ".ytdl"))
     if not found:
         raise RuntimeError("video download produced no file")

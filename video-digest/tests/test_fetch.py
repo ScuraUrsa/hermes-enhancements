@@ -55,3 +55,26 @@ def test_pick_caption_auto_only_original_track():
     assert fetch.pick_caption(info, "auto", ["en"]) == ("pl-orig", "auto")
     info2 = {"language": "pl", "automatic_captions": {"en": [{}], "de": [{}]}}
     assert fetch.pick_caption(info2, "auto", ["en"]) is None
+
+
+def test_download_retries_on_403(monkeypatch, tmp_path):
+    from ytdigest import fetch as F
+
+    calls = {"n": 0}
+
+    class Y:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def download(self, urls):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise RuntimeError("ERROR: unable to download video data: HTTP Error 403: Forbidden")
+            (tmp_path / "video.mp4").write_bytes(b"x")
+
+    monkeypatch.setattr(F, "_ydl", lambda opts, cookies: Y())
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    assert F.download_video("u", tmp_path).name == "video.mp4" and calls["n"] == 3
