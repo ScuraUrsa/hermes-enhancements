@@ -78,3 +78,11 @@ def test_download_retries_on_403(monkeypatch, tmp_path):
     monkeypatch.setattr(F, "_ydl", lambda opts, cookies: Y())
     monkeypatch.setattr("time.sleep", lambda s: None)
     assert F.download_video("u", tmp_path).name == "video.mp4" and calls["n"] == 3
+
+
+def test_polish_video_prefers_polish_track_even_if_metadata_says_en():
+    from ytdigest import fetch as F
+    info = {"title": "Jak używać NotebookLM do nauki – poradnik krok po kroku", "description": "W tym filmie pokazuję, jak to działa.",
+            "language": "en", "subtitles": {"en": [{}], "pl": [{}]}, "automatic_captions": {}}
+    assert F.pick_caption(info, "manual", ["pl", "en"]) == ("pl", "manual")
+    assert F.guess_language({"title": "How to build an MCP server", "description": "In this video"}) is None

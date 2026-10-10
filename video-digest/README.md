@@ -141,3 +141,13 @@ token comes from `~/.hermes/google-accounts/<alias>/google_token.json` or env
 PC. It calls `ytdigest serve` on the VM (`/digest`, then `/report`) over Tailscale
 and returns the report, so "summarise this video: <link>" works in any Claude
 Desktop chat. Setup is in the file's docstring.
+
+### Sonnet vs Haiku (10-video test, 2026-10-10)
+
+Same transcript and frames, Claude doing classify, frames and report. API-price
+equivalent: Sonnet $0.75/video ($1.82 per video hour), Haiku $0.33/video ($0.79/h).
+Haiku was not faster, skipped frames in 3 of 10 videos and returned broken JSON
+once; it is generic on screens, slides and code but fine on talking heads. Hence
+`claude_light`: AI/software talking heads (podcast, interview, news, vlog) go to
+Haiku, everything else on the Claude route and Filip's own links stay on Sonnet.
+One 5-hour subscription window held ~45-50 Sonnet digests of 20-30 min videos.

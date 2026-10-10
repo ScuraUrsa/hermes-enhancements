@@ -33,8 +33,21 @@ def is_ai_software(info: dict, transcript_head: str = "", threshold: int = 6) ->
     return score_ai_software(info, transcript_head) >= threshold
 
 
-def apply(route: dict, cfg: dict, info: dict, transcript_head: str, tag: str) -> tuple[dict, str | None]:
+def apply(route: dict, cfg: dict, info: dict, transcript_head: str, tag: str,
+          video_type: str | None = None) -> tuple[dict, str | None]:
     """Return (route with overrides, reason or None)."""
+    route, why = _apply(route, cfg, info, transcript_head, tag)
+    light = cfg.get("claude_light") or {}
+    # Sonnet vs Haiku test (2026-10-10): for talking heads Haiku is as good at ~43% of
+    # the usage; screens, slides and code need Sonnet. Filip's own links stay on Sonnet.
+    if (why == "AI/software topic" and video_type in (light.get("types") or [])
+            and str(route.get("report", "")).startswith("claude-code:")):
+        route = {**route, "report": light["model"], "vision": light["model"]}
+        why = f"{why}, talking head: {light['model']}"
+    return route, why
+
+
+def _apply(route: dict, cfg: dict, info: dict, transcript_head: str, tag: str) -> tuple[dict, str | None]:
     over = {k: {kk: vv for kk, vv in v.items() if kk != "off"}
             for k, v in (cfg.get("topic_routes") or {}).items() if isinstance(v, dict) and v and not v.get("off")}
     if tag == "manual" and over.get("manual"):

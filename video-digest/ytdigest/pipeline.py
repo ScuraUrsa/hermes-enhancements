@@ -117,7 +117,7 @@ def process(url: str, cfg: dict, *, account: str | None = None, playlists: list[
         return _finish(nt, cfg, bundle_dir, bundle, report.artistic_stub(bundle, f"skipped by routing ({vtype})"),
                        run, client, "artistic", log)
 
-    route, why = topics.apply(route, cfg, info, head, tag)
+    route, why = topics.apply(route, cfg, info, head, tag, vtype)
     if route_override:
         route, why = {**route, **route_override}, "override"
     if why:
@@ -185,6 +185,11 @@ def _describe_frames(client, route: dict, cfg: dict, bundle_dir: Path, bundle: d
             f.pop("error", None)
         vision.describe(client, ref, bundle_dir, bundle["frames"], segments, cfg["report_language"],
                         title=bundle.get("title") or "")
+        missing = [f for f in bundle["frames"] if not f.get("caption")]
+        if missing and len(missing) < len(bundle["frames"]):
+            # models sometimes skip images in a batch; ask again for just those, two at a time
+            vision.describe(client, ref, bundle_dir, missing, segments, cfg["report_language"],
+                            batch=2, title=bundle.get("title") or "")
         if any(f.get("caption") for f in bundle["frames"]):
             run["visual"] = True
             run["vision_model"] = ref

@@ -61,6 +61,16 @@ def flat_playlist(url: str, cookies: str | None = None) -> list[dict]:
     return [e for e in (info.get("entries") or []) if e and e.get("id")]
 
 
+_PL_WORDS = re.compile(r"[ąćęłńóśźż]|\b(jak|się|nie|czy|dla|jest|oraz|który|która|dlaczego|co|to|na|po|polsk\w*)\b", re.I)
+
+
+def guess_language(info: dict) -> str | None:
+    """'pl' when the title and description read as Polish, else None (no guess)."""
+    text = f"{info.get('title') or ''} {(info.get('description') or '')[:600]}"
+    words = max(1, len(text.split()))
+    return "pl" if len(_PL_WORDS.findall(text)) / words >= 0.15 else None
+
+
 def pick_caption(info: dict, kind: str, langs: list[str]) -> tuple[str, str] | None:
     """Return (lang, kind) of the best caption track, or None.
 
@@ -74,6 +84,9 @@ def pick_caption(info: dict, kind: str, langs: list[str]) -> tuple[str, str] | N
     if not tracks:
         return None
     original = (info.get("language") or "").split("-")[0]
+    guessed = guess_language(info)
+    if guessed and guessed != original:  # creators often leave the language unset or wrong
+        original = guessed
     if kind == "auto":
         orig_keys = [k for k in tracks if k.endswith("-orig")]
         if orig_keys:

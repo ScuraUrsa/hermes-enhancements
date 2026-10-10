@@ -72,3 +72,15 @@ def test_add_to_playlist_creates_once(cfg, monkeypatch):
     assert not youtube.add_to_playlist(cfg, "fjkazmierczak", "Przetworzone", "abcdefghijk")
     assert youtube.add_to_playlist(cfg, "fjkazmierczak", "Przetworzone", "bbbbbbbbbbb")
     assert calls.count(("POST", "playlists")) == 1 and calls.count(("POST", "playlistItems")) == 2
+
+
+def test_talking_heads_go_to_haiku(cfg):
+    cfg["topic_routes"] = {"ai_software": {"report": "claude-code:sonnet", "vision": "claude-code:sonnet"},
+                           "manual": {"report": "claude-code:sonnet", "vision": "claude-code:sonnet"}}
+    base = {"report": "ollama-cloud:x", "vision": "ollama-cloud:y"}
+    r, why = topics.apply(base, cfg, AI, "", "backlog", "podcast_talk")
+    assert r["report"] == "claude-code:haiku" and "talking head" in why
+    r, _ = topics.apply(base, cfg, AI, "", "backlog", "tutorial_screen")
+    assert r["report"] == "claude-code:sonnet"
+    r, _ = topics.apply(base, cfg, AI, "", "manual", "podcast_talk")
+    assert r["report"] == "claude-code:sonnet"

@@ -48,6 +48,10 @@ DEFAULTS: dict[str, Any] = {
         "manual": {"report": "claude-code:sonnet", "vision": "claude-code:sonnet"},
     },
     "ai_software_threshold": 6,
+    # Within those Claude routes, talking-head types go to Haiku (same quality there,
+    # ~43% of Sonnet's usage in the 10-video test). Empty types = Sonnet for all.
+    "claude_light": {"model": "claude-code:haiku",
+                     "types": ["podcast_talk", "interview", "news_commentary", "vlog_travel"]},
     # Punctuate YouTube auto captions before they go to Notion (cheap model).
     "clean_auto_transcript": True,
     "cleanup_model": "ollama-cloud:gpt-oss:120b",
