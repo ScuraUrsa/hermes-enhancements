@@ -1,0 +1,13 @@
+diff --git a/crates/eval_cli/src/main.rs b/crates/eval_cli/src/main.rs
+index 13aa43e..39e151c 100644
+--- a/crates/eval_cli/src/main.rs
++++ b/crates/eval_cli/src/main.rs
+@@ -717,7 +717,7 @@ async fn run_agent(
+                     }},
+                     "autosave": "off",
+                     "format_on_save": "off"
+-                }}"
++                }}
+                 "#
+             );
+             store.set_user_settings(&settings, cx).result()
