@@ -182,8 +182,12 @@ class Client:
         with tempfile.TemporaryDirectory(prefix="ytdigest-cc-") as cwd:  # no project CLAUDE.md/hooks
             r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=1800, check=False,
                                env=env, cwd=cwd)
-        if r.returncode != 0:
-            raise LLMError(f"claude-code exit {r.returncode}: {(r.stderr or r.stdout)[:300]}")
+        if r.returncode != 0:  # a usage limit arrives as JSON on stdout: keep its text for the pool
+            try:
+                msg = str(json.loads(r.stdout).get("result") or "")
+            except (ValueError, AttributeError):
+                msg = r.stdout or ""
+            raise LLMError(f"claude-code exit {r.returncode}: {(msg + ' ' + (r.stderr or '')).strip()[:300]}")
         out = json.loads(r.stdout)
         if out.get("is_error"):
             raise LLMError(f"claude-code:{alias} -> {str(out.get('result'))[:300]}")

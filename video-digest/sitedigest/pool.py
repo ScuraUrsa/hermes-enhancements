@@ -13,7 +13,7 @@ extra Claude session is needed to coordinate; the database does it.
   analysed (this is what made the first run go dry).
 - --follow keeps re-reading the map for newly synced lessons until --max-minutes.
 - Claude usage limit: the first worker that hits it pauses the whole pool until
-  the window resets (or --pause-minutes); with --fallback-model the lesson is
+  the window resets (read from Claude's message, else --pause-minutes); with --fallback-model the lesson is
   done with that model instead of waiting.
 """
 
@@ -21,13 +21,16 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import time
 from pathlib import Path
 
 from . import crawl, course, session
 
-LIMIT_WORDS = ("usage limit", "rate limit", "limit reached", "429", "overloaded", "quota")
+LIMIT_WORDS = ("usage limit", "rate limit", "limit reached", "hit your limit", "429", "overloaded", "quota")
+RESET_EPOCH = re.compile(r"limit reached\|(\d{10})")
+RESET_CLOCK = re.compile(r"resets\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", re.I)
 
 
 def db_path(cfg: dict, site: str) -> Path:
@@ -117,6 +120,32 @@ def is_limit(error: str | None) -> bool:
     return any(w in e for w in LIMIT_WORDS)
 
 
+def limit_wait(error: str | None, default_sec: float, now: float | None = None) -> float:
+    """Seconds until the Claude limit in `error` resets (plus a 2 min margin), else `default_sec`.
+
+    Understands "usage limit reached|<epoch>" and "... resets 3pm" / "resets 11:50" (local time)."""
+    now = time.time() if now is None else now
+    e = error or ""
+    m = RESET_EPOCH.search(e)
+    if m:
+        at = float(m.group(1))
+    else:
+        m = RESET_CLOCK.search(e)
+        if not m:
+            return default_sec
+        h, mi, ap = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").lower()
+        if ap == "pm" and h < 12:
+            h += 12
+        elif ap == "am" and h == 12:
+            h = 0
+        t = time.localtime(now)
+        at = time.mktime((t.tm_year, t.tm_mon, t.tm_mday, h, mi, 0, 0, 0, -1))
+        if at <= now:
+            at += 86400
+    wait = at - now + 120
+    return wait if 0 < wait <= 6 * 3600 else default_sec
+
+
 def worker(cfg: dict, site: str, n: int, *, model: str | None, fallback_model: str | None, deadline: float,
            follow: bool, require_vtt: bool, include, pause_minutes: float, write_notion: bool, log) -> dict:
     from . import lesson
@@ -149,8 +178,9 @@ def worker(cfg: dict, site: str, n: int, *, model: str | None, fallback_model: s
         except Exception as exc:
             err = f"{type(exc).__name__}: {str(exc)[:400]}"
             if is_limit(err):
-                log(f"[w{n}] usage limit hit; pausing the pool {pause_minutes:.0f} min")
-                pause(db, pause_minutes * 60)
+                sec = limit_wait(err, pause_minutes * 60)
+                log(f"[w{n}] usage limit hit; pausing the pool {sec / 60:.0f} min")
+                pause(db, sec)
                 finish(db, key, "queued")  # back to the pool, not a failure
                 continue
             res = {"key": key, "status": "failed", "error": err}
@@ -166,7 +196,6 @@ def run(cfg: dict, site: str, *, workers: int = 3, model: str | None = None, fal
         pause_minutes: float = 30, write_notion: bool = True, log=print) -> list[dict]:
     """Start `workers` processes on the site's pool; returns their tallies."""
     import multiprocessing as mp
-    import re
 
     rx = re.compile(include) if include else None
     db = connect(cfg, site)

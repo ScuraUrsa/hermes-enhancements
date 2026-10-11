@@ -274,6 +274,22 @@ def test_pool_claims_are_exclusive_and_wait_for_transcripts(scfg):
     assert pool.is_limit("claude-code:sonnet -> Claude AI usage limit reached|1760000000")
 
 
+def test_pool_reads_limit_reset_time():
+    import time
+
+    from sitedigest import pool
+
+    now = 1760000000.0
+    assert pool.limit_wait("Claude AI usage limit reached|1760003600", 1800, now) == 3600 + 120
+    assert pool.is_limit("claude-code exit 1: You've hit your limit · resets 3pm (Europe/Warsaw)")
+    t = time.localtime(now + 2 * 3600)  # a clock time two hours ahead, local time
+    at = time.mktime((t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, 0, 0, 0, 0, -1))
+    h12 = f"{t.tm_hour % 12 or 12}{'pm' if t.tm_hour >= 12 else 'am'}"
+    assert pool.limit_wait(f"5-hour limit reached ∙ resets {h12}", 1800, now) == at - now + 120
+    assert pool.limit_wait(f"resets {t.tm_hour}:00", 1800, now) == at - now + 120
+    assert pool.limit_wait("overloaded", 1800, now) == 1800  # no reset time: the default
+
+
 def test_pool_runs_parallel_workers(scfg, monkeypatch):
     import os
 
