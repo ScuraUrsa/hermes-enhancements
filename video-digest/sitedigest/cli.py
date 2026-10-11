@@ -85,8 +85,8 @@ def cmd_outline(cfg, a) -> int:
 
 
 def cmd_digest(cfg, a) -> int:
-    # explicit --page runs are what parallel pool workers start (each claimed its page);
-    # they only need the short map lock, not the one-worker-at-a-time lock
+    # an explicit --page run is a manual one-off: it only needs the short map lock (results are
+    # written under it), not the lock a pool or the cron worker holds for a whole run
     _lk = None if a.page else _lock(cfg)
     res = course.digest_site(cfg, a.site, keys=a.page, limit=a.limit, model=a.model, write_notion=not a.no_notion,
                              redo=a.redo, include_index=a.all, log=_log)
@@ -112,8 +112,7 @@ def cmd_fetch(cfg, a) -> int:
 
     def one(rec):
         res = lesson.fetch_media(cfg, a.site, rec, cookies=cookies, log=_log)
-        rec["fetched"] = res
-        crawl.save_map(cfg, a.site, m)
+        crawl.patch_pages(cfg, a.site, {rec["key"]: {"fetched": res}})  # digest results may land meanwhile
         return res
 
     res = crawl.fetch_pages(cfg, a.site, todo, one, headless=not a.show, log=_log)
@@ -127,6 +126,7 @@ def cmd_pool(cfg, a) -> int:
     if a.stats:
         print(json.dumps(pool.stats(cfg, a.site), indent=1))
         return 0
+    _lk = _lock(cfg)  # one pool, and no `digest SITE` or cron worker on the same lessons meanwhile
     res = pool.run(cfg, a.site, workers=a.workers, model=a.model, fallback_model=a.fallback_model,
                    max_minutes=a.max_minutes, follow=a.follow, require_vtt=a.require_vtt, include=a.include,
                    pause_minutes=a.pause_minutes, write_notion=not a.no_notion, log=_log)

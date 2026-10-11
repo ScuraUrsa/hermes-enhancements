@@ -2,35 +2,49 @@
 
 A small SQLite queue (<root>/<site>/queue.db) is the coordinator: every lesson is
 one row, a worker *claims* a row with a time-limited lease (one transaction, so
-two workers never get the same lesson), digests it and marks it done. A worker
-that dies just lets its lease run out and the lesson goes back to the pool. No
-extra Claude session is needed to coordinate; the database does it.
+two workers never get the same lesson), keeps the lease alive while it works,
+digests the lesson and marks it done. A worker that dies just lets its lease run
+out and the lesson goes back to the pool; after MAX_ATTEMPTS it is marked failed
+instead of crashing worker after worker. No extra Claude session is needed to
+coordinate; the database does it.
 
   sitedigest pool SITE --workers 3 --model claude-code:sonnet --follow --require-vtt
 
+- One pool at a time: the pool holds the same lock as `digest SITE` and the cron
+  `worker`, so those never digest a lesson the pool is working on.
 - Readiness: a lesson enters the pool only when its prefetched videos exist (and,
   with --require-vtt, their transcripts too), so a half-synced folder is never
   analysed (this is what made the first run go dry).
 - --follow keeps re-reading the map for newly synced lessons until --max-minutes.
-- Claude usage limit: the first worker that hits it pauses the whole pool until
-  the window resets (read from Claude's message, else --pause-minutes); with --fallback-model the lesson is
-  done with that model instead of waiting.
+- Re-runs: a lesson whose map digest status is 'requeued' (course-harvest's
+  requeue.py) goes back into the pool once.
+- Claude usage limit (ytdigest.llm.LimitError, decided on the CLI's own message):
+  the first worker that hits it pauses the whole pool until the window resets
+  (read from Claude's message, else --pause-minutes); with --fallback-model the
+  lesson is done with that model instead of waiting.
 """
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import sqlite3
+import threading
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
-from . import crawl, course, session
+from ytdigest import llm
 
-LIMIT_WORDS = ("usage limit", "rate limit", "limit reached", "hit your limit", "429", "overloaded", "quota")
+from . import crawl, course, media, session
+
+LEASE_SEC = 1800       # renewed every HEARTBEAT_SEC while the worker is alive
+HEARTBEAT_SEC = 300
+MAX_ATTEMPTS = 3       # claims that ended without a result (crash, kill) before a lesson is given up
 RESET_EPOCH = re.compile(r"limit reached\|(\d{10})")
-RESET_CLOCK = re.compile(r"resets\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", re.I)
+MONTHS = "jan feb mar apr may jun jul aug sep oct nov dec".split()
+RESET_CLOCK = re.compile(r"resets\s+(?:on\s+)?(?:(?P<mon>[A-Za-z]{3})[a-z]*\.?\s+(?P<day>\d{1,2}),?\s+)?(?:at\s+)?"
+                         r"(?P<h>\d{1,2})(?::(?P<m>\d{2}))?\s*(?P<ap>am|pm)?(?:\s*\((?P<tz>[A-Za-z_]+/[A-Za-z_/]+|UTC)\))?", re.I)
 
 
 def db_path(cfg: dict, site: str) -> Path:
@@ -48,7 +62,7 @@ def connect(cfg: dict, site: str) -> sqlite3.Connection:
 
 
 def ready(cfg: dict, site: str, rec: dict, require_vtt: bool) -> bool:
-    """Every local:<path> video of the page exists (and has a .vtt next to it if required)."""
+    """Every local:<path> video of the page exists (and has a caption file next to it if required)."""
     pdir = crawl.page_dir(cfg, site, rec["key"])
     for v in rec.get("videos") or []:
         if not v.startswith("local:"):
@@ -56,7 +70,7 @@ def ready(cfg: dict, site: str, rec: dict, require_vtt: bool) -> bool:
         f = pdir / v[len("local:"):]
         if not f.is_file():
             return False
-        if require_vtt and not list(f.parent.glob(f"{f.stem}*.vtt")):
+        if require_vtt and not media.captions_for(f):
             return False
     return True
 
@@ -82,10 +96,14 @@ def sync(cfg: dict, site: str, db: sqlite3.Connection, *, require_vtt: bool = Fa
     return added
 
 
-def claim(db: sqlite3.Connection, owner: str, lease_sec: float = 1800) -> str | None:
+def claim(db: sqlite3.Connection, owner: str, lease_sec: float = LEASE_SEC) -> str | None:
     now = time.time()
     db.execute("BEGIN IMMEDIATE")
     try:
+        # a lease that ran out means its worker died; after MAX_ATTEMPTS the lesson is the problem
+        db.execute("""UPDATE jobs SET status='failed', owner=NULL, lease_until=NULL, updated=?,
+                      error=COALESCE(error, 'worker died ' || attempts || ' times on this lesson')
+                      WHERE status='leased' AND lease_until < ? AND attempts >= ?""", (now, now, MAX_ATTEMPTS))
         row = db.execute("""SELECT key FROM jobs WHERE status='queued' OR (status='leased' AND lease_until < ?)
                             ORDER BY ord LIMIT 1""", (now,)).fetchone()
         if not row:
@@ -100,9 +118,27 @@ def claim(db: sqlite3.Connection, owner: str, lease_sec: float = 1800) -> str | 
         raise
 
 
-def finish(db: sqlite3.Connection, key: str, status: str, error: str | None = None) -> None:
-    db.execute("UPDATE jobs SET status=?, error=?, owner=NULL, lease_until=NULL, updated=? WHERE key=?",
-               (status, error, time.time(), key))
+def renew(db: sqlite3.Connection, key: str, owner: str, lease_sec: float = LEASE_SEC) -> bool:
+    cur = db.execute("UPDATE jobs SET lease_until=? WHERE key=? AND owner=? AND status='leased'",
+                     (time.time() + lease_sec, key, owner))
+    return cur.rowcount == 1
+
+
+def owns(db: sqlite3.Connection, key: str, owner: str) -> bool:
+    return db.execute("SELECT 1 FROM jobs WHERE key=? AND owner=? AND status='leased'", (key, owner)).fetchone() is not None
+
+
+def finish(db: sqlite3.Connection, key: str, status: str, error: str | None = None, *, owner: str | None = None,
+           refund: bool = False) -> bool:
+    """Close a claim. With `owner`, only if that worker still holds it (False otherwise).
+    `refund` gives back the attempt (a usage-limit pause is not the lesson's fault)."""
+    sql = ("UPDATE jobs SET status=?, error=?, owner=NULL, lease_until=NULL, updated=?"
+           + (", attempts=MAX(attempts-1, 0)" if refund else "") + " WHERE key=?")
+    args: list = [status, error, time.time(), key]
+    if owner is not None:
+        sql += " AND owner=?"
+        args.append(owner)
+    return db.execute(sql, args).rowcount == 1
 
 
 def paused_until(db: sqlite3.Connection) -> float:
@@ -123,16 +159,18 @@ def stats(cfg: dict, site: str) -> dict:
 
 
 def is_limit(error: str | None) -> bool:
-    e = (error or "").lower()
-    return any(w in e for w in LIMIT_WORDS)
+    """Text form of llm.LimitError (for errors that crossed a process or a log)."""
+    return bool(llm.CLAUDE_LIMIT.search(error or ""))
 
 
 def limit_wait(error: str | None, default_sec: float, now: float | None = None) -> float:
     """Seconds until the Claude limit in `error` resets (plus a 2 min margin), else `default_sec`.
 
-    Understands "usage limit reached|<epoch>" and "... resets 3pm" / "resets 11:50" (local time)."""
+    Understands "usage limit reached|<epoch>", "resets 3pm (Europe/Warsaw)", "resets 11:50"
+    and "resets Oct 14, 3pm" (a weekly limit). Without a zone the machine's local time is used."""
     now = time.time() if now is None else now
     e = error or ""
+    cap = 6 * 3600
     m = RESET_EPOCH.search(e)
     if m:
         at = float(m.group(1))
@@ -140,17 +178,47 @@ def limit_wait(error: str | None, default_sec: float, now: float | None = None) 
         m = RESET_CLOCK.search(e)
         if not m:
             return default_sec
-        h, mi, ap = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").lower()
+        tz = None
+        if m["tz"]:
+            try:
+                from zoneinfo import ZoneInfo
+
+                tz = ZoneInfo(m["tz"])
+            except Exception:  # unknown zone name: fall back to local time
+                tz = None
+        h, mi, ap = int(m["h"]), int(m["m"] or 0), (m["ap"] or "").lower()
+        if h > 23 or mi > 59:
+            return default_sec
         if ap == "pm" and h < 12:
             h += 12
         elif ap == "am" and h == 12:
             h = 0
-        t = time.localtime(now)
-        at = time.mktime((t.tm_year, t.tm_mon, t.tm_mday, h, mi, 0, 0, 0, -1))
-        if at <= now:
-            at += 86400
+        base = datetime.fromtimestamp(now, tz) if tz else datetime.fromtimestamp(now)
+        try:
+            if m["mon"] and m["mon"].lower()[:3] in MONTHS:
+                cap = 8 * 86400
+                t = base.replace(month=MONTHS.index(m["mon"].lower()[:3]) + 1, day=int(m["day"]), hour=h, minute=mi,
+                                 second=0, microsecond=0)
+                if t.timestamp() <= now:
+                    t = t.replace(year=t.year + 1)
+            else:
+                t = base.replace(hour=h, minute=mi, second=0, microsecond=0)
+                if t.timestamp() <= now:
+                    t += timedelta(days=1)
+        except ValueError:  # e.g. Feb 30
+            return default_sec
+        at = t.timestamp()
     wait = at - now + 120
-    return wait if 0 < wait <= 6 * 3600 else default_sec
+    return wait if 0 < wait <= cap else default_sec
+
+
+def _heartbeat(cfg: dict, site: str, key: str, owner: str, stop: threading.Event) -> None:
+    db = connect(cfg, site)  # sqlite connections are per thread
+    try:
+        while not stop.wait(HEARTBEAT_SEC):
+            renew(db, key, owner)
+    finally:
+        db.close()
 
 
 def worker(cfg: dict, site: str, n: int, *, model: str | None, fallback_model: str | None, deadline: float,
@@ -162,52 +230,71 @@ def worker(cfg: dict, site: str, n: int, *, model: str | None, fallback_model: s
     done = failed = 0
     while time.time() < deadline:
         wait = paused_until(db) - time.time()
-        if wait > 0:
-            if not fallback_model:
-                time.sleep(min(wait, 60))
-                continue
+        if wait > 0 and not fallback_model:
+            time.sleep(max(1.0, min(wait, 60, deadline - time.time())))
+            continue
         if n == 0:  # one worker keeps the pool topped up from the map
-            sync(cfg, site, db, require_vtt=require_vtt, include=include)
+            try:
+                sync(cfg, site, db, require_vtt=require_vtt, include=include)
+            except Exception as exc:  # e.g. map.json being replaced on Windows: next round
+                log(f"[w{n}] sync skipped: {type(exc).__name__}: {str(exc)[:160]}")
         key = claim(db, owner)
         if not key:
             if not follow:
                 break
-            time.sleep(30)
+            time.sleep(max(1.0, min(30, deadline - time.time())))
             continue
         rec = next((p for p in (crawl.load_map(cfg, site) or {"pages": []})["pages"] if p["key"] == key), None)
         if rec is None:
-            finish(db, key, "failed", "not in map")
+            finish(db, key, "failed", "not in map", owner=owner)
             continue
         use = fallback_model if (paused_until(db) > time.time() and fallback_model) else model
+        stop = threading.Event()
+        beat = threading.Thread(target=_heartbeat, args=(cfg, site, key, owner, stop), daemon=True)
+        beat.start()
         try:
             res = lesson.digest(cfg, site, rec, model=use, write_notion=write_notion, tag="manual",
                                 log=lambda m, n=n: log(f"[w{n}] {m}"))
-        except Exception as exc:
+        except llm.LimitError as exc:
             err = f"{type(exc).__name__}: {str(exc)[:400]}"
-            if is_limit(err):
-                sec = limit_wait(err, pause_minutes * 60)
-                log(f"[w{n}] usage limit hit; pausing the pool {sec / 60:.0f} min")
-                pause(db, sec)
-                finish(db, key, "queued")  # back to the pool, not a failure
+            sec = limit_wait(err, pause_minutes * 60)
+            log(f"[w{n}] Claude usage limit; pausing the pool {sec / 60:.0f} min")
+            pause(db, sec)
+            finish(db, key, "queued", owner=owner, refund=True)  # back to the pool, not a failure
+            continue
+        except Exception as exc:
+            res = {"key": key, "status": "failed", "error": f"{type(exc).__name__}: {str(exc)[:400]}"}
+        finally:
+            stop.set()
+        status = "done" if res["status"] in ("done", "partial") else "failed"
+        try:
+            if not owns(db, key, owner):  # the lease was lost (pool restarted): the new holder records it
+                log(f"[w{n}] {key}: lease lost, result not recorded")
                 continue
-            res = {"key": key, "status": "failed", "error": err}
-        crawl.update_pages(cfg, site, {key: res})
-        finish(db, key, "done" if res["status"] in ("done", "partial") else "failed", res.get("error"))
-        done += res["status"] in ("done", "partial")
-        failed += res["status"] == "failed"
+            crawl.update_pages(cfg, site, {key: res})
+            finish(db, key, status, res.get("error"), owner=owner)
+        except Exception as exc:  # keep the worker alive; the lease runs out and the lesson is retried
+            log(f"[w{n}] {key}: could not record the result: {type(exc).__name__}: {str(exc)[:160]}")
+            continue
+        done += status == "done"
+        failed += status == "failed"
     return {"worker": n, "done": done, "failed": failed}
 
 
 def run(cfg: dict, site: str, *, workers: int = 3, model: str | None = None, fallback_model: str | None = None,
         max_minutes: float = 600, follow: bool = False, require_vtt: bool = False, include: str | None = None,
         pause_minutes: float = 30, write_notion: bool = True, log=print) -> list[dict]:
-    """Start `workers` processes on the site's pool; returns their tallies."""
+    """Start `workers` processes on the site's pool; returns their tallies.
+
+    The caller holds the sitedigest worker lock (cli.cmd_pool), so this is the only pool
+    and nothing else digests this site meanwhile."""
     import multiprocessing as mp
+    import queue as _queue
 
     rx = re.compile(include) if include else None
     db = connect(cfg, site)
-    # leases of a pool that was killed come back at once
-    db.execute("UPDATE jobs SET status='queued', owner=NULL WHERE status='leased'")
+    # we are the only pool: leases left in the table belong to a pool that was killed
+    db.execute("UPDATE jobs SET status='queued', owner=NULL, lease_until=NULL WHERE status='leased'")
     added = sync(cfg, site, db, require_vtt=require_vtt, include=rx)
     log(f"pool '{site}': {added} lessons added, {workers} workers, model {model or 'routing default'}")
     deadline = time.time() + max_minutes * 60
@@ -223,10 +310,26 @@ def run(cfg: dict, site: str, *, workers: int = 3, model: str | None = None, fal
     procs = [ctx.Process(target=_child, args=(out, cfg, site, n, kw), daemon=False) for n in range(workers)]
     for p in procs:
         p.start()
-    results = [out.get() for _ in procs]
+    results: dict[int, dict] = {}
+    while len(results) < len(procs):
+        try:
+            r = out.get(timeout=5)
+            results[r["worker"]] = r
+            continue
+        except _queue.Empty:
+            pass
+        for n, p in enumerate(procs):  # a child killed outright (OOM, signal) never reports
+            if n in results or p.is_alive():
+                continue
+            try:  # its last words may still be in the pipe
+                r = out.get(timeout=1)
+                results[r["worker"]] = r
+            except _queue.Empty:
+                results[n] = {"worker": n, "done": 0, "failed": 0, "error": f"worker exited with code {p.exitcode}"}
+                log(f"[w{n}] worker exited with code {p.exitcode} without a report")
     for p in procs:
-        p.join()
-    return sorted(results, key=lambda r: r["worker"])
+        p.join(timeout=10)
+    return sorted(results.values(), key=lambda r: r["worker"])
 
 
 def _child(out, cfg, site, n, kw) -> None:

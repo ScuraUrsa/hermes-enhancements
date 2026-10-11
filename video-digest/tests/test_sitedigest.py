@@ -301,6 +301,7 @@ def test_pool_runs_parallel_workers(scfg, monkeypatch):
     import os
 
     from sitedigest import pool
+    from ytdigest.llm import LimitError
 
     _pool_map(scfg, 8, with_vtt=lambda i: True)
     calls = []
@@ -308,12 +309,113 @@ def test_pool_runs_parallel_workers(scfg, monkeypatch):
     def fake_digest(cfg, site, rec, **kw):
         if rec["key"] == "k03" and not calls.count("k03-retry"):
             calls.append("k03-retry")
-            raise RuntimeError("Claude AI usage limit reached")
+            raise LimitError("claude-code:sonnet -> Claude AI usage limit reached")
+        if rec["key"] == "k05":  # an ordinary error mentioning limits is a failed lesson, not a pause
+            raise RuntimeError("no JSON object in model output: 'this lesson is about API rate limits'")
         return {"key": rec["key"], "status": "done", "pid": os.getpid()}
 
     monkeypatch.setattr(lesson, "digest", fake_digest)
     res = pool.run(scfg, "demo", workers=3, write_notion=False, pause_minutes=0, max_minutes=1, log=lambda m: None)
-    assert sum(r["done"] for r in res) == 8 and len(res) == 3
+    assert sum(r["done"] for r in res) == 7 and sum(r["failed"] for r in res) == 1 and len(res) == 3
     m = crawl.load_map(scfg, "demo")
-    assert all((p.get("digest") or {}).get("status") == "done" for p in m["pages"]), [p.get("digest") for p in m["pages"]]
-    assert pool.stats(scfg, "demo").get("done") == 8
+    st = {p["key"]: (p.get("digest") or {}).get("status") for p in m["pages"]}
+    assert st.pop("k05") == "failed" and set(st.values()) == {"done"}, st
+    assert pool.stats(scfg, "demo").get("done") == 7
+
+
+def test_claude_limit_is_told_apart_from_other_errors(cfg, monkeypatch, tmp_path):
+    import subprocess
+
+    from ytdigest import llm
+
+    def fake_run(stdout, code):
+        return lambda *a, **k: subprocess.CompletedProcess(a, code, stdout=stdout, stderr="")
+
+    client = llm.Client(cfg, ledger=tmp_path / "spend.jsonl")
+    monkeypatch.setattr(subprocess, "run", fake_run(json.dumps({"is_error": True, "result": "5-hour limit reached ∙ resets 3pm"}), 1))
+    with pytest.raises(llm.LimitError):
+        client.complete("claude-code:sonnet", "s", "u")
+    monkeypatch.setattr(subprocess, "run", fake_run(json.dumps({"is_error": True, "result": "Invalid model name"}), 1))
+    with pytest.raises(llm.LLMError) as e:
+        client.complete("claude-code:sonnet", "s", "u")
+    assert not isinstance(e.value, llm.LimitError)
+
+
+def test_pool_leases_are_owned_renewed_and_given_up(scfg):
+    from sitedigest import pool
+
+    _pool_map(scfg, 2, with_vtt=lambda i: True)
+    db = pool.connect(scfg, "demo")
+    pool.sync(scfg, "demo", db)
+    k = pool.claim(db, "a", lease_sec=0)  # expired at once: someone else may take it
+    assert pool.claim(db, "b") == k
+    assert not pool.renew(db, k, "a") and pool.renew(db, k, "b")
+    assert not pool.finish(db, k, "done", owner="a")  # the old holder can't close it
+    assert pool.owns(db, k, "b") and pool.finish(db, k, "done", owner="b")
+    # a lesson that kills its worker every time is given up after MAX_ATTEMPTS
+    other = pool.claim(db, "c", lease_sec=0)
+    for i in range(pool.MAX_ATTEMPTS - 1):
+        assert pool.claim(db, f"d{i}", lease_sec=0) == other
+    assert pool.claim(db, "e") is None
+    assert dict(db.execute("SELECT key, status FROM jobs").fetchall())[other] == "failed"
+
+
+def test_pool_parent_survives_a_killed_worker(scfg, monkeypatch):
+    import os
+
+    from sitedigest import pool
+
+    _pool_map(scfg, 4, with_vtt=lambda i: True)
+
+    def fake_digest(cfg, site, rec, **kw):
+        if rec["key"] == "k00":
+            os._exit(9)  # like an OOM kill: no report, no cleanup
+        return {"key": rec["key"], "status": "done"}
+
+    monkeypatch.setattr(lesson, "digest", fake_digest)
+    res = pool.run(scfg, "demo", workers=2, write_notion=False, max_minutes=0.3, log=lambda m: None)
+    assert len(res) == 2 and any("code 9" in (r.get("error") or "") for r in res)
+    assert sum(r["done"] for r in res) == 3
+
+
+def test_limit_wait_reads_zones_and_dates():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from sitedigest import pool
+
+    waw = ZoneInfo("Europe/Warsaw")
+    now = datetime(2026, 10, 11, 13, 0, tzinfo=waw).timestamp()
+    assert pool.limit_wait("You've hit your limit · resets 3pm (Europe/Warsaw)", 60, now) == 2 * 3600 + 120
+    weekly = datetime(2026, 10, 14, 15, 0, tzinfo=waw).timestamp() - now + 120
+    assert pool.limit_wait("weekly limit reached · resets Oct 14, 3pm (Europe/Warsaw)", 60, now) == weekly
+    assert pool.limit_wait("resets 25:00", 60, now) == 60
+
+
+def test_captions_for_matches_only_this_video(tmp_path):
+    v = tmp_path / "lesson1.mp4"
+    for name in ("lesson1.vtt", "lesson1.pl.vtt", "lesson10.pl.vtt", "lesson1.en.vtt"):
+        (tmp_path / name).write_text("WEBVTT\n")
+    assert [f.name for f in media.captions_for(v, ["pl", "en"])] == ["lesson1.pl.vtt", "lesson1.en.vtt", "lesson1.vtt"]
+    odd = tmp_path / "a[1].mp4"
+    (tmp_path / "a[1].vtt").write_text("WEBVTT\n")
+    assert media.captions_for(odd)
+
+
+def test_long_runs_keep_results_written_meanwhile(scfg):
+    _pool_map(scfg, 3, with_vtt=lambda i: True)
+    stale = crawl.load_map(scfg, "demo")
+    crawl.update_pages(scfg, "demo", {"k01": {"status": "done"}})
+    stale["pages"][0]["title"] = "renamed by the mapper"
+    crawl.save_map_merged(scfg, "demo", stale)
+    m = crawl.load_map(scfg, "demo")
+    assert m["pages"][1]["digest"] == {"status": "done"} and m["pages"][0]["title"] == "renamed by the mapper"
+
+
+def test_digest_skips_lessons_whose_video_has_not_synced(scfg, monkeypatch):
+    _pool_map(scfg, 2, with_vtt=lambda i: True)
+    (crawl.page_dir(scfg, "demo", "k01") / "media" / "v01.mp4").unlink()
+    seen = []
+    monkeypatch.setattr(lesson, "digest", lambda cfg, site, rec, **kw: seen.append(rec["key"]) or {"key": rec["key"], "status": "done"})
+    course.digest_site(scfg, "demo", write_notion=False, log=lambda m: None)
+    assert seen == ["k00"]

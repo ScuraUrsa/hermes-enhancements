@@ -184,10 +184,14 @@ downloads at once. Then sync `~/.hermes/sitedigest/<site>/` to the VM and run `d
 
 Faster: `sitedigest pool SITE --workers 3 --model claude-code:sonnet --follow --require-vtt`
 runs several workers from one SQLite queue (`queue.db`): each lesson is claimed with a
-lease in one transaction, so no two workers take the same lesson and a crashed worker's
-lesson returns to the pool. Lessons enter the pool only when their synced videos (and
-transcripts) are complete. When Claude's usage limit is hit, the whole pool pauses until
-the window resets, or switches to `--fallback-model`. `--stats` shows the queue.
+lease in one transaction and the lease is renewed while the worker lives, so no two
+workers take the same lesson. A crashed worker's lesson returns to the pool; one that
+crashes workers 3 times is marked failed. Only one pool runs at a time, and the cron
+`worker` and `digest SITE` wait while it does. Lessons enter the pool only when their
+synced videos (and transcripts) are complete; a lesson marked `requeued` in the map (e.g.
+after a mind map was added) runs once more. When Claude's usage limit is hit, the whole
+pool pauses until the reset time Claude gives, or switches to `--fallback-model`.
+`--stats` shows the queue.
 
 Safety: GET navigation only, nothing clicked or submitted; logout, cart, checkout,
 delete, unenrol and "mark complete" links are never opened; 1.5-3.5 s between pages.

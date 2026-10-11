@@ -40,6 +40,18 @@ SHARED_DOC = [
 ]
 
 
+def captions_for(video: Path, languages: list[str] | None = None) -> list[Path]:
+    """Caption files next to a downloaded video: `<stem>.vtt` or `<stem>.<lang>.vtt`
+    (yt-dlp, Whisper on the PC), preferred languages first."""
+    import glob
+
+    stem = glob.escape(video.stem)
+    found = [f for f in video.parent.glob(f"{stem}*.vtt")
+             if f.name == f"{video.stem}.vtt" or (f.name.startswith(f"{video.stem}.") and f.name.count(".") == video.stem.count(".") + 2)]
+    langs = languages or []
+    return sorted(found, key=lambda f: (next((i for i, l in enumerate(langs) if f.name.endswith(f".{l}.vtt")), 99), f.name))
+
+
 def download_url(url: str) -> str:
     """The URL that returns the file itself (shared Google files -> export, Dropbox -> dl=1)."""
     for rx, tpl in SHARED_DOC:

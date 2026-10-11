@@ -158,8 +158,20 @@ def map_lock(cfg: dict, site: str):
     with open(session.site_dir(cfg, site) / "map.lock", "w") as fh:
         try:
             import fcntl
-        except ImportError:  # Windows: harvest there is a single writer
-            yield
+        except ImportError:  # Windows
+            import msvcrt
+
+            while True:
+                try:
+                    msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)  # retries for ~10 s, then raises
+                    break
+                except OSError:
+                    continue
+            try:
+                yield
+            finally:
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
             return
         fcntl.flock(fh, fcntl.LOCK_EX)
         try:
@@ -173,17 +185,46 @@ def save_map(cfg: dict, site: str, m: dict) -> None:
     p = map_path(cfg, site)
     tmp = p.with_suffix(f".{os.getpid()}.tmp")
     tmp.write_text(json.dumps(m, ensure_ascii=False, indent=1), encoding="utf-8")
-    tmp.replace(p)
+    for i in range(20):
+        try:
+            tmp.replace(p)
+            return
+        except PermissionError:  # Windows: a reader has map.json open for a moment
+            if i == 19:
+                raise
+            time.sleep(0.25)
+
+
+# fields that digest/fetch write; a long map or fetch run must not overwrite them with its stale copy
+OWN_FIELDS = ("digest", "fetched")
+
+
+def save_map_merged(cfg: dict, site: str, m: dict) -> None:
+    """save_map for long runs holding an old copy: under the lock, keep the digest/fetch
+    results that other processes wrote since `m` was loaded."""
+    with map_lock(cfg, site):
+        cur = {p["key"]: p for p in (load_map(cfg, site) or {"pages": []})["pages"]}
+        for p in m["pages"]:
+            c = cur.get(p["key"])
+            for f in OWN_FIELDS:
+                if c is not None and f in c:
+                    p[f] = c[f]
+        save_map(cfg, site, m)
+
+
+def patch_pages(cfg: dict, site: str, fields: dict[str, dict]) -> None:
+    """Set some fields of some pages in map.json under map_lock (several processes write it)."""
+    with map_lock(cfg, site):
+        m = load_map(cfg, site)
+        for p in m["pages"]:
+            if p["key"] in fields:
+                p.update(fields[p["key"]])
+        save_map(cfg, site, m)
 
 
 def update_pages(cfg: dict, site: str, results: dict[str, dict]) -> None:
     """Store digest results in map.json under map_lock (several workers write it)."""
-    with map_lock(cfg, site):
-        m = load_map(cfg, site)
-        for p in m["pages"]:
-            if p["key"] in results:
-                p["digest"] = results[p["key"]]
-        save_map(cfg, site, m)
+    patch_pages(cfg, site, {k: {"digest": r} for k, r in results.items()})
 
 
 def page_dir(cfg: dict, site: str, key: str) -> Path:
@@ -251,7 +292,7 @@ def run(cfg: dict, site: str, start_url: str, *, include: str | None = None, exc
                     _visit(page, rec, cfg, site, network, log)
                 except session.SessionExpired:
                     rec["status"] = "queued"
-                    save_map(cfg, site, m)
+                    save_map_merged(cfg, site, m)
                     raise
                 except Exception as exc:
                     rec["status"] = "error"
@@ -270,13 +311,13 @@ def run(cfg: dict, site: str, start_url: str, *, include: str | None = None, exc
                             m["pages"].append(_new_page(u, rec["key"], rec["depth"] + 1, link.get("section") or "", link.get("text") or ""))
                     rec["kind"] = _kind(rec, in_scope)
                 rec.pop("_links", None)
-                save_map(cfg, site, m)
+                save_map_merged(cfg, site, m)
                 sleep(random.uniform(lo, hi))
         finally:
             session.save_state(cfg, site, ctx.storage_state())  # keep refreshed cookies
             browser.close()
     _number(m)
-    save_map(cfg, site, m)
+    save_map_merged(cfg, site, m)
     return m
 
 
@@ -342,10 +383,19 @@ def fetch_pages(cfg: dict, site: str, recs: list[dict], fetch_one, *, headless: 
         try:
             for rec in recs:
                 network.clear()
-                _visit(page, rec, cfg, site, network, log)
-                rec.pop("_links", None)
-                session.save_state(cfg, site, ctx.storage_state())  # cookies.txt for yt-dlp, current
-                out.append({"key": rec["key"], **fetch_one(rec)})
+                r = dict(rec)  # a failed visit must not mark the lesson 'error' in the map for good
+                try:
+                    _visit(page, r, cfg, site, network, log)
+                    r.pop("_links", None)
+                    if r["status"] != "mapped":
+                        raise RuntimeError(r.get("error") or r["status"])
+                    session.save_state(cfg, site, ctx.storage_state())  # cookies.txt for yt-dlp, current
+                    out.append({"key": rec["key"], **fetch_one(r)})
+                except session.SessionExpired:
+                    raise
+                except Exception as exc:  # one slow or broken page must not end the whole fetch
+                    out.append({"key": rec["key"], "error": f"{type(exc).__name__}: {str(exc)[:300]}"})
+                    log(f"  ! {rec['url']}: {out[-1]['error']}")
                 sleep(random.uniform(lo, hi))
         finally:
             session.save_state(cfg, site, ctx.storage_state())

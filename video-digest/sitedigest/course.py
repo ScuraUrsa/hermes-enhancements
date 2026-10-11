@@ -33,7 +33,12 @@ def digest_site(cfg: dict, site: str, *, keys: list[str] | None = None, limit: i
     m = crawl.load_map(cfg, site)
     if not m:
         raise SystemExit(f"no map for '{site}': run `sitedigest map URL` first")
-    todo = [p for p in m["pages"] if p["key"] in keys or p["url"] in keys] if keys else pending(m, redo, include_index)
+    if keys:
+        todo = [p for p in m["pages"] if p["key"] in keys or p["url"] in keys]
+    else:  # a lesson whose prefetched video has not synced yet would be saved as 'partial' for good
+        from .pool import ready
+
+        todo = [p for p in pending(m, redo, include_index) if ready(cfg, site, p, require_vtt=False)]
     results = []
     for rec in todo[: limit or None]:
         if deadline and time.time() > deadline:

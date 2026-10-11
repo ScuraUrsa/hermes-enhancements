@@ -25,6 +25,16 @@ class LLMError(RuntimeError):
     pass
 
 
+class LimitError(LLMError):
+    """The Claude subscription's usage limit: wait for the window to reset, the input was fine."""
+
+
+# what the Claude Code CLI says when the subscription window is used up (its result/stderr only,
+# never the prompt or the model's answer, so a lesson *about* rate limits is not one)
+CLAUDE_LIMIT = re.compile(r"usage limit reached|hit your limit|(?:5-hour|weekly|session) limit|limit reached\s*[∙·|]|"
+                          r"rate_limit_error|overloaded_error|\b429\b.*(?:rate|limit)", re.I)
+
+
 @dataclass
 class Usage:
     calls: int = 0
@@ -186,11 +196,14 @@ class Client:
             try:
                 msg = str(json.loads(r.stdout).get("result") or "")
             except (ValueError, AttributeError):
-                msg = r.stdout or ""
-            raise LLMError(f"claude-code exit {r.returncode}: {(msg + ' ' + (r.stderr or '')).strip()[:300]}")
+                msg = (r.stdout or "")[:500]
+            msg = (msg + " " + (r.stderr or "")[:500]).strip()
+            err = LimitError if CLAUDE_LIMIT.search(msg) else LLMError
+            raise err(f"claude-code exit {r.returncode}: {msg[:300]}")
         out = json.loads(r.stdout)
         if out.get("is_error"):
-            raise LLMError(f"claude-code:{alias} -> {str(out.get('result'))[:300]}")
+            msg = str(out.get("result"))
+            raise (LimitError if CLAUDE_LIMIT.search(msg[:500]) else LLMError)(f"claude-code:{alias} -> {msg[:300]}")
         u = out.get("usage") or {}
         i, o = int(u.get("input_tokens") or 0), int(u.get("output_tokens") or 0)
         cr, cw = int(u.get("cache_read_input_tokens") or 0), int(u.get("cache_creation_input_tokens") or 0)
