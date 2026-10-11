@@ -178,7 +178,11 @@ def do_video(client, cfg: dict, route: dict, url: str, n: int, pdir: Path, page_
          "transcript": {"source": "none", "language": None, "segments": []}, "frames": []}
     if url.startswith("local:"):  # fetched beforehand (e.g. on Filip's PC while the signed player link was valid)
         local = pdir / url[len("local:"):]
-        dl = {"path": local if local.is_file() else None, "title": None, "duration": None, "subtitles": None,
+        langs = cfg["site"]["caption_languages"] or ["pl", "en"]
+        vtts = sorted(local.parent.glob(f"{local.stem}.*.vtt"),
+                      key=lambda f: next((i for i, l in enumerate(langs) if f.name.endswith(f".{l}.vtt")), 99))
+        dl = {"path": local if local.is_file() else None, "title": None, "duration": None,
+              "subtitles": vtts[0] if vtts else None,  # e.g. transcribed on the PC's GPU (course-harvest)
               "drm": False, "error": None if local.is_file() else f"missing prefetched file {local.name}"}
     else:
         dl = _fetched(pdir, "videos", url, n)
