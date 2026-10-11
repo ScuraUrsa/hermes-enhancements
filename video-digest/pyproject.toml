@@ -1,0 +1,29 @@
+[project]
+name = "ytdigest"
+version = "0.1.0"
+description = "Hermes: YouTube videos and course websites -> transcript + visuals -> Notion reports"
+requires-python = ">=3.10"
+dependencies = [
+  "yt-dlp[default]>=2025.10.0",
+  "requests>=2.31",
+  "pillow>=10",
+  "pyyaml>=6",
+]
+
+[project.optional-dependencies]
+# Free CPU transcription when Groq is unavailable (Parakeet first, Whisper last).
+local-asr = ["onnx-asr[cpu,hub]>=0.7", "faster-whisper>=1.1"]
+# Course and documentation websites (sitedigest): logged-in browser, PDF text.
+site = ["playwright>=1.48", "pypdf>=4"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+ytdigest = "ytdigest.cli:main"
+sitedigest = "sitedigest.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["ytdigest", "sitedigest"]

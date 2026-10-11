@@ -1,0 +1,18 @@
+# ~/.config/systemd/user/ytdigest-serve.service  (systemctl --user enable --now ytdigest-serve)
+# One-click endpoint for the phone share sheet and the PC bookmark. Listens on the
+# Tailscale address only; YTDIGEST_TOKEN comes from ~/.hermes/.env (Bitwarden).
+[Unit]
+Description=ytdigest one-click endpoint
+After=network-online.target tailscaled.service
+
+[Service]
+EnvironmentFile=%h/.hermes/.env
+Environment=HERMES_REAL_HOME=%h
+Environment=PATH=%h/.local/bin:%h/.deno/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/bin/sh -c 'exec %h/.hermes/ytdigest/venv/bin/ytdigest serve --host "$(tailscale ip -4 | head -1)" --port 8765'
+Restart=on-failure
+RestartSec=10
+Nice=10
+
+[Install]
+WantedBy=default.target
