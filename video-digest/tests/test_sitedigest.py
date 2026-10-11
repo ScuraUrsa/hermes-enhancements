@@ -236,6 +236,10 @@ def test_prefetched_local_video(scfg, tmp_path, synthetic_video, monkeypatch):
     v = lesson.do_video(FakeClient(), scfg, {"frames_per_min": 0}, "local:media/l1.mp4", 1, pdir, "https://k.pl/l", None, {}, lambda m: None)
     assert v["status"] == "done" and v["duration_sec"] and v["transcript"]["segments"][0]["text"] == "Cześć."
     assert (pdir / "media" / "l1.mp4").is_file()  # the harvested file is kept
+    (pdir / "media" / "l1.pl.vtt").write_text("WEBVTT\n\n00:00:00.000 --> 00:00:02.000\nZ napisów GPU.\n")
+    monkeypatch.setattr(lesson.transcript, "get", lambda *a, **k: pytest.fail("the sibling VTT is the transcript"))
+    v2 = lesson.do_video(FakeClient(), scfg, {"frames_per_min": 0}, "local:media/l1.mp4", 1, pdir, "https://k.pl/l", None, {}, lambda m: None)
+    assert v2["transcript"]["source"] == "player_captions" and v2["transcript"]["segments"][0]["text"] == "Z napisów GPU."
     missing = lesson.do_video(FakeClient(), scfg, {"frames_per_min": 0}, "local:media/nope.mp4", 2, pdir, "https://k.pl/l", None, {}, lambda m: None)
     assert missing["status"] == "download_failed" and "nope.mp4" in missing["error"]
     assert lesson.fetch_media(scfg, "demo", {"key": "k1", "url": "https://k.pl/l", "videos": ["local:media/l1.mp4"]},
