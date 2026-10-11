@@ -4,6 +4,7 @@
   sitedigest import-cookies cookies.txt --site S     or reuse cookies exported from your browser
   sitedigest map URL [--site S] [--max-pages N]      map the site (resumable)
   sitedigest outline SITE                            modules, lessons, videos, files found
+  sitedigest fetch SITE [--limit N] [--include RE]   download videos and files now (where the login lives)
   sitedigest digest SITE [--limit N] [--page KEY]    analyse lessons now (text, files, speech, picture)
   sitedigest course SITE                             course overview from the lesson reports
   sitedigest run URL [--limit N]                     map + digest + overview in one go
@@ -15,7 +16,6 @@
 from __future__ import annotations
 
 import argparse
-import fcntl
 import json
 import sys
 import time
@@ -35,8 +35,15 @@ def _site(a, url: str | None = None) -> str:
 def _lock(cfg: dict):
     fh = open(Path(cfg["site"]["root"]) / ".worker.lock", "w")
     try:
-        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
+        try:
+            import fcntl
+
+            fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except ImportError:  # Windows PC: fetch/map run there too
+            import msvcrt
+
+            msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+    except (BlockingIOError, OSError):
         _log("another sitedigest digest/worker is running")
         raise SystemExit(0)
     return fh
@@ -82,6 +89,33 @@ def cmd_digest(cfg, a) -> int:
                              redo=a.redo, include_index=a.all, log=_log)
     print(json.dumps(res, ensure_ascii=False, indent=1))
     return 0 if all(r["status"] != "failed" for r in res) else 1
+
+
+def cmd_fetch(cfg, a) -> int:
+    """Download only, no models: for sites with expiring player links, run this on the PC
+    that holds the login, sync <root>/<site>/ to the VM, then digest there."""
+    import re
+
+    from . import lesson
+
+    m = crawl.load_map(cfg, a.site)
+    if not m:
+        _log(f"no map for '{a.site}'")
+        return 1
+    rx = re.compile(a.include) if a.include else None
+    todo = [p for p in course.pending(m) if not p.get("fetched") or a.redo]
+    todo = [p for p in todo if not rx or rx.search(p["url"]) or rx.search(p.get("section") or "")][: a.limit or None]
+    cookies = str(session.cookies_path(cfg, a.site))
+
+    def one(rec):
+        res = lesson.fetch_media(cfg, a.site, rec, cookies=cookies, log=_log)
+        rec["fetched"] = res
+        crawl.save_map(cfg, a.site, m)
+        return res
+
+    res = crawl.fetch_pages(cfg, a.site, todo, one, headless=not a.show, log=_log)
+    print(json.dumps(res, ensure_ascii=False, indent=1))
+    return 0
 
 
 def cmd_course(cfg, a) -> int:
@@ -192,6 +226,14 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--redo", action="store_true")
     s.add_argument("--all", action="store_true", help="also index/outline pages")
     s.set_defaults(fn=cmd_digest)
+
+    s = sub.add_parser("fetch")
+    s.add_argument("site")
+    s.add_argument("--limit", type=int)
+    s.add_argument("--include", help="regex on lesson URL or section (e.g. one course or module)")
+    s.add_argument("--redo", action="store_true")
+    s.add_argument("--show", action="store_true", help="visible browser")
+    s.set_defaults(fn=cmd_fetch)
 
     s = sub.add_parser("course")
     s.add_argument("site")

@@ -162,7 +162,8 @@ and section, ordered like the course; data source `27ebf9d7-0cae-4a91-95cd-fcca1
 ```bash
 sitedigest import-cookies cookies.txt --url https://academy.example.com   # or: sitedigest login URL [--auto]
 sitedigest map https://academy.example.com/courses/abc                  # outline: sections, lessons, videos, files
-sitedigest digest example-com --limit 5 [--model claude-code:sonnet]    # lessons now
+sitedigest fetch example-com [--include "Moduł 1"]                       # download videos + files now (on the PC with the login)
+sitedigest digest example-com --limit 5 [--model claude-code:sonnet]    # lessons now (reuses fetched files)
 sitedigest course example-com                                           # course overview
 sitedigest status
 ```
@@ -176,6 +177,10 @@ Per lesson page:
 | Files | PDF, DOCX, PPTX (with speaker notes), XLSX, ODF, notebooks, text, ZIP listing; image-only PDFs rendered and captioned |
 | Videos | yt-dlp with the lesson as Referer (Vimeo, Wistia, YouTube, Loom, Vidyard, Bunny, Mux, JW Player, Brightcove, HLS/DASH/MP4); captions from the player, else the Whisper chain; key frames + vision |
 | Report | one model call over all of it (notes first when long); same routing as YouTube: cheap models by default, Claude via the subscription for AI/software lessons or `--model` |
+
+Expiring player links (Zanfia/Bunny Stream and similar sign each video link for a short
+time): run `fetch` where the login lives, right after `map`; it re-opens every page and
+downloads at once. Then sync `~/.hermes/sitedigest/<site>/` to the VM and run `digest` there.
 
 Safety: GET navigation only, nothing clicked or submitted; logout, cart, checkout,
 delete, unenrol and "mark complete" links are never opened; 1.5-3.5 s between pages.

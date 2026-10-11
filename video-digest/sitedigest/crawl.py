@@ -79,6 +79,11 @@ EXTRACT_JS = r"""
   if (!main || txt(main).length < 200) main = document.body;
   const links = [...document.querySelectorAll('a[href]')].map(a => ({href: abs(a.getAttribute('href')), text: txt(a).slice(0, 200),
                   section: sectionOf(a)})).filter(l => l.href);
+  // single-page apps often navigate from cards/rows carrying the target in a data attribute
+  for (const el of document.querySelectorAll('[data-href], [data-url], [data-link], [data-to]')) {
+    const h = abs(el.getAttribute('data-href') || el.getAttribute('data-url') || el.getAttribute('data-link') || el.getAttribute('data-to'));
+    if (h) links.push({href: h, text: txt(el).slice(0, 200), section: sectionOf(el)});
+  }
   const iframes = [...document.querySelectorAll('iframe')].map(f => abs(f.getAttribute('src') || f.getAttribute('data-src') || '')).filter(Boolean);
   const videos = [];
   for (const v of document.querySelectorAll('video, audio')) {
@@ -290,6 +295,33 @@ def _visit(page, rec: dict, cfg: dict, site: str, network: list[str], log) -> No
     })
     (d / "found.json").write_text(json.dumps({**found, "links": data["links"]}, ensure_ascii=False, indent=1), encoding="utf-8")
     log(f"  {rec['title'][:80]!r}: {rec['text_chars']} chars, {len(rec['videos'])} video, {len(docs)} files")
+
+
+def fetch_pages(cfg: dict, site: str, recs: list[dict], fetch_one, *, headless: bool = True, log=print,
+                sleep=time.sleep) -> list[dict]:
+    """Open each page again (fresh signed player links), then call fetch_one(rec) right away."""
+    from playwright.sync_api import sync_playwright
+
+    lo, hi = cfg["site"]["delay_sec"]
+    out = []
+    with sync_playwright() as pw:
+        browser = session.launch(pw, headless=headless)
+        ctx = session.new_context(browser, cfg, site)
+        page = ctx.new_page()
+        network: list[str] = []
+        page.on("response", lambda r: network.append(r.url) if media.classify(r.url) == "video" else None)
+        try:
+            for rec in recs:
+                network.clear()
+                _visit(page, rec, cfg, site, network, log)
+                rec.pop("_links", None)
+                session.save_state(cfg, site, ctx.storage_state())  # cookies.txt for yt-dlp, current
+                out.append({"key": rec["key"], **fetch_one(rec)})
+                sleep(random.uniform(lo, hi))
+        finally:
+            session.save_state(cfg, site, ctx.storage_state())
+            browser.close()
+    return out
 
 
 def _number(m: dict) -> None:

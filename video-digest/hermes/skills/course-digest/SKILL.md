@@ -38,6 +38,13 @@ sd map "<course or platform link>" [--include "/courses/abc"] [--max-pages 800]
 - `--include REGEX` limits it to one course on a platform with many. Re-running continues where it stopped.
 - "redirected to the login page" = session expired: back to step 1.
 
+## 2b. Download now when player links expire
+
+Some platforms (Zanfia, Bunny Stream) sign each video link for minutes. Then run
+`sd fetch <site> [--include "<course or module>"]` right after mapping, on the machine that holds
+the login; it re-opens each page and downloads videos and files immediately (no model calls).
+Digest later reuses the files.
+
 ## 3. Digest lessons
 
 Filip asked for it now:

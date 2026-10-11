@@ -98,6 +98,58 @@ def caption_images(client, ref: str, paths: list[Path], cfg: dict, context: str,
     return out
 
 
+# -- media fetched ahead of time ---------------------------------------------------------
+# Platforms like Zanfia/Bunny sign each player link for a short time, so videos are best
+# downloaded the moment the page is opened (`sitedigest fetch`, on the PC where the login
+# lives); the folder is then synced to the VM and digest reuses the files.
+
+def _manifest(pdir: Path) -> dict:
+    p = pdir / "fetched.json"
+    return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {"videos": {}, "docs": {}}
+
+
+def _fetched(pdir: Path, kind: str, url: str, n: int | None = None) -> dict | None:
+    """A download result from fetched.json, matched by URL (signed URLs change, so videos also by position)."""
+    items = _manifest(pdir)[kind]
+    hit = items.get(url) or (next((v for v in items.values() if v.get("n") == n), None) if n is not None else None)
+    if not hit or hit.get("error") or not hit.get("path") or not (pdir / hit["path"]).is_file():
+        return None
+    out = {**hit, "path": pdir / hit["path"]}
+    if hit.get("subtitles"):
+        out["subtitles"] = pdir / hit["subtitles"]
+    return out
+
+
+def fetch_media(cfg: dict, site: str, rec: dict, *, http=None, cookies: str | None = None, log=print) -> dict:
+    """Download a mapped page's videos and files now; record them in fetched.json. No model calls."""
+    pdir = crawl.page_dir(cfg, site, rec["key"])
+    if cookies is None and session.cookies_path(cfg, site).is_file():
+        cookies = str(session.cookies_path(cfg, site))
+    man = _manifest(pdir)
+    referer = rec.get("final_url") or rec["url"]
+    for n, url in enumerate((rec.get("videos") or [])[: cfg["site"]["max_videos_per_page"]], 1):
+        if _fetched(pdir, "videos", url, n):
+            continue
+        dl = media.download_video(url, pdir / "media", referer=referer, cookies=cookies, max_height=cfg["video_max_height"],
+                                  languages=cfg["site"]["caption_languages"], stem=f"v{n:02d}")
+        man["videos"][url] = {"n": n, "title": dl["title"], "duration": dl["duration"], "drm": dl["drm"], "error": dl["error"],
+                              "path": str(dl["path"].relative_to(pdir)) if dl["path"] else None,
+                              "subtitles": str(dl["subtitles"].relative_to(pdir)) if dl["subtitles"] else None}
+        log(f"    video {n}: " + (dl["error"][:160] if dl["error"] else f"{dl['path'].name}, {int(dl['duration'] or 0)} s"))
+    http = http or session.requests_session(cfg, site)
+    for d in rec.get("docs") or []:
+        if _fetched(pdir, "docs", d["url"]):
+            continue
+        dl = media.download_doc(http, d["url"], pdir / "files", referer=referer, max_mb=cfg["site"]["max_doc_mb"])
+        man["docs"][d["url"]] = {"name": dl["name"], "bytes": dl["bytes"], "error": dl["error"],
+                                 "path": str(dl["path"].relative_to(pdir)) if dl["path"] else None}
+        log(f"    file: {dl['name'] or d['url'][:80]}" + (f" ({dl['error']})" if dl["error"] else ""))
+    (pdir / "fetched.json").write_text(json.dumps(man, ensure_ascii=False, indent=1), encoding="utf-8")
+    vids = list(man["videos"].values())
+    return {"videos": len(vids), "videos_ok": sum(1 for v in vids if not v.get("error")),
+            "docs": len(man["docs"]), "docs_ok": sum(1 for v in man["docs"].values() if not v.get("error"))}
+
+
 # -- videos ---------------------------------------------------------------------------
 
 def _duration(path: Path) -> float | None:
@@ -121,10 +173,13 @@ def do_video(client, cfg: dict, route: dict, url: str, n: int, pdir: Path, page_
              run: dict, log) -> dict:
     vdir = pdir / f"video{n:02d}"
     work = vdir / "work"
+    work.mkdir(parents=True, exist_ok=True)
     v = {"n": n, "url": url, "title": None, "duration_sec": None, "status": "done", "error": None,
          "transcript": {"source": "none", "language": None, "segments": []}, "frames": []}
-    dl = media.download_video(url, work, referer=page_url, cookies=cookies, max_height=cfg["video_max_height"],
-                              languages=cfg["site"]["caption_languages"])
+    dl = _fetched(pdir, "videos", url, n)
+    if dl is None:
+        dl = media.download_video(url, work, referer=page_url, cookies=cookies, max_height=cfg["video_max_height"],
+                                  languages=cfg["site"]["caption_languages"])
     if dl["error"]:
         v["status"] = "drm" if dl["drm"] else "download_failed"
         v["error"] = dl["error"]
@@ -166,8 +221,8 @@ def do_docs(client, cfg: dict, vision_ref: str, rec: dict, pdir: Path, http, log
     out = []
     for i, d in enumerate(rec.get("docs") or [], 1):
         item = {"url": d["url"], "label": d.get("text") or "", "name": None, "path": None, "text": "", "pictures": [], "error": None}
-        dl = media.download_doc(http, d["url"], pdir / "files", referer=rec.get("final_url") or rec["url"],
-                                max_mb=cfg["site"]["max_doc_mb"])
+        dl = _fetched(pdir, "docs", d["url"]) or media.download_doc(
+            http, d["url"], pdir / "files", referer=rec.get("final_url") or rec["url"], max_mb=cfg["site"]["max_doc_mb"])
         if dl["error"]:
             item["error"] = dl["error"]
             log(f"    file {i}: {d['url'][:100]}: {dl['error']}")

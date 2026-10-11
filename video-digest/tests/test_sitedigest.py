@@ -177,7 +177,14 @@ def _map_and_digest(scfg, tmp_path, srv, monkeypatch):
     assert "Moduł 2: Praktyka" in outline and "1 wideo" in outline
     assert {p["key"] for p in course.pending(m)} == {l1["key"], l2["key"], l3["key"]}
 
-    # digest lesson 1 for real (download, frames, PDF) with fake models and a fake transcript
+    # fetch first (as on the PC that holds the login): pages re-opened, video and PDF saved, no models
+    res = crawl.fetch_pages(scfg, "demo", [l1], lambda r: lesson.fetch_media(scfg, "demo", r, log=lambda m: None),
+                            sleep=lambda s: None, log=lambda m: None)
+    assert res[0]["videos_ok"] == 1 and res[0]["docs_ok"] == 1
+    assert list((crawl.page_dir(scfg, "demo", l1["key"]) / "media").glob("v01.*"))
+    monkeypatch.setattr(lesson.media, "download_video", lambda *a, **k: pytest.fail("digest must reuse the fetched video"))
+
+    # digest lesson 1 (fetched video and PDF, frames) with fake models and a fake transcript
     fake = FakeClient()
     monkeypatch.setattr(lesson.llm, "Client", lambda *a, **k: fake)
     monkeypatch.setattr(lesson.transcript, "get", lambda info, cfg, work, cookies, getter: {
