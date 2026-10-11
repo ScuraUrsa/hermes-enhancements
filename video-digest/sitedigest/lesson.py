@@ -123,8 +123,13 @@ def do_video(client, cfg: dict, route: dict, url: str, n: int, pdir: Path, page_
     work = vdir / "work"
     v = {"n": n, "url": url, "title": None, "duration_sec": None, "status": "done", "error": None,
          "transcript": {"source": "none", "language": None, "segments": []}, "frames": []}
-    dl = media.download_video(url, work, referer=page_url, cookies=cookies, max_height=cfg["video_max_height"],
-                              languages=cfg["site"]["caption_languages"])
+    if url.startswith("local:"):  # fetched beforehand (e.g. on Filip's PC while the signed player link was valid)
+        local = pdir / url[len("local:"):]
+        dl = {"path": local if local.is_file() else None, "title": None, "duration": None, "subtitles": None,
+              "drm": False, "error": None if local.is_file() else f"missing prefetched file {local.name}"}
+    else:
+        dl = media.download_video(url, work, referer=page_url, cookies=cookies, max_height=cfg["video_max_height"],
+                                  languages=cfg["site"]["caption_languages"])
     if dl["error"]:
         v["status"] = "drm" if dl["drm"] else "download_failed"
         v["error"] = dl["error"]
