@@ -14,8 +14,10 @@ Output (resumable, re-run continues where it stopped):
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
+import os
 import random
 import re
 import time
@@ -144,10 +146,24 @@ def load_map(cfg: dict, site: str) -> dict | None:
     return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else None
 
 
+@contextlib.contextmanager
+def map_lock(cfg: dict, site: str):
+    """Hold while reading-modifying-writing map.json, so parallel digest workers
+    (and the course-harvest sync) never overwrite each other's results."""
+    import fcntl
+
+    with open(session.site_dir(cfg, site) / "map.lock", "w") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
 def save_map(cfg: dict, site: str, m: dict) -> None:
     m["updated"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     p = map_path(cfg, site)
-    tmp = p.with_suffix(".tmp")
+    tmp = p.with_suffix(f".{os.getpid()}.tmp")
     tmp.write_text(json.dumps(m, ensure_ascii=False, indent=1), encoding="utf-8")
     tmp.replace(p)
 
