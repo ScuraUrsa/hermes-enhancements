@@ -1,0 +1,7 @@
+playwright>=1.63
+yt-dlp>=2026.8.19
+faster-whisper>=1.2
+nvidia-cublas-cu12
+nvidia-cudnn-cu12==9.*
+pillow
+numpy
