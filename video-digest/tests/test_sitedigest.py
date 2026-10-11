@@ -223,3 +223,20 @@ def test_notion_blocks_and_markdown():
     assert props["Status"]["select"]["name"] == "Częściowo" and props["Kolejność"]["number"] == 2
     md = notion_out.markdown(les, rep, {"models": ["m"]})
     assert "Lekcja 1" in md and "drm" in md
+
+
+def test_prefetched_local_video(scfg, tmp_path, synthetic_video, monkeypatch):
+    """Videos harvested elsewhere (signed links) are referenced as local:<path> inside the page folder."""
+    pdir = crawl.page_dir(scfg, "demo", "k1")
+    (pdir / "media").mkdir()
+    shutil.copy(synthetic_video, pdir / "media" / "l1.mp4")
+    monkeypatch.setattr(lesson.media, "download_video", lambda *a, **k: pytest.fail("must not download"))
+    monkeypatch.setattr(lesson.transcript, "get", lambda info, cfg, work, cookies, getter: {
+        "source": "whisper_groq", "language": "pl", "segments": [{"start": 0, "end": 3, "text": "Cześć."}]})
+    v = lesson.do_video(FakeClient(), scfg, {"frames_per_min": 0}, "local:media/l1.mp4", 1, pdir, "https://k.pl/l", None, {}, lambda m: None)
+    assert v["status"] == "done" and v["duration_sec"] and v["transcript"]["segments"][0]["text"] == "Cześć."
+    assert (pdir / "media" / "l1.mp4").is_file()  # the harvested file is kept
+    missing = lesson.do_video(FakeClient(), scfg, {"frames_per_min": 0}, "local:media/nope.mp4", 2, pdir, "https://k.pl/l", None, {}, lambda m: None)
+    assert missing["status"] == "download_failed" and "nope.mp4" in missing["error"]
+    assert lesson.fetch_media(scfg, "demo", {"key": "k1", "url": "https://k.pl/l", "videos": ["local:media/l1.mp4"]},
+                              log=lambda m: None)["videos"] == 0
