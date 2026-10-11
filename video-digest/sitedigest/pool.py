@@ -64,13 +64,20 @@ def ready(cfg: dict, site: str, rec: dict, require_vtt: bool) -> bool:
 def sync(cfg: dict, site: str, db: sqlite3.Connection, *, require_vtt: bool = False, include=None) -> int:
     """Add lessons that are pending in the map and ready on disk; returns how many were added."""
     m = crawl.load_map(cfg, site) or {"pages": []}
-    known = {k for (k,) in db.execute("SELECT key FROM jobs")}
+    known = dict(db.execute("SELECT key, status FROM jobs").fetchall())
     added = 0
     for rec in course.pending(m):
-        if rec["key"] in known or (include and not (include.search(rec["url"]) or include.search(rec.get("section") or ""))):
+        if include and not (include.search(rec["url"]) or include.search(rec.get("section") or "")):
+            continue
+        st = known.get(rec["key"])
+        # a finished lesson comes back only when it was sent back on purpose (digest status
+        # 'requeued', e.g. a mind map was added); a failed one stays failed, no retry loop
+        if st is not None and not (st in ("done", "failed") and (rec.get("digest") or {}).get("status") == "requeued"):
             continue
         if ready(cfg, site, rec, require_vtt):
-            db.execute("INSERT OR IGNORE INTO jobs(key, ord, updated) VALUES (?,?,?)", (rec["key"], rec.get("order") or 0, time.time()))
+            db.execute("""INSERT INTO jobs(key, ord, updated) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET
+                          status='queued', owner=NULL, lease_until=NULL, attempts=0, error=NULL, updated=excluded.updated""",
+                       (rec["key"], rec.get("order") or 0, time.time()))
             added += 1
     return added
 

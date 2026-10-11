@@ -272,6 +272,13 @@ def test_pool_claims_are_exclusive_and_wait_for_transcripts(scfg):
     db.execute("UPDATE jobs SET lease_until=0 WHERE key='k02'")
     assert pool.claim(db, "w9") == "k02"
     assert pool.is_limit("claude-code:sonnet -> Claude AI usage limit reached|1760000000")
+    # finished lessons stay out; one sent back on purpose ('requeued') comes back, once
+    for k in ("k00", "k01"):
+        pool.finish(db, k, "done")
+    crawl.update_pages(scfg, "demo", {"k00": {"status": "done"}, "k01": {"status": "requeued"}})
+    assert pool.sync(scfg, "demo", db, require_vtt=True) == 1
+    assert pool.claim(db, "w10") == "k01"
+    assert pool.sync(scfg, "demo", db, require_vtt=True) == 0
 
 
 def test_pool_reads_limit_reset_time():
