@@ -49,7 +49,7 @@ def digest_site(cfg: dict, site: str, *, keys: list[str] | None = None, limit: i
         except Exception as exc:
             res = {"key": rec["key"], "status": "failed", "error": f"{type(exc).__name__}: {str(exc)[:400]}"}
             log(f"[{rec['key']}] failed: {res['error']}")
-        crawl.update_pages(cfg, site, {rec["key"]: res})
+        crawl.update_pages(cfg, site, {rec["key"]: res})  # under map_lock: parallel workers / harvest sync
         results.append(res)
     return results
 

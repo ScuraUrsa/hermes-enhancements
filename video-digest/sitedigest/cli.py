@@ -85,7 +85,9 @@ def cmd_outline(cfg, a) -> int:
 
 
 def cmd_digest(cfg, a) -> int:
-    _lk = _lock(cfg)
+    # explicit --page runs are what parallel pool workers start (each claimed its page);
+    # they only need the short map lock, not the one-worker-at-a-time lock
+    _lk = None if a.page else _lock(cfg)
     res = course.digest_site(cfg, a.site, keys=a.page, limit=a.limit, model=a.model, write_notion=not a.no_notion,
                              redo=a.redo, include_index=a.all, log=_log)
     print(json.dumps(res, ensure_ascii=False, indent=1))

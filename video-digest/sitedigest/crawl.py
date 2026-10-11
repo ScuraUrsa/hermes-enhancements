@@ -14,8 +14,10 @@ Output (resumable, re-run continues where it stopped):
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
+import os
 import random
 import re
 import time
@@ -149,24 +151,34 @@ def load_map(cfg: dict, site: str) -> dict | None:
     return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else None
 
 
+@contextlib.contextmanager
+def map_lock(cfg: dict, site: str):
+    """Hold while reading-modifying-writing map.json, so parallel digest workers
+    (and the course-harvest sync) never overwrite each other's results."""
+    with open(session.site_dir(cfg, site) / "map.lock", "w") as fh:
+        try:
+            import fcntl
+        except ImportError:  # Windows: harvest there is a single writer
+            yield
+            return
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
 def save_map(cfg: dict, site: str, m: dict) -> None:
     m["updated"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     p = map_path(cfg, site)
-    tmp = p.with_suffix(".tmp")
+    tmp = p.with_suffix(f".{os.getpid()}.tmp")
     tmp.write_text(json.dumps(m, ensure_ascii=False, indent=1), encoding="utf-8")
     tmp.replace(p)
 
 
 def update_pages(cfg: dict, site: str, results: dict[str, dict]) -> None:
-    """Store digest results in map.json under a file lock (several pool workers write it)."""
-    lock = map_path(cfg, site).with_suffix(".lock")
-    with open(lock, "w") as fh:
-        try:
-            import fcntl
-
-            fcntl.flock(fh, fcntl.LOCK_EX)
-        except ImportError:  # Windows: single writer assumed
-            pass
+    """Store digest results in map.json under map_lock (several workers write it)."""
+    with map_lock(cfg, site):
         m = load_map(cfg, site)
         for p in m["pages"]:
             if p["key"] in results:
