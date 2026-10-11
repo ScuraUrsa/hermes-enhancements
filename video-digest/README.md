@@ -182,6 +182,13 @@ Expiring player links (Zanfia/Bunny Stream and similar sign each video link for 
 time): run `fetch` where the login lives, right after `map`; it re-opens every page and
 downloads at once. Then sync `~/.hermes/sitedigest/<site>/` to the VM and run `digest` there.
 
+Faster: `sitedigest pool SITE --workers 3 --model claude-code:sonnet --follow --require-vtt`
+runs several workers from one SQLite queue (`queue.db`): each lesson is claimed with a
+lease in one transaction, so no two workers take the same lesson and a crashed worker's
+lesson returns to the pool. Lessons enter the pool only when their synced videos (and
+transcripts) are complete. When Claude's usage limit is hit, the whole pool pauses until
+the window resets, or switches to `--fallback-model`. `--stats` shows the queue.
+
 Safety: GET navigation only, nothing clicked or submitted; logout, cart, checkout,
 delete, unenrol and "mark complete" links are never opened; 1.5-3.5 s between pages.
 DRM-protected (Widevine) videos are recorded and skipped, not circumvented. Sessions are

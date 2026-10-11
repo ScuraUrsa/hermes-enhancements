@@ -49,11 +49,7 @@ def digest_site(cfg: dict, site: str, *, keys: list[str] | None = None, limit: i
         except Exception as exc:
             res = {"key": rec["key"], "status": "failed", "error": f"{type(exc).__name__}: {str(exc)[:400]}"}
             log(f"[{rec['key']}] failed: {res['error']}")
-        m2 = crawl.load_map(cfg, site) or m  # the map may have been extended meanwhile
-        for p in m2["pages"]:
-            if p["key"] == rec["key"]:
-                p["digest"] = res
-        crawl.save_map(cfg, site, m2)
+        crawl.update_pages(cfg, site, {rec["key"]: res})
         results.append(res)
     return results
 

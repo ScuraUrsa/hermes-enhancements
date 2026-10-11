@@ -244,3 +244,53 @@ def test_prefetched_local_video(scfg, tmp_path, synthetic_video, monkeypatch):
     assert missing["status"] == "download_failed" and "nope.mp4" in missing["error"]
     assert lesson.fetch_media(scfg, "demo", {"key": "k1", "url": "https://k.pl/l", "videos": ["local:media/l1.mp4"]},
                               log=lambda m: None)["videos"] == 0
+
+
+def _pool_map(scfg, n, with_vtt):
+    pages = []
+    for i in range(n):
+        key = f"k{i:02d}"
+        pdir = crawl.page_dir(scfg, "demo", key)
+        (pdir / "media").mkdir(exist_ok=True)
+        (pdir / "media" / "v01.mp4").write_bytes(b"x")
+        if with_vtt(i):
+            (pdir / "media" / "v01.pl.vtt").write_text("WEBVTT\n")
+        pages.append({"key": key, "url": f"https://k.pl/l/{i}", "status": "mapped", "kind": "lesson", "order": i,
+                      "videos": ["local:media/v01.mp4"], "text_chars": 500})
+    crawl.save_map(scfg, "demo", {"site": "demo", "start_url": "https://k.pl", "pages": pages})
+
+
+def test_pool_claims_are_exclusive_and_wait_for_transcripts(scfg):
+    from sitedigest import pool
+
+    _pool_map(scfg, 6, with_vtt=lambda i: i != 5)
+    db = pool.connect(scfg, "demo")
+    assert pool.sync(scfg, "demo", db, require_vtt=True) == 5  # lesson 5 has no transcript yet
+    got = [pool.claim(db, f"w{i}") for i in range(7)]
+    assert sorted(k for k in got if k) == ["k00", "k01", "k02", "k03", "k04"] and got[5] is None
+    # an expired lease goes back to the pool
+    db.execute("UPDATE jobs SET lease_until=0 WHERE key='k02'")
+    assert pool.claim(db, "w9") == "k02"
+    assert pool.is_limit("claude-code:sonnet -> Claude AI usage limit reached|1760000000")
+
+
+def test_pool_runs_parallel_workers(scfg, monkeypatch):
+    import os
+
+    from sitedigest import pool
+
+    _pool_map(scfg, 8, with_vtt=lambda i: True)
+    calls = []
+
+    def fake_digest(cfg, site, rec, **kw):
+        if rec["key"] == "k03" and not calls.count("k03-retry"):
+            calls.append("k03-retry")
+            raise RuntimeError("Claude AI usage limit reached")
+        return {"key": rec["key"], "status": "done", "pid": os.getpid()}
+
+    monkeypatch.setattr(lesson, "digest", fake_digest)
+    res = pool.run(scfg, "demo", workers=3, write_notion=False, pause_minutes=0, max_minutes=1, log=lambda m: None)
+    assert sum(r["done"] for r in res) == 8 and len(res) == 3
+    m = crawl.load_map(scfg, "demo")
+    assert all((p.get("digest") or {}).get("status") == "done" for p in m["pages"]), [p.get("digest") for p in m["pages"]]
+    assert pool.stats(scfg, "demo").get("done") == 8

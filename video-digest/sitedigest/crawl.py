@@ -157,6 +157,23 @@ def save_map(cfg: dict, site: str, m: dict) -> None:
     tmp.replace(p)
 
 
+def update_pages(cfg: dict, site: str, results: dict[str, dict]) -> None:
+    """Store digest results in map.json under a file lock (several pool workers write it)."""
+    lock = map_path(cfg, site).with_suffix(".lock")
+    with open(lock, "w") as fh:
+        try:
+            import fcntl
+
+            fcntl.flock(fh, fcntl.LOCK_EX)
+        except ImportError:  # Windows: single writer assumed
+            pass
+        m = load_map(cfg, site)
+        for p in m["pages"]:
+            if p["key"] in results:
+                p["digest"] = results[p["key"]]
+        save_map(cfg, site, m)
+
+
 def page_dir(cfg: dict, site: str, key: str) -> Path:
     d = session.site_dir(cfg, site) / "pages" / key
     d.mkdir(parents=True, exist_ok=True)

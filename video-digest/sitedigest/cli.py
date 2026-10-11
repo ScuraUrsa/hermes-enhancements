@@ -6,6 +6,7 @@
   sitedigest outline SITE                            modules, lessons, videos, files found
   sitedigest fetch SITE [--limit N] [--include RE]   download videos and files now (where the login lives)
   sitedigest digest SITE [--limit N] [--page KEY]    analyse lessons now (text, files, speech, picture)
+  sitedigest pool SITE --workers 3 [--follow]        parallel digest from a shared queue (no collisions)
   sitedigest course SITE                             course overview from the lesson reports
   sitedigest run URL [--limit N]                     map + digest + overview in one go
   sitedigest worker [--idle-only]                    all sites, only while Hermes is idle (cron)
@@ -115,6 +116,19 @@ def cmd_fetch(cfg, a) -> int:
 
     res = crawl.fetch_pages(cfg, a.site, todo, one, headless=not a.show, log=_log)
     print(json.dumps(res, ensure_ascii=False, indent=1))
+    return 0
+
+
+def cmd_pool(cfg, a) -> int:
+    from . import pool
+
+    if a.stats:
+        print(json.dumps(pool.stats(cfg, a.site), indent=1))
+        return 0
+    res = pool.run(cfg, a.site, workers=a.workers, model=a.model, fallback_model=a.fallback_model,
+                   max_minutes=a.max_minutes, follow=a.follow, require_vtt=a.require_vtt, include=a.include,
+                   pause_minutes=a.pause_minutes, write_notion=not a.no_notion, log=_log)
+    print(json.dumps({"workers": res, "queue": pool.stats(cfg, a.site)}, indent=1))
     return 0
 
 
@@ -234,6 +248,20 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--redo", action="store_true")
     s.add_argument("--show", action="store_true", help="visible browser")
     s.set_defaults(fn=cmd_fetch)
+
+    s = sub.add_parser("pool")
+    s.add_argument("site")
+    s.add_argument("--workers", type=int, default=3)
+    s.add_argument("--model", help="e.g. claude-code:sonnet")
+    s.add_argument("--fallback-model", help="used while the main model's usage limit is hit (else the pool waits)")
+    s.add_argument("--follow", action="store_true", help="keep picking up newly synced lessons until --max-minutes")
+    s.add_argument("--require-vtt", action="store_true", help="only lessons whose prefetched videos have a transcript")
+    s.add_argument("--include", help="regex on lesson URL or section")
+    s.add_argument("--max-minutes", type=float, default=600)
+    s.add_argument("--pause-minutes", type=float, default=30)
+    s.add_argument("--no-notion", action="store_true")
+    s.add_argument("--stats", action="store_true", help="only show the queue counts")
+    s.set_defaults(fn=cmd_pool)
 
     s = sub.add_parser("course")
     s.add_argument("site")
