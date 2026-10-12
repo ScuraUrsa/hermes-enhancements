@@ -1,0 +1,83 @@
+{"id": "q001", "text": "Usun zombie procesy na VM. Bez usuwania programów wyczyść VM z niepotrzebnych plików tymczasowych czy logów.", "label": "hermes", "note": "akcja na VM"}
+{"id": "q002", "text": "Użyj narzędzia terminal do sprawdzenia daty (date). Odpowiedz co zwróciło, po polsku, krótko.", "label": "hermes", "note": "narzędzie"}
+{"id": "q003", "text": "Użyj narzędzia push_message żeby wysłać powiadomienie: title='Test z Hermesa', body='działa', priority='normal'.", "label": "hermes", "note": "narzędzie"}
+{"id": "q004", "text": "Wróć do sesji w której ustaliłem Ci następujący goal i powiedz na czym zakończył się prace, gdyż utraciłem połączenie ssh.", "label": "hermes", "note": "historia sesji"}
+{"id": "q005", "text": "Wykonaj pełny backup całej VM aby była gotowa do usunięcia", "label": "hermes", "note": "akcja na VM"}
+{"id": "q006", "text": "Przypomnij sobie sesję i na czym stanęliśmy, poszukaj kodu odnośnie zlecania utworzenia nowego VM z poziomu hermesa.", "label": "hermes", "note": "pamięć + repo"}
+{"id": "q007", "text": "Przypomnij sobie wszystko odnośnie Ciebie zarządzającego mną w ciągu dnia i zrób raport, który umieścisz w Notionie.", "label": "hermes", "note": "pamięć + Notion"}
+{"id": "q008", "text": "Zaproponuj jak mógłbym zmusić hermesa do samodzielnego tworzenia sobie zadań i wykonywania ich według ścisłych procedur.", "label": "hermes", "note": "o Hermesie (system Filipa)"}
+{"id": "q009", "text": "Are you there", "label": "hermes", "note": "ping do asystenta"}
+{"id": "q010", "text": "Przypomnij mi na podstawie wszystkich rozmów, jakie zlecenia robiłem. Zaciągnij backupy rozmów z Google Drive i Bitwardena.", "label": "hermes", "note": "pamięć + sekrety"}
+{"id": "q011", "text": "Zapamiętaj: test pamięci Honcho z 4 października działa. Odpowiedz krótko OK.", "label": "hermes", "note": "pamięć"}
+{"id": "q012", "text": "Krótko, w 5 punktach: czego używasz do myślenia i co się dzieje, gdy pierwszy klucz Ollama się wyczerpie?", "label": "hermes", "note": "o własnej konfiguracji"}
+{"id": "q013", "text": "Odpowiedz jednym krótkim zdaniem: jaki jest teraz Twój tryb pracy według quota.json?", "label": "hermes", "note": "stan systemu"}
+{"id": "q014", "text": "W 3 krótkich punktach: czy Google Drive działa i na jakim koncie, dlaczego backupy jeszcze nie działają?", "label": "hermes", "note": "stan systemu"}
+{"id": "q015", "text": "Jak sprawdzisz nieprzeczytane maile na koncie koalamis6 i ile wolnego miejsca ma dysk kazmierczak.filip.jan?", "label": "hermes", "note": "konta Filipa"}
+{"id": "q016", "text": "Rób aktualny model DeepSeek V4.1 Flash jako domyślny.", "label": "hermes", "note": "konfiguracja"}
+{"id": "q017", "text": "list your available tools that contain push. Just name them.", "label": "hermes", "note": "narzędzia"}
+{"id": "q018", "text": "Gdzie jest dokumentacja sprzątania VM z 6.10.2026 i czy wolno uruchomić stack CrewAI?", "label": "hermes", "note": "dokumentacja Filipa"}
+{"id": "q019", "text": "list and provide context for all current tasks in kanban board", "label": "hermes", "note": "kanban"}
+{"id": "q020", "text": "Dodaj mi zadanie raport kwartalny na jutro, godzina pracy, kategoria praca.", "label": "hermes", "note": "timeplane"}
+{"id": "q021", "text": "Jutro mam obiad z rodziną od 13 do 14, wpisz mi to do kalendarza.", "label": "hermes", "note": "timeplane"}
+{"id": "q022", "text": "Dodaj regułę: w każdą niedzielę po 18:00 tylko odpoczynek i dom.", "label": "hermes", "note": "timeplane"}
+{"id": "q023", "text": "Nowa reguła: chcę mieć 25 minut przerwy między blokami.", "label": "hermes", "note": "timeplane"}
+{"id": "q024", "text": "Czuję się dziś przygnębiony.", "label": "hermes", "note": "nastrój → timeplane/relacja"}
+{"id": "q025", "text": "W sobotę od 10 do 11:30 jadę na zakupy do Lidla.", "label": "hermes", "note": "timeplane"}
+{"id": "q026", "text": "Idę do toalety.", "label": "hermes", "note": "przerwa → timeplane"}
+{"id": "q027", "text": "Zrobiłem raport kwartalny.", "label": "hermes", "note": "timeplane"}
+{"id": "q028", "text": "W luce G1 zrobiłem porządek w mailach.", "label": "hermes", "note": "timeplane"}
+{"id": "q029", "text": "Idę się napić.", "label": "hermes", "note": "przerwa"}
+{"id": "q030", "text": "Wróciłem.", "label": "hermes", "note": "przerwa"}
+{"id": "q031", "text": "Jakie mam przyciski do przerw i czy działają jak stoper?", "label": "hermes", "note": "o systemie Filipa"}
+{"id": "q032", "text": "Cześć Hermes, to test głosowy. Która jest godzina?", "label": "hermes", "note": "asystent, czas lokalny"}
+{"id": "q033", "text": "Is my phone reachable? Reply with only its battery percentage as a number.", "label": "hermes", "note": "telefon"}
+{"id": "q034", "text": "On my phone, open Settings and find the Android version on screen. Then go back to the home screen.", "label": "hermes", "note": "telefon"}
+{"id": "q035", "text": "Dodaj zadanie zapłacić rachunek za prąd do piątku.", "label": "hermes", "note": "timeplane"}
+{"id": "q036", "text": "Pomysł: nauczyć się grać na gitarze, kiedyś.", "label": "hermes", "note": "timeplane pomysł"}
+{"id": "q037", "text": "Cel na 2027: przebiec półmaraton w maju.", "label": "hermes", "note": "timeplane cel"}
+{"id": "q038", "text": "Pomysł na produkt: aplikacja do budżetu domowego dla mojej rodziny. To hobby.", "label": "hermes", "note": "timeplane epik"}
+{"id": "q039", "text": "Lista rozwiązań do aplikacji do budżetu: YNAB, Actual Budget, Firefly III.", "label": "hermes", "note": "timeplane epik"}
+{"id": "q040", "text": "przesuń T25 na później", "label": "hermes", "note": "timeplane"}
+{"id": "q041", "text": "dodaj zadanie zapłacić rachunek jutro do 15:00, 15 minut, finanse", "label": "hermes", "note": "timeplane"}
+{"id": "q042", "text": "Co mam w Q2?", "label": "hermes", "note": "timeplane"}
+{"id": "q043", "text": "W 3 zdaniach: jak implementujesz zadanie kodowe, co robisz przy exit 75 z cc_run.py?", "label": "hermes", "note": "o własnej konfiguracji"}
+{"id": "q044", "text": "Odpowiedz jednym słowem: działa?", "label": "hermes", "note": "ping"}
+{"id": "q045", "text": "Co to jest CRISPR i jak działa w uproszczeniu?", "label": "free_web", "note": "wiedza ogólna"}
+{"id": "q046", "text": "Jaka jest różnica między TCP a UDP?", "label": "free_web", "note": "wiedza ogólna"}
+{"id": "q047", "text": "Przetłumacz na angielski: 'Dziękuję za szybką odpowiedź, wrócę do Państwa w przyszłym tygodniu.'", "label": "free_web", "note": "tłumaczenie"}
+{"id": "q048", "text": "Podaj przepis na szakszukę dla 2 osób.", "label": "free_web", "note": "przepis"}
+{"id": "q049", "text": "Ile kalorii ma średnie jabłko?", "label": "free_web", "note": "fakt"}
+{"id": "q050", "text": "Kto wygrał ostatnie wybory prezydenckie w Polsce?", "label": "free_web", "note": "aktualności"}
+{"id": "q051", "text": "Co dziś słychać w świecie technologii? Trzy najważniejsze newsy.", "label": "free_web", "note": "aktualności (web search)"}
+{"id": "q052", "text": "Jak działa restart policy w Dockerze? Czym różni się unless-stopped od always?", "label": "free_web", "note": "wiedza techniczna ogólna"}
+{"id": "q053", "text": "Wyjaśnij jak dziecku, czym jest inflacja.", "label": "free_web", "note": "wyjaśnienie"}
+{"id": "q054", "text": "Jakie są najlepsze praktyki nazewnictwa gałęzi w gicie?", "label": "free_web", "note": "wiedza techniczna ogólna"}
+{"id": "q055", "text": "Jaka jest stolica Australii?", "label": "free_web", "note": "fakt"}
+{"id": "q056", "text": "Ile wynosi aktualny kurs euro do złotego?", "label": "free_web", "note": "aktualności (web)"}
+{"id": "q057", "text": "Napisz krótki wiersz o jesieni.", "label": "free_web", "note": "twórczość bez kontekstu"}
+{"id": "q058", "text": "Czym różni się druk 3D FDM od SLA?", "label": "free_web", "note": "wiedza ogólna"}
+{"id": "q059", "text": "Jakie są objawy niedoboru witaminy D?", "label": "free_web", "note": "wiedza ogólna"}
+{"id": "q060", "text": "Co to jest Nomad od HashiCorp i do czego się go używa?", "label": "free_web", "note": "wiedza techniczna ogólna"}
+{"id": "q061", "text": "Streść mi w 5 zdaniach, o czym jest książka 'Sapiens'.", "label": "free_web", "note": "wiedza ogólna"}
+{"id": "q062", "text": "Jak policzyć pole trójkąta, mając tylko długości boków?", "label": "free_web", "note": "wiedza ogólna"}
+{"id": "q063", "text": "Jakie są godziny otwarcia IKEA w Łodzi?", "label": "free_web", "note": "aktualności (web)"}
+{"id": "q064", "text": "What does 'idempotent' mean in REST APIs?", "label": "free_web", "note": "wiedza techniczna ogólna, EN"}
+{"id": "q065", "text": "Jak usunąć plamę z czerwonego wina z dywanu?", "label": "free_web", "note": "porada ogólna"}
+{"id": "q066", "text": "Co nowego w Pythonie 3.14?", "label": "free_web", "note": "aktualności techniczne"}
+{"id": "q067", "text": "Popraw gramatykę: 'Me and him goes to the store yesterday.'", "label": "free_web", "note": "edycja tekstu bez kontekstu"}
+{"id": "q068", "text": "Kiedy jest następna pełnia księżyca?", "label": "free_web", "note": "fakt"}
+{"id": "q069", "text": "Dlaczego crewai-worker restartuje się na VM po zmianie RAM?", "label": "hermes", "note": "moja infrastruktura"}
+{"id": "q070", "text": "Czy Nomad nadaje się do zastąpienia naszego stacku CrewAI na unity-orchestrator?", "label": "hermes", "note": "mój stack"}
+{"id": "q071", "text": "Jaka jest pogoda jutro w Łodzi? Przesuń mi bieganie jeśli będzie padać.", "label": "hermes", "note": "akcja timeplane"}
+{"id": "q072", "text": "Streść mi ostatni film z mojej playlisty Watch Later.", "label": "hermes", "note": "moje konto"}
+{"id": "q073", "text": "Co mówiliśmy wczoraj o budżecie tokenów?", "label": "hermes", "note": "historia rozmowy"}
+{"id": "q074", "text": "Wyślij Kasi maila, że spóźnię się 15 minut.", "label": "hermes", "note": "akcja, kontakty"}
+{"id": "q075", "text": "Ile wydałem w tym tygodniu na Ollama Cloud?", "label": "hermes", "note": "moje dane"}
+{"id": "q076", "text": "Sprawdź, czy PR #27 w crewai-orchestrator przeszedł CI.", "label": "hermes", "note": "moje repo"}
+{"id": "q077", "text": "Przetłumacz na angielski mój ostatni wpis w Notion o planie dnia.", "label": "hermes", "note": "moje dane"}
+{"id": "q078", "text": "Jakie mam jutro spotkania?", "label": "hermes", "note": "kalendarz"}
+{"id": "q079", "text": "Napisz skrypt, który czyści stare worktree w ~/.hermes.", "label": "hermes", "note": "kod dla mojego systemu"}
+{"id": "q080", "text": "Przypomnij mi o rachunku za prąd w piątek rano.", "label": "hermes", "note": "przypomnienie"}
+{"id": "q081", "text": "Jak działa quota-governor i gdzie zapisuje tryb?", "label": "hermes", "note": "mój system"}
+{"id": "q082", "text": "Dzięki!", "label": "hermes", "note": "odpowiedź w rozmowie, nie pytanie"}
+{"id": "q083", "text": "Ok, zrób to.", "label": "hermes", "note": "kontynuacja rozmowy"}
