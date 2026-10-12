@@ -21,7 +21,7 @@ open('.keys.txt', 'w', newline='\n').write(''.join(p['key'] + '\n' for p in m['p
 : > .pc_files.txt
 while read -r k; do
   [ -d "pages/$k" ] || continue
-  find "pages/$k" -type f ! -name "*.part" ! -name "*.ytdl" ! -name "*.tmp" ! -name "*.frag*" >> .pc_files.txt
+  find "pages/$k" -type f ! -name "*.part" ! -name "*.ytdl" ! -name "*.tmp" ! -name "*.frag*" ! -name "*.vtt.v1" >> .pc_files.txt
 done < .keys.txt
 $SSH "mkdir -p $DEST/pages && cd $DEST && find pages -type f" > .vm_files.txt
 sort -u .pc_files.txt -o .pc_files.txt
@@ -30,6 +30,8 @@ grep '/prefetch/.pruned$' .vm_files.txt | sed 's#/prefetch/.pruned$#/prefetch/vi
 if [ -s .pruned_prefixes.txt ]; then grep -v -F -f .pruned_prefixes.txt .pc_files.txt > .pc_files.tmp || true; mv .pc_files.tmp .pc_files.txt; fi
 sort -u .vm_files.txt -o .vm_files.txt
 comm -23 .pc_files.txt .vm_files.txt > .new_files.txt
+# a re-transcribed VTT keeps its name; its new marker (video.pl.vtt.asr2) brings it along
+grep '\.vtt\.asr[0-9]*$' .new_files.txt | sed 's/\.asr[0-9]*$//' >> .new_files.txt || true
 echo "lessons on PC: $(wc -l < .keys.txt), files to copy: $(wc -l < .new_files.txt)"
 if [ -s .new_files.txt ]; then
   tar cf - -T .new_files.txt | $SSH "cd $DEST && tar xf -"
