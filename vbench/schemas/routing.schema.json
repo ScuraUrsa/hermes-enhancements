@@ -1,0 +1,562 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "vbench_routing/v1",
+ "title": "Routing",
+ "type": "object",
+ "required": [
+  "schema",
+  "default"
+ ],
+ "properties": {
+  "schema": {
+   "const": "vbench_routing/v1"
+  },
+  "provisional": {
+   "type": "boolean"
+  },
+  "default": {
+   "type": "object",
+   "properties": {
+    "classify": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "vision": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "report": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "frames_per_min": {
+     "type": "number"
+    },
+    "skip": {
+     "type": "boolean"
+    },
+    "low_confidence": {
+     "type": "boolean"
+    },
+    "evidence": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "classify",
+    "vision",
+    "report",
+    "skip"
+   ]
+  },
+  "podcast_talk": {
+   "type": "object",
+   "properties": {
+    "classify": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "vision": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "report": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "frames_per_min": {
+     "type": "number"
+    },
+    "skip": {
+     "type": "boolean"
+    },
+    "low_confidence": {
+     "type": "boolean"
+    },
+    "evidence": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "classify",
+    "vision",
+    "report",
+    "skip"
+   ]
+  },
+  "interview": {
+   "type": "object",
+   "properties": {
+    "classify": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "vision": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "report": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "frames_per_min": {
+     "type": "number"
+    },
+    "skip": {
+     "type": "boolean"
+    },
+    "low_confidence": {
+     "type": "boolean"
+    },
+    "evidence": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "classify",
+    "vision",
+    "report",
+    "skip"
+   ]
+  },
+  "tutorial_screen": {
+   "type": "object",
+   "properties": {
+    "classify": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "vision": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "report": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "frames_per_min": {
+     "type": "number"
+    },
+    "skip": {
+     "type": "boolean"
+    },
+    "low_confidence": {
+     "type": "boolean"
+    },
+    "evidence": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "classify",
+    "vision",
+    "report",
+    "skip"
+   ]
+  },
+  "lecture_slides": {
+   "type": "object",
+   "properties": {
+    "classify": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "vision": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "report": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "frames_per_min": {
+     "type": "number"
+    },
+    "skip": {
+     "type": "boolean"
+    },
+    "low_confidence": {
+     "type": "boolean"
+    },
+    "evidence": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "classify",
+    "vision",
+    "report",
+    "skip"
+   ]
+  },
+  "explainer_visual": {
+   "type": "object",
+   "properties": {
+    "classify": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "vision": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "report": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "frames_per_min": {
+     "type": "number"
+    },
+    "skip": {
+     "type": "boolean"
+    },
+    "low_confidence": {
+     "type": "boolean"
+    },
+    "evidence": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "classify",
+    "vision",
+    "report",
+    "skip"
+   ]
+  },
+  "vlog_travel": {
+   "type": "object",
+   "properties": {
+    "classify": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "vision": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "report": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "frames_per_min": {
+     "type": "number"
+    },
+    "skip": {
+     "type": "boolean"
+    },
+    "low_confidence": {
+     "type": "boolean"
+    },
+    "evidence": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "classify",
+    "vision",
+    "report",
+    "skip"
+   ]
+  },
+  "news_commentary": {
+   "type": "object",
+   "properties": {
+    "classify": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "vision": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "report": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "frames_per_min": {
+     "type": "number"
+    },
+    "skip": {
+     "type": "boolean"
+    },
+    "low_confidence": {
+     "type": "boolean"
+    },
+    "evidence": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "classify",
+    "vision",
+    "report",
+    "skip"
+   ]
+  },
+  "documentary": {
+   "type": "object",
+   "properties": {
+    "classify": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "vision": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "report": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "frames_per_min": {
+     "type": "number"
+    },
+    "skip": {
+     "type": "boolean"
+    },
+    "low_confidence": {
+     "type": "boolean"
+    },
+    "evidence": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "classify",
+    "vision",
+    "report",
+    "skip"
+   ]
+  },
+  "review_product": {
+   "type": "object",
+   "properties": {
+    "classify": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "vision": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "report": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "frames_per_min": {
+     "type": "number"
+    },
+    "skip": {
+     "type": "boolean"
+    },
+    "low_confidence": {
+     "type": "boolean"
+    },
+    "evidence": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "classify",
+    "vision",
+    "report",
+    "skip"
+   ]
+  },
+  "music_artistic": {
+   "type": "object",
+   "properties": {
+    "classify": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "vision": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "report": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "frames_per_min": {
+     "type": "number"
+    },
+    "skip": {
+     "type": "boolean"
+    },
+    "low_confidence": {
+     "type": "boolean"
+    },
+    "evidence": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "classify",
+    "vision",
+    "report",
+    "skip"
+   ]
+  },
+  "short": {
+   "type": "object",
+   "properties": {
+    "classify": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "vision": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "report": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "frames_per_min": {
+     "type": "number"
+    },
+    "skip": {
+     "type": "boolean"
+    },
+    "low_confidence": {
+     "type": "boolean"
+    },
+    "evidence": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "classify",
+    "vision",
+    "report",
+    "skip"
+   ]
+  },
+  "other": {
+   "type": "object",
+   "properties": {
+    "classify": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "vision": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "report": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "frames_per_min": {
+     "type": "number"
+    },
+    "skip": {
+     "type": "boolean"
+    },
+    "low_confidence": {
+     "type": "boolean"
+    },
+    "evidence": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "classify",
+    "vision",
+    "report",
+    "skip"
+   ]
+  },
+  "transcribe": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "object",
+    "properties": {
+     "ref": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ }
+}

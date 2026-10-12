@@ -1,0 +1,144 @@
+{
+ "schema": "vbench_routing/v1",
+ "provisional": true,
+ "note": "Prior guesses before any benchmark data: cheapest Ollama Cloud models that are known to be capable. Replaced by `vbench route` output after the first sweep. Updated 2026-10-09: qwen3-vl:235b-instruct was retired on Ollama Cloud (HTTP 410), screen-heavy types now use gemma3:27b like the pipeline; report model deepseek-v4.1-flash, which the pipeline's dev test ran.",
+ "generated_at": "2026-10-09T22:30:00+00:00",
+ "source_run": "none",
+ "default": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma3:27b",
+  "report": "ollama-cloud:deepseek-v4.1-flash",
+  "frames_per_min": 1.5,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {},
+  "vision_fallback": "ollama-cloud:gemma3:12b"
+ },
+ "podcast_talk": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma3:12b",
+  "report": "ollama-cloud:deepseek-v4.1-flash",
+  "frames_per_min": 0.5,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {},
+  "vision_fallback": "ollama-cloud:gemma3:12b"
+ },
+ "interview": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma3:12b",
+  "report": "ollama-cloud:deepseek-v4.1-flash",
+  "frames_per_min": 0.5,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {},
+  "vision_fallback": "ollama-cloud:gemma3:12b"
+ },
+ "tutorial_screen": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma3:27b",
+  "report": "ollama-cloud:deepseek-v4.1-flash",
+  "frames_per_min": 3.0,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {},
+  "vision_fallback": "ollama-cloud:gemma3:12b"
+ },
+ "lecture_slides": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma3:27b",
+  "report": "ollama-cloud:deepseek-v4.1-flash",
+  "frames_per_min": 3.0,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {},
+  "vision_fallback": "ollama-cloud:gemma3:12b"
+ },
+ "explainer_visual": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma4:31b",
+  "report": "ollama-cloud:deepseek-v4.1-flash",
+  "frames_per_min": 3.0,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {},
+  "vision_fallback": "ollama-cloud:gemma3:12b"
+ },
+ "vlog_travel": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma4:31b",
+  "report": "ollama-cloud:deepseek-v4.1-flash",
+  "frames_per_min": 3.0,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {},
+  "vision_fallback": "ollama-cloud:gemma3:12b"
+ },
+ "news_commentary": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma3:12b",
+  "report": "ollama-cloud:deepseek-v4.1-flash",
+  "frames_per_min": 0.5,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {},
+  "vision_fallback": "ollama-cloud:gemma3:12b"
+ },
+ "documentary": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma4:31b",
+  "report": "ollama-cloud:deepseek-v4.1-flash",
+  "frames_per_min": 3.0,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {},
+  "vision_fallback": "ollama-cloud:gemma3:12b"
+ },
+ "review_product": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma4:31b",
+  "report": "ollama-cloud:deepseek-v4.1-flash",
+  "frames_per_min": 3.0,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {},
+  "vision_fallback": "ollama-cloud:gemma3:12b"
+ },
+ "music_artistic": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "skip": true,
+  "vision": null,
+  "report": null,
+  "frames_per_min": 0,
+  "low_confidence": false,
+  "evidence": {},
+  "vision_fallback": null
+ },
+ "short": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma3:27b",
+  "report": "ollama-cloud:deepseek-v4.1-flash",
+  "frames_per_min": 4.0,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {},
+  "vision_fallback": "ollama-cloud:gemma3:12b"
+ },
+ "other": {
+  "classify": "ollama-cloud:gpt-oss:20b",
+  "vision": "ollama-cloud:gemma3:27b",
+  "report": "ollama-cloud:deepseek-v4.1-flash",
+  "frames_per_min": 1.5,
+  "skip": false,
+  "low_confidence": true,
+  "evidence": {},
+  "vision_fallback": "ollama-cloud:gemma3:12b"
+ },
+ "transcribe": {
+  "default": {
+   "ref": "groq:whisper-large-v3-turbo",
+   "low_confidence": true,
+   "evidence": {}
+  }
+ }
+}

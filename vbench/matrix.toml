@@ -1,0 +1,73 @@
+# The first full sweep. Run on the Hermes VM:  python3 -m vbench run matrix.toml
+# Stages can be run separately (--stage vision, then --stage report) and the run resumes where it stopped.
+
+[run]
+bundles = "bundles"
+labels = "labels"
+out = "results/sweep-1"
+language = "pl"              # reports are written in Polish, like the Notion "Raporty wideo" pages
+repeats = 1                  # raise to 3 for the finalists
+workers = 4
+frames_per_min = 2           # vision stage samples 2 frames/min (max 40); routing scales per type
+max_frames = 40
+report_frames = "reference"  # report models get the answer key's frame descriptions, so vision and
+                             # report are measured separately; "@frames=none" variants test text-only
+# Two judges from different families, averaged, so no family grades itself alone.
+judges = ["claude-code:sonnet", "ollama-cloud:deepseek-v4-pro"]
+
+[stages.classify]
+models = [
+  "ollama-cloud:gpt-oss:20b",
+  "ollama-cloud:nemotron-3-nano:30b",
+  "ollama-cloud:ministral-3:8b",
+  "ollama-cloud:deepseek-v4.1-flash",
+  "claude-code:haiku",
+]
+
+[stages.transcribe]          # only videos with human captions are scored (they are the yardstick)
+models = [
+  "youtube:auto",
+  "groq:whisper-large-v3-turbo",
+  "groq:whisper-large-v3",
+]
+
+[stages.vision]
+models = [
+  "ollama-cloud:gemma3:12b",
+  "ollama-cloud:gemma3:27b",
+  "ollama-cloud:gemma4:31b",
+  "ollama-cloud:ministral-3:14b",
+  "ollama-cloud:qwen3.5:397b",
+  "ollama-cloud:kimi-k2.6",
+  "ollama-cloud:gemini-3-flash-preview",
+  "claude-code:haiku",
+  "claude-code:sonnet",
+]
+
+[stages.report]
+models = [
+  "ollama-cloud:gpt-oss:120b",
+  "ollama-cloud:nemotron-3-super",
+  "ollama-cloud:deepseek-v4.1-flash",
+  "ollama-cloud:glm-5.3-flash",
+  "ollama-cloud:deepseek-v4-pro",
+  "ollama-cloud:qwen3-next:80b",
+  "ollama-cloud:minimax-m2.7",
+  "ollama-cloud:glm-4.7",
+  "ollama-cloud:kimi-k2.6",
+  "claude-code:haiku",
+  "claude-code:sonnet",
+  "claude-code:opus",                          # the ceiling everything else is compared to
+  "ollama-cloud:deepseek-v4.1-flash@frames=none", # text only: is the picture worth paying for?
+  "claude-code:haiku@frames=none",
+]
+
+# Gemini watching the YouTube URL itself (sound + picture, no transcript or frames needed).
+# Needs GEMINI_API_KEY; public videos only.
+[stages.video_url]
+models = [
+  "gemini-video:gemini-2.5-flash-lite@fps=0.2",
+  "gemini-video:gemini-2.5-flash-lite@fps=1",
+  "gemini-video:gemini-3.1-flash-lite@fps=0.5",
+  "gemini-video:gemini-3-flash-preview@fps=1",
+]
