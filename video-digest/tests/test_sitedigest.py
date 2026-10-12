@@ -419,3 +419,28 @@ def test_digest_skips_lessons_whose_video_has_not_synced(scfg, monkeypatch):
     monkeypatch.setattr(lesson, "digest", lambda cfg, site, rec, **kw: seen.append(rec["key"]) or {"key": rec["key"], "status": "done"})
     course.digest_site(scfg, "demo", write_notion=False, log=lambda m: None)
     assert seen == ["k00"]
+
+
+def test_ocr_runs_tesseract_single_threaded(monkeypatch, tmp_path):
+    import subprocess
+
+    from ytdigest import frames
+
+    seen = {}
+    monkeypatch.setattr(frames.shutil, "which", lambda name: "/usr/bin/tesseract")
+    monkeypatch.delenv("OMP_THREAD_LIMIT", raising=False)
+
+    def fake_run(cmd, **kw):
+        seen.update(kw["env"])
+        return subprocess.CompletedProcess(cmd, 0, stdout="  Slajd  1 ", stderr="")
+
+    monkeypatch.setattr(frames.subprocess, "run", fake_run)
+    assert frames.ocr(tmp_path / "f.jpg") == "Slajd 1" and seen["OMP_THREAD_LIMIT"] == "1"
+
+
+def test_drop_frames_frees_only_frames(tmp_path):
+    (tmp_path / "video01" / "frames").mkdir(parents=True)
+    (tmp_path / "video01" / "frames" / "000010.jpg").write_bytes(b"x" * 100)
+    (tmp_path / "report.json").write_text("{}")
+    assert lesson.drop_frames(tmp_path) == 100
+    assert not (tmp_path / "video01" / "frames").exists() and (tmp_path / "report.json").is_file()
