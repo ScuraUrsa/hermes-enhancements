@@ -16,7 +16,9 @@ with open("map.lock", "w") as lk:
     for p in pc["pages"]:
         local = [v for v in p.get("videos") or [] if v.startswith("local:")]
         # the video and its transcript (VTT from the PC GPU) must both be here
-        have = all((Path("pages") / p["key"] / v[len("local:"):]).is_file()
+        # (a video pruned after its digest counts as present: prefetch/.pruned)
+        have = all(((Path("pages") / p["key"] / v[len("local:"):]).is_file()
+                    or (Path("pages") / p["key"] / v[len("local:"):]).parent.joinpath(".pruned").is_file())
                    and any((Path("pages") / p["key"] / v[len("local:"):]).parent.glob("*.vtt")) for v in local)
         ok = p.get("downloaded") and have and (Path("pages") / p["key"] / "text.md").is_file()
         p["status"] = "mapped" if ok else "awaiting_download"

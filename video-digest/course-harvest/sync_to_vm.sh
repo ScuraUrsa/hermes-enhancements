@@ -25,6 +25,9 @@ while read -r k; do
 done < .keys.txt
 $SSH "mkdir -p $DEST/pages && cd $DEST && find pages -type f" > .vm_files.txt
 sort -u .pc_files.txt -o .pc_files.txt
+# videos of digested lessons are pruned on the VM (prune_media.py leaves prefetch/.pruned): don't copy them back
+grep '/prefetch/.pruned$' .vm_files.txt | sed 's#/prefetch/.pruned$#/prefetch/video.#' > .pruned_prefixes.txt || true
+if [ -s .pruned_prefixes.txt ]; then grep -v -F -f .pruned_prefixes.txt .pc_files.txt > .pc_files.tmp || true; mv .pc_files.tmp .pc_files.txt; fi
 sort -u .vm_files.txt -o .vm_files.txt
 comm -23 .pc_files.txt .vm_files.txt > .new_files.txt
 echo "lessons on PC: $(wc -l < .keys.txt), files to copy: $(wc -l < .new_files.txt)"
