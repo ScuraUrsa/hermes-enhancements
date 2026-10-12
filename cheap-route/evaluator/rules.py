@@ -22,7 +22,8 @@ _MINE = re.compile(
 # Possessives and first-person references in Polish and English.
 _PERSONAL = re.compile(
     r"\b(mój|moja|moje|moich|moim|moją|mojego|mojej|mnie|u mnie|nasz|nasza|nasze|naszej|"
-    r"my|mine|our)\b",
+    r"mam|mamy|chcę|chce|muszę|musze|jadę|jade|idę|ide|czuję|czuje|zrobiłem|zrobilem|wróciłem|wrocilem|"
+    r"my|mine|our|i have|i want|i need)\b",
     re.I,
 )
 

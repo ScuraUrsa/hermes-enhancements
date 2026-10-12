@@ -1,0 +1,8 @@
+name: cheap-route
+version: 0.1.0
+description: "Local evaluator routes general-knowledge questions to a free LLM channel before the agent turn; everything personal or actionable stays with Hermes."
+author: "Filip Kaźmierczak + Claude Code"
+provides_hooks:
+  - post_gateway_admission
+provides_commands:
+  - route

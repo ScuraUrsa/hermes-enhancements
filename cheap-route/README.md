@@ -32,3 +32,34 @@ wychodzi na zewnątrz) i ≥ 90 % zgodności ogółem. Opuszczone `free_web` kos
 więc próg `confidence` dobieramy pod zero wycieków.
 
 Wymagania: Python 3.10+, `pip install requests`.
+
+## Etap 2 — plugin Hermesa (`plugin/`)
+
+```
+plugin/
+  plugin.yaml      manifest (hook post_gateway_admission, komenda /route)
+  __init__.py      register(ctx): dwa zadania pomocnicze, hook, komenda
+  router.py        decyzja (reguły → model → próg), pamięć sesji, dziennik decisions.jsonl
+  rules.py         kopia evaluator/rules.py (trzymać w zgodzie)
+  prompt.md        kopia evaluator/prompt.md
+tests/test_router.py   13 testów zachowania (pytest), bez Hermesa
+```
+
+Instalacja na VM: skopiować `plugin/` jako `~/.hermes/plugins/cheap-route/` (albo
+`hermes plugins install` z tego repo, podkatalog `cheap-route/plugin`), potem w `config.yaml`:
+
+```yaml
+plugins:
+  enabled: [cheap-route]
+  entries:
+    cheap-route:
+      settings: {enabled: true, threshold: 0.8, footer: true, platforms: []}
+auxiliary:
+  cheap_route_router: {provider: custom, base_url: "http://127.0.0.1:8082/v1", model: local, api_key: none}
+  cheap_route_free:   {provider: gemini, model: gemini-3.6-flash}   # GEMINI_API_KEY w .env/BWS
+```
+
+Zachowanie: reguły wymuszają `hermes` dla wszystkiego osobistego lub z prośbą o działanie, model
+decyduje o reszcie; `free_web` tylko przy pewności ≥ próg. Każdy błąd ewaluatora lub darmowego
+kanału = zwykła tura Hermesa. Odpowiedź z darmowego kanału ma stopkę; `/route` pokazuje statystyki
+z `~/.hermes/plugin-data/cheap-route/decisions.jsonl`, `/route off` wyłącza.
