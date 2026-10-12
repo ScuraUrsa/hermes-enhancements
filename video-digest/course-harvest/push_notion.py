@@ -1,0 +1,115 @@
+"""On the VM: push already-digested lessons of a sitedigest site to Notion ("Kursy: lekcje")
+and write one overview per course (sitedigest's overview is per site; Zanfia sites hold
+several courses). Needs NOTION_API_KEY in the environment.
+
+  python push_notion.py SITE [--course-url-part od-developera-do-foundera-3.0] [--model claude-code:sonnet]
+                             [--lessons-only | --overview-only] [--from-json]
+
+--from-json republishes the overview saved in course-<slug>.json (no new model call).
+Each course gets its own overview row (key course-<site>-<slug>), not sitedigest's one-per-site row.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from sitedigest import config, course, crawl, notion_out
+
+
+def course_lessons(cfg: dict, site: str, pages: list[dict]) -> list[dict]:
+    """The lesson list course.overview builds (for write_course), without the model call."""
+    m = crawl.load_map(cfg, site)
+    keys = {p["key"] for p in pages}
+    res = []
+    for p in m["pages"]:
+        d = p.get("digest") or {}
+        rp = crawl.page_dir(cfg, site, p["key"]) / "report.json"
+        if p["key"] not in keys or not rp.is_file():
+            continue
+        rep = json.loads(rp.read_text(encoding="utf-8"))["report"]
+        res.append({"key": p["key"], "title": p.get("title"), "section": p.get("section"), "url": p["url"],
+                    "notion_url": d.get("notion_url"), "one_line": rep.get("one_line"), "videos": d.get("videos", 0),
+                    "files": d.get("files", 0), "cost_usd": d.get("cost_usd", 0)})
+    return res
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("site")
+    ap.add_argument("--course-url-part", action="append", default=[], help="repeatable; default: every digested course")
+    ap.add_argument("--model", default="claude-code:sonnet", help="model for the course overview")
+    ap.add_argument("--lessons-only", action="store_true")
+    ap.add_argument("--overview-only", action="store_true")
+    ap.add_argument("--from-json", action="store_true", help="reuse the saved overview, only rewrite the Notion page")
+    a = ap.parse_args()
+    cfg = config.load()
+    m = crawl.load_map(cfg, a.site)
+    done = [p for p in m["pages"] if (p.get("digest") or {}).get("status") in ("done", "partial")]
+    by_course: dict[str, list[dict]] = {}
+    for p in done:
+        if a.course_url_part and not any(c in p.get("course_url", "") for c in a.course_url_part):
+            continue
+        by_course.setdefault(p.get("course_url", ""), []).append(p)
+    for curl, pages in by_course.items():
+        title = pages[0].get("course") or curl
+        print(f"== {title}: {len(pages)} lessons", flush=True)
+        if not a.overview_only:
+            ok = 0
+            for p in pages:
+                pdir = crawl.page_dir(cfg, a.site, p["key"])
+                try:
+                    lesson = json.loads((pdir / "lesson.json").read_text(encoding="utf-8"))
+                    saved = json.loads((pdir / "report.json").read_text(encoding="utf-8"))
+                    url = notion_out.write_lesson(cfg, pdir, lesson, saved["report"], saved.get("run") or {},
+                                                  p["digest"]["status"])
+                    p["digest"]["notion_url"] = url
+                    ok += 1
+                except Exception as exc:
+                    print(f"  {p['key']} {p.get('title', '')[:50]}: {type(exc).__name__}: {str(exc)[:200]}", flush=True)
+            print(f"  lessons in Notion: {ok}/{len(pages)}", flush=True)
+            with crawl.map_lock(cfg, a.site):  # keep the Notion links in the map
+                m2 = crawl.load_map(cfg, a.site)
+                urls = {p["key"]: p["digest"].get("notion_url") for p in pages if p["digest"].get("notion_url")}
+                for p in m2["pages"]:
+                    if p["key"] in urls:
+                        p["digest"]["notion_url"] = urls[p["key"]]
+                crawl.save_map(cfg, a.site, m2)
+        if not a.lessons_only:
+            slug = curl.rstrip("/").rsplit("/", 1)[-1]
+            out = crawl.map_path(cfg, a.site).parent / f"course-{slug}.json"
+            # sitedigest's overview reads the whole site map: hand it only this course's lessons
+            real_load, real_client = crawl.load_map, notion_out._client
+            keys = {p["key"] for p in pages}
+            crawl.load_map = lambda c, s: {**real_load(c, s), "pages": [p for p in real_load(c, s)["pages"] if p["key"] in keys]}
+
+            def per_course_client(c, _real=real_client, _slug=slug):  # one overview row per course, not per site
+                nt = _real(c)
+                up = nt.upsert
+
+                def upsert(key, props):
+                    if key.startswith("course-"):
+                        key = f"{key}-{_slug}"
+                        props["Klucz"] = notion_out._text(key)
+                    return up(key, props)
+                nt.upsert = upsert
+                return nt
+            notion_out._client = per_course_client
+            try:
+                if a.from_json:
+                    c = json.loads(out.read_text(encoding="utf-8"))
+                    c["start_url"] = curl or c["start_url"]
+                    c["notion_url"] = notion_out.write_course(cfg, a.site, c, course_lessons(cfg, a.site, pages))
+                else:
+                    c = course.overview(cfg, a.site, model=a.model, title=title, write_notion=True, log=print)
+                print(f"  overview: {c.get('notion_url')}", flush=True)
+                out.write_text(json.dumps(c, ensure_ascii=False, indent=1), encoding="utf-8")
+            finally:
+                crawl.load_map, notion_out._client = real_load, real_client
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

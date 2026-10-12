@@ -21,7 +21,14 @@ freed = n = 0
 for p in m["pages"]:
     if (p.get("digest") or {}).get("status") not in ("done", "partial"):
         continue
-    pre = Path("pages") / p["key"] / "prefetch"
+    pdir = Path("pages") / p["key"]
+    # extracted frames (100-500 jpg per lesson) are only needed until the frames are described
+    for fr in pdir.glob("video*/frames"):
+        for f in fr.glob("*.jpg"):
+            freed += f.stat().st_size
+            if not a.dry_run:
+                f.unlink()
+    pre = pdir / "prefetch"
     vids = [f for f in pre.glob("video.*") if f.suffix.lower() in (".mp4", ".mkv", ".webm", ".ts", ".m4a")] if pre.is_dir() else []
     if not vids:
         continue

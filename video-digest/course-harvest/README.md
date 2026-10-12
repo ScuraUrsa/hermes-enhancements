@@ -19,6 +19,7 @@ sync_to_vm.sh                new files only (tar over ssh) ----------->  merge_m
 pipeline_loop.sh             sync every 3 min + keeps the pool up ----->  sitedigest pool --workers 3
                                                                           --follow --require-vtt
 requeue.py (on the VM)       send lessons back to the pool, e.g. after a mind map was added
+push_notion.py (on the VM)   lesson reports + one overview per course -> Notion "Kursy: lekcje"
 ```
 
 The login never leaves the PC: only lesson text and media go to the VM. Videos are
@@ -56,3 +57,33 @@ Globalnego Startupu, 178 lessons / 33 h):
   session limit is the real cap (the pool pauses until the reset).
 - PyAV 19 (Python 3.14) dropped `metadata_errors`, which faster-whisper 1.2 passes;
   transcribe_pc.py strips it.
+
+## Transcript quality (measured 2026-10-12)
+
+`asr_bench.py` transcribes YouTube talks that have human-made captions with exactly this
+pipeline and computes the word error rate (WER). Six Polish TEDx talks (~2 h):
+2.5 / 5.2 / 5.2 / 6.8 % on clear speech, 12 % on a casual talk full of names, 21 % on a
+talk whose captions are an edited translation (not verbatim). Most differences are
+harmless (numbers as digits, word endings, filler words); meaning-changing errors are
+~1-2 % of words: surnames, rare words, noisy passages.
+
+Course jargon was the weak spot ("SaaS" -> "sas"/"sasa" about a third of the time,
+"churn" -> "czern"), so each course gets ASR settings in
+`D:\courses\<site>\asr\<course-slug>.json` (examples in `asr-examples/`):
+
+```json
+{"hotwords": "SaaS, churn, MRR, ...", "corrections_from": ["_common_corrections.json"], "corrections": {}}
+```
+
+- `hotwords`: course terms passed to Whisper. On two ODDF lessons misspelled jargon went
+  22 -> 9 and 15 -> 8 at no extra time. The same list as `initial_prompt` did nothing (22 -> 20).
+- `corrections`: whole-word replacements after transcription, only for spellings that
+  never occur in Polish (`czern` -> `churn`, `sasie` -> `SaaS-ie`).
+- `glossary.py --course X` lists candidate terms (titles, text under the videos) and
+  English-looking words in the current transcripts, to curate the file.
+- `transcribe_pc.py --redo` re-transcribes lessons made before the settings (old VTT kept as
+  `*.vtt.v1`, marker `*.vtt.asr2`; `sync_to_vm.sh` sends the new VTT along with its marker).
+  `--fix-only` applies just the corrections without the GPU.
+- `asr_check.py --course X` transcribes the first minutes of 3 lessons with turbo and with
+  large-v3 (3-4x slower) and measures how much they disagree; above 10 % use large-v3 for
+  that course.
