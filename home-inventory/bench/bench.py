@@ -292,14 +292,14 @@ CASES = [
          setup=[["add", "ser żółty", "--exp", "2026-10-12", "--where", "lodówka > półka 2"],
                 ["add", "ser żółty", "--exp", "2026-10-30", "--where", "lodówka > półka 2"]],
          say=["Wyrzuciłem przeterminowany ser."], check=c_p8, golden=[f'{M} throw "ser żółty" --expired-only --all']),
-    dict(id="P9 where", base=FURNISHED, setup=[["add", "płyn do naczyń", "--cat", "chemia", "--where", "szafka pod zlewem"]],
+    dict(id="P9 where", needs_call=True, base=FURNISHED, setup=[["add", "płyn do naczyń", "--cat", "chemia", "--where", "szafka pod zlewem"]],
          say=["Gdzie jest płyn do naczyń?"], check=c_p9, golden=[f'{M} where "płyn do naczyń"']),
-    dict(id="P10 expiring", base=FURNISHED,
+    dict(id="P10 expiring", needs_call=True, base=FURNISHED,
          setup=[["add", "kurczak", "--exp", "17.10", "--where", "lodówka > półka 1"],
                 ["add", "jogurt", "--exp", "19.10", "--where", "lodówka > półka 2"],
                 ["add", "ryż", "--exp", "2027-03-01", "--where", "kuchnia"]],
          say=["Co mi się przeterminuje w tym tygodniu?"], check=c_p10, golden=[f"{M} expiring --days 7"]),
-    dict(id="P11 meal plan", base=FURNISHED,
+    dict(id="P11 meal plan", needs_call=True, base=FURNISHED,
          setup=[["add", "kurczak", "--exp", "17.10", "--where", "lodówka > półka 1"],
                 ["add", "ryż", "--exp", "2027-03-01", "--where", "kuchnia"]],
          say=["Co zrobić jutro na obiad? Chcę wykorzystać to, co się kończy."], check=c_p11, golden=[f"{M} plan"]),
@@ -334,10 +334,10 @@ CASES = [
     dict(id="M8 remove furniture", base=TEOS, setup=[],
          say=["Wynieśliśmy komodę z pokoju Teosia, usuń ją z mapy."], check=c_m8,
          golden=[f'{M} map rm "pokój Teosia > komoda"']),
-    dict(id="M9 list place", base=FURNISHED,
+    dict(id="M9 list place", needs_call=True, base=FURNISHED,
          setup=[["add", "mleko", "--where", "lodówka > półka 1"], ["add", "jogurt", "--where", "lodówka > półka 2"]],
          say=["Co jest w lodówce?"], check=c_m9, golden=[f'{M} list --where lodówka']),
-    dict(id="M10 show map", base=TEOS, setup=[],
+    dict(id="M10 show map", needs_call=True, base=TEOS, setup=[],
          say=["Pokaż mapę pokoju Teosia."], check=c_m10, golden=[f'{M} map show "pokój Teosia"']),
 ]
 
@@ -351,11 +351,12 @@ def run_dom(argv: list[str], stdin_text: str | None, db: str) -> tuple[int, str]
     old_stdin = sys.stdin
     if stdin_text is not None:
         sys.stdin = io.StringIO(stdin_text)
+    buf, err = io.StringIO(), io.StringIO()
     try:
-        with contextlib.redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(err):
             return dom.run(["--db", db] + argv)
-    except SystemExit as e:  # argparse error
-        return 2, f"bad arguments ({e.code}); see `dom --help`"
+    except SystemExit as e:  # argparse: --help (code 0) or a usage error (code 2)
+        return (0 if e.code == 0 else 2), (buf.getvalue() + err.getvalue()).strip()
     finally:
         sys.stdin = old_stdin
 
@@ -416,9 +417,12 @@ def system_prompt() -> str:
             "Masz narzędzie `terminal`. Załadowany skill:\n\n" + skill)
 
 
-def chat(url: str, model: str, messages: list, key: str | None, timeout: int) -> dict:
-    body = json.dumps({"model": model, "messages": messages, "tools": [TOOL], "tool_choice": "auto",
-                       "temperature": 0.7, "top_p": 0.8, "max_tokens": 1024}).encode()
+def chat(url: str, model: str, messages: list, key: str | None, timeout: int, thinking: bool | None) -> dict:
+    payload = {"model": model, "messages": messages, "tools": [TOOL], "tool_choice": "auto",
+               "temperature": 0.7, "top_p": 0.8, "max_tokens": 4096 if thinking else 1024}
+    if thinking is not None:  # llama-server: per-request override of --chat-template-kwargs
+        payload["chat_template_kwargs"] = {"enable_thinking": thinking}
+    body = json.dumps(payload).encode()
     req = urllib.request.Request(url.rstrip("/") + "/v1/chat/completions", data=body,
                                  headers={"Content-Type": "application/json",
                                           **({"Authorization": f"Bearer {key}"} if key else {})})
@@ -448,7 +452,7 @@ def run_case_model(case, args, workdir) -> dict:
         for user in case["say"]:
             messages.append({"role": "user", "content": user})
             for _ in range(args.max_steps):
-                resp = chat(args.url, args.model, messages, args.key, args.timeout)
+                resp = chat(args.url, args.model, messages, args.key, args.timeout, args.thinking)
                 msg = resp["choices"][0]["message"]
                 tcs = msg.get("tool_calls") or []
                 messages.append({k: v for k, v in msg.items() if k in ("role", "content", "tool_calls")})
@@ -466,6 +470,8 @@ def run_case_model(case, args, workdir) -> dict:
     except Exception as e:  # network/timeouts count as failures
         err = f"{type(e).__name__}: {e}"
     passed, why = case["check"](db, final) if err is None else (False, err)
+    if passed and case.get("needs_call") and not any("exit=0" in c["result"] for c in calls):
+        passed, why = False, "answered without a successful dom.py call"
     return {"case": case["id"], "pass": passed, "why": why, "final": final, "calls": calls,
             "seconds": round(time.time() - t0, 1)}
 
@@ -491,8 +497,10 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--only", help="comma-separated case id prefixes")
     ap.add_argument("--out", default="results")
+    ap.add_argument("--thinking", choices=("on", "off"), help="override enable_thinking per request")
     args = ap.parse_args()
     os.environ["DOM_TODAY"] = TODAY
+    args.thinking = None if args.thinking is None else args.thinking == "on"
     cases = [c for c in CASES if not args.only or any(c["id"].startswith(p) for p in args.only.split(","))]
     with tempfile.TemporaryDirectory() as wd:
         if args.oracle:

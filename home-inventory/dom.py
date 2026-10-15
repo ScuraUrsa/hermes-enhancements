@@ -20,7 +20,10 @@ import calendar
 import difflib
 import json
 import os
-import pwd
+try:
+    import pwd
+except ImportError:  # Windows (benches on the laptop)
+    pwd = None
 import re
 import sqlite3
 import sys
@@ -293,7 +296,8 @@ def db_path() -> str:
     env = os.environ.get("DOM_DB")
     if env:
         return env
-    home = pwd.getpwuid(os.getuid()).pw_dir  # workers run with a fake $HOME; use the real one
+    # workers run with a fake $HOME; use the real one from passwd
+    home = pwd.getpwuid(os.getuid()).pw_dir if pwd else os.path.expanduser("~")
     return os.path.join(home, ".hermes", "autonomy", "home-inventory", "dom.db")
 
 
