@@ -4,7 +4,7 @@
 From the PC, without copying anything to the VM: double-click status.cmd, or in Git Bash
   ssh -i /d/hermes/terraforge-stacks/local/generated/id_rsa ubuntu@192.168.56.108 "python3 - --watch 60" < status.py
 
-Shows: whether regen_reports.py runs (and its cron line, if scheduled), lessons per course with
+Shows: whether regen_reports.py runs (and the run_regen.sh cron line), the daily cap, lessons per course with
 a v2 report / waiting / without a new transcript, the rebuild speed over the last 24 h, the log
 tail, and whether the last failure was the Claude usage limit.
 """
@@ -52,6 +52,14 @@ def cron_lines(pattern: str) -> list[str]:
     return [line for line in r.stdout.splitlines() if pattern in line and not line.lstrip().startswith("#")]
 
 
+def daily_cap(procs: list[tuple[int, str, float]]) -> int:
+    for _, cmd, _ in procs:
+        m = re.search(r"--daily-cap[ =](\d+)", cmd)
+        if m:
+            return int(m.group(1))
+    return 0
+
+
 def ago(ts: float) -> str:
     s = int(time.time() - ts)
     if s < 120:
@@ -93,8 +101,10 @@ def snapshot(site: str, log_arg: str | None) -> str:
             lines.append(f"         {cmd[:150]}")
     else:
         lines.append("NOT RUNNING  (no regen_reports.py process)")
-    for c in cron_lines("regen_reports"):
+    for c in cron_lines("regen"):
         lines.append(f"scheduled: {c[:150]}")
+    if (site_dir / "regen.finished").is_file():
+        lines.append(f"FINISHED  {(site_dir / 'regen.finished').read_text().strip()} (cron stops here)")
     lines.append("")
 
     try:
@@ -127,6 +137,10 @@ def snapshot(site: str, log_arg: str | None) -> str:
     pct = 100 * tot["v2"] / max(tot["lessons"], 1)
     lines.append(f"[{'#' * int(pct // 4):<25}] {pct:.0f} %")
     last_day = [t for t in done_times if t > time.time() - 86400]
+    today = datetime.now(timezone.utc).date()
+    n_today = sum(1 for t in done_times if datetime.fromtimestamp(t, timezone.utc).date() == today)
+    lines.append(f"today (UTC): {n_today} v2 reports" + (f" of the daily cap {cap}" if (cap := daily_cap(procs)) else "")
+                 + (" -> cap reached, waits for 00:00 UTC" if cap and n_today >= cap else ""))
     if done_times:
         lines.append(f"last v2 report {ago(max(done_times))}; {len(last_day)} in the last 24 h"
                      + (f", at that pace about {tot['waiting'] / len(last_day):.1f} more days" if last_day and tot["waiting"] else ""))
