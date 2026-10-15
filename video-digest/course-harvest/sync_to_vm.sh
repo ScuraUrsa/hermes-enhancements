@@ -26,8 +26,14 @@ done < .keys.txt
 $SSH "mkdir -p $DEST/pages && cd $DEST && find pages -type f" > .vm_files.txt
 sort -u .pc_files.txt -o .pc_files.txt
 # videos of digested lessons are pruned on the VM (prune_media.py leaves prefetch/.pruned): don't copy them back
-grep '/prefetch/.pruned$' .vm_files.txt | sed 's#/prefetch/.pruned$#/prefetch/video.#' > .pruned_prefixes.txt || true
-if [ -s .pruned_prefixes.txt ]; then grep -v -F -f .pruned_prefixes.txt .pc_files.txt > .pc_files.tmp || true; mv .pc_files.tmp .pc_files.txt; fi
+# (only the video files: transcripts next to them still go over)
+grep '/prefetch/.pruned$' .vm_files.txt | sed 's#/prefetch/.pruned$#/prefetch/#' > .pruned_prefixes.txt || true
+if [ -s .pruned_prefixes.txt ]; then
+  awk 'NR == FNR { p[$0] = 1; next }
+       { d = $0; sub(/[^\/]*$/, "", d) }
+       !(d in p && $0 ~ /\/video\.(mp4|mkv|webm|ts|m4a)$/)' .pruned_prefixes.txt .pc_files.txt > .pc_files.tmp
+  mv .pc_files.tmp .pc_files.txt
+fi
 sort -u .vm_files.txt -o .vm_files.txt
 comm -23 .pc_files.txt .vm_files.txt > .new_files.txt
 # a re-transcribed VTT keeps its name; its new marker (video.pl.vtt.asr2) brings it along
