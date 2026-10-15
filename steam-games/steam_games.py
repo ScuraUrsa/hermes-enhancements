@@ -332,6 +332,8 @@ def suggest(games, *, players=2, max_time=None, mode=None, theme=None, count=3, 
         if theme and theme not in g["themes"]:
             continue
         score = 1.0 + sum(interests.get(t, 0) for t in g["themes"])
+        if g["mode"] in ("coop", "both"):
+            score += interests.get("coop", 0)  # Steam co-op tags count for co-op board games
         if hi == 2:
             score += 0.5  # built for two
         days = recent.get(g["name"].lower())
