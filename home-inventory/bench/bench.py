@@ -314,7 +314,7 @@ CASES = [
                  f'{M} map add "Kuchnia > Lodówka > Półka 3"', f'{M} map add "Kuchnia > Lodówka > Szuflada na warzywa"']),
     dict(id="M2 dresser", base=ROOMS, setup=[],
          say=["W pokoju Teosia stoi komoda z czterema szufladami."], check=c_m2,
-         golden=[f'{M} map add "Pokój Teosia > Komoda > Szuflada {i}"' for i in range(1, 5)]),
+         golden=[f'{M} map add "Pokój Teosia > Komoda" --drawers 4']),
     dict(id="M3 wardrobe", base=ROOMS, setup=[],
          say=["W sypialni jest szafa, ma pięć półek."], check=c_m3,
          golden=[f'{M} map add "Sypialnia > Szafa > Półka {i}"' for i in range(1, 6)]),
