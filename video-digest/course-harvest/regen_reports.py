@@ -8,6 +8,10 @@ A lesson is ready when its prefetch/*.vtt has the .asr2 marker (synced from the 
 report.v2 is not done yet (marker report.v2.done). --follow keeps waiting for new
 transcripts until --idle-min minutes pass without one. Corrections from asr/*.json (same
 files as on the PC) are applied to the transcript text here as well.
+
+Slow mode (Filip, 2026-10-15: "slow rebuild", the Claude weekly limit is shared with his own work):
+  --workers 1 --pause-sec 60 --daily-cap 80  -> one lesson at a time, a minute apart, at most 80 a day (UTC).
+On a Claude limit it waits (1 h for the weekly limit, 15 min otherwise) and retries.
 """
 
 from __future__ import annotations
@@ -96,6 +100,8 @@ def main() -> int:
     ap.add_argument("--model", default="claude-code:sonnet")
     ap.add_argument("--follow", action="store_true")
     ap.add_argument("--idle-min", type=int, default=120)
+    ap.add_argument("--pause-sec", type=int, default=0, help="rest between lessons (per worker)")
+    ap.add_argument("--daily-cap", type=int, default=0, help="max v2 reports per UTC day (0 = no cap)")
     a = ap.parse_args()
     cfg = config.load()
     site_dir = crawl.map_path(cfg, a.site).parent
@@ -108,24 +114,39 @@ def main() -> int:
         try:
             while time.time() < pause_until[0]:
                 time.sleep(30)
+            (site_dir / "regen.current").write_text(json.dumps({"key": rec["key"], "title": rec.get("title"),
+                                                               "course": rec.get("course"), "started": time.time()}),
+                                                   encoding="utf-8")  # for regen_status.py
             r = regen(cfg, a.site, rec, a.model, fixes_for(site_dir, rec.get("course_url", "")))
+            (site_dir / "regen.current").unlink(missing_ok=True)
             print(time.strftime("%H:%M:%S"), f"v2 {r['key']} {r['title'][:60]} ({r['seconds']} s)", flush=True)
+            time.sleep(a.pause_sec)
         except Exception as exc:
             msg = f"{type(exc).__name__}: {str(exc)[:300]}"
             print(time.strftime("%H:%M:%S"), f"FAIL {rec['key']} {rec.get('title', '')[:50]}: {msg}", flush=True)
             if LIMIT_RE.search(msg):
-                pause_until[0] = time.time() + 900  # Claude session limit: wait, the lesson is retried
+                # Claude limit: wait, the lesson is retried
+                pause_until[0] = time.time() + (3600 if "weekly" in msg.lower() else 900)
         finally:
             with lock:
                 busy.discard(rec["key"])
 
+    def done_today() -> int:
+        day = datetime.now(timezone.utc).date()
+        return sum(1 for f in (site_dir / "pages").glob("*/report.v2.done")
+                   if datetime.fromtimestamp(f.stat().st_mtime, timezone.utc).date() == day)
+
     with ThreadPoolExecutor(a.workers) as ex:
         while True:
+            if a.daily_cap and done_today() >= a.daily_cap:
+                time.sleep(600)  # cap reached: wait for the next UTC day
+                idle_since = time.time()
+                continue
             m = crawl.load_map(cfg, a.site)
             todo = [p for p in m["pages"] if (p.get("digest") or {}).get("status") in ("done", "partial")
                     and (not a.course_url_part or any(c in p.get("course_url", "") for c in a.course_url_part))
                     and p["key"] not in busy and ready(crawl.page_dir(cfg, a.site, p["key"]), p)]
-            for p in todo[: a.workers * 2 - len(busy)]:
+            for p in todo[: max(0, a.workers - len(busy))]:
                 with lock:
                     busy.add(p["key"])
                 ex.submit(one, p)
