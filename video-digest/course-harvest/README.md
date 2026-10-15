@@ -87,3 +87,11 @@ Course jargon was the weak spot ("SaaS" -> "sas"/"sasa" about a third of the tim
 - `asr_check.py --course X` transcribes the first minutes of 3 lessons with turbo and with
   large-v3 (3-4x slower) and measures how much they disagree; above 10 % use large-v3 for
   that course.
+
+## Is the report rebuild alive?
+
+`status.cmd` (double-click on the PC) shows a live view of `regen_reports.py` on the dev VM,
+refreshed every 60 s: whether the process runs (and its cron line, if scheduled), lessons per
+course with a v2 report / waiting / without a new transcript, the pace over the last 24 h, the
+log tail, and whether the last failure was the Claude usage limit. The script is sent over ssh,
+so nothing is installed on the VM; on the VM itself run `python3 status.py [site] [--watch 60]`.
