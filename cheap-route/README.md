@@ -12,7 +12,7 @@ Plan i stan: folder projektu `free-web-proxy/plan.md` (projekt Hermes_local).
 evaluator/
   prompt.md        system prompt routera (JSON: route, confidence, reason)
   rules.py         twarde reguły, które wymuszają "hermes" bez pytania modelu
-  eval_set.jsonl   83 pytania: 44 prawdziwe z sesji Filipa + 24 ogólne + 15 pułapek
+  eval_set.jsonl   86 pytań: 44 prawdziwe z sesji Filipa + 24 ogólne + 18 pułapek
   bench_route.py   benchmark przeciwko llama-server (/v1/chat/completions)
 ```
 
