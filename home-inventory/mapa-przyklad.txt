@@ -1,0 +1,32 @@
+# Przykład mapy mieszkania dla `dom map import`. Wcięcie 2 spacje na poziom.
+# Półki i szuflady wpisuj od góry do dołu. Po „|” aliasy, po „#” uwaga.
+Mieszkanie
+  Kuchnia
+    Lodówka | lodowka
+      Półka 1
+      Półka 2
+      Półka 3
+      Szuflada na warzywa
+      Drzwi lodówki
+    Zamrażarka
+      Szuflada 1
+      Szuflada 2
+    Szafka nad zlewem
+      Półka 1
+      Półka 2
+    Szafka pod zlewem | chemia  # środki czystości, worki
+  Łazienka
+    Szafka pod umywalką
+  Pokój Teosia | pokój syna
+    Szafa 1
+      Półka 1
+      Półka 2
+      Półka 3
+    Komoda
+      Szuflada 1
+      Szuflada 2
+      Szuflada 3
+  Sypialnia
+  Salon
+  Przedpokój
+    Szafa w przedpokoju
