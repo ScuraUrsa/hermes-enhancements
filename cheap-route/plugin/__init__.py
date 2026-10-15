@@ -45,7 +45,7 @@ def _setting(key: str, default: Any) -> Any:
 def _evaluate(text: str) -> str:
     result = _ctx.llm.complete(
         messages=[{"role": "system", "content": PROMPT}, {"role": "user", "content": text}],
-        task=ROUTER_TASK, temperature=0.0, max_tokens=120, timeout=30, purpose="cheap-route.evaluate",
+        task=ROUTER_TASK, temperature=0.0, max_tokens=200, timeout=30, purpose="cheap-route.evaluate",
     )
     return result.text or ""
 
@@ -118,7 +118,10 @@ def register(ctx: Any) -> None:
     ctx.register_auxiliary_task(
         ROUTER_TASK, display_name="cheap-route: ewaluator",
         description="Mały lokalny model (llama.cpp), który klasyfikuje pytanie przed turą agenta.",
-        defaults={"provider": "custom", "base_url": "http://127.0.0.1:8082/v1", "model": "local", "api_key": "none"},
+        # Qwen3.5 "thinks" by default and then returns no content within max_tokens: the chat-template
+        # kwargs switch that off (llama-server also gets --chat-template-kwargs in the WOBI unit).
+        defaults={"provider": "custom", "base_url": "http://127.0.0.1:8082/v1", "model": "local", "api_key": "none",
+                  "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
     )
     ctx.register_auxiliary_task(
         FREE_TASK, display_name="cheap-route: darmowy kanał",

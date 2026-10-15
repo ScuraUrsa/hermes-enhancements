@@ -45,8 +45,10 @@ plugin/
 tests/test_router.py   13 testów zachowania (pytest), bez Hermesa
 ```
 
-Instalacja na VM: skopiować `plugin/` jako `~/.hermes/plugins/cheap-route/` (albo
-`hermes plugins install` z tego repo, podkatalog `cheap-route/plugin`), potem w `config.yaml`:
+Instalacja na VM: rola Ansible `cheap_route` w repo WOBI (llama-router + plugin + config + klucz z BWS;
+`sudo bash ansible/pull.sh --as unity-orchestrator --role active --tags cheap_route`). Ręcznie: skopiować
+`plugin/` jako `~/.hermes/plugins/cheap-route/`, llama-server z `--chat-template-kwargs '{"enable_thinking": false}'`,
+potem w `config.yaml`:
 
 ```yaml
 plugins:
@@ -55,7 +57,8 @@ plugins:
     cheap-route:
       settings: {enabled: true, threshold: 0.8, footer: true, platforms: []}
 auxiliary:
-  cheap_route_router: {provider: custom, base_url: "http://127.0.0.1:8082/v1", model: local, api_key: none}
+  cheap_route_router: {provider: custom, base_url: "http://127.0.0.1:8082/v1", model: local, api_key: none,
+                       extra_body: {chat_template_kwargs: {enable_thinking: false}}}   # Qwen3.5: bez myślenia
   cheap_route_free:   {provider: gemini, model: gemini-3.6-flash}   # GEMINI_API_KEY w .env/BWS
 ```
 
