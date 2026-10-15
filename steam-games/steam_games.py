@@ -10,10 +10,13 @@ Użycie:
   steam_games.py zasady "7 Wonders Duel"        # film z zasadami (YouTube) + mod do Tabletop Simulator
   steam_games.py zagrane "Patchwork" [--ocena 4] [--notatka "..."]
   steam_games.py historia                       # zagrane planszówki
+  steam_games.py osiagniecia [--wszystkie] [--cron]   # nowe osiągnięcia Steam -> XP (xp.jsonl)
+  steam_games.py przerwa [--cron] [--limit 120]       # przypomnienie o przerwie przy długim graniu
 
 Każda komenda ma --json. Konfiguracja (zmienne środowiskowe albo ~/.hermes/.env):
   STEAM_API_KEY   klucz Steam Web API (Bitwarden: STEAM_API_KEY), https://steamcommunity.com/dev/apikey
   STEAM_ID        SteamID64 (17 cyfr) albo własny adres profilu (vanity), np. "filip"
+  STEAM_BREAK_MINUTES / STEAM_BREAK_REPEAT  przerwa po ilu minutach grania / co ile powtarzać (120 / 60)
   BGG_API_TOKEN   opcjonalny token BoardGameGeek XML API (bez niego tylko linki)
   STEAM_GAMES_STATE  katalog stanu (domyślnie ~/.hermes/autonomy/steam-games)
 Kody wyjścia: 0 ok, 1 błąd sieci/API, 2 brak konfiguracji albo prywatny profil, 3 nic nie pasuje.
@@ -439,6 +442,145 @@ def enrich(game, live):
     return g
 
 
+# ---------- achievements -> XP ----------
+
+# Rarity tiers by the share of all players who have the achievement (Steam global stats).
+RARITY = ((1.0, "legendarne", 100), (5.0, "epickie", 50), (20.0, "rzadkie", 25))
+
+
+def rarity(percent):
+    for limit, label, points in RARITY:
+        if percent < limit:
+            return label, points
+    return "zwykłe", 10
+
+
+def player_achievements(sid, appid):
+    """Unlocked achievements of one game, or None when the game has no stats (Steam answers HTTP 400)."""
+    try:
+        d = steam_api("ISteamUserStats/GetPlayerAchievements/v1/", steamid=sid, appid=appid, l="polish")
+    except (RuntimeError, ConfigError):
+        return None
+    ps = d.get("playerstats") or {}
+    if not ps.get("success", False):
+        return None
+    return [a for a in ps.get("achievements", []) if a.get("achieved")]
+
+
+def global_percentages(appid):
+    try:
+        d = http_json(f"{API}/ISteamUserStats/GetGlobalAchievementPercentagesForApp/v2/", {"gameid": appid})
+    except (urllib.error.URLError, TimeoutError, ValueError):
+        return {}
+    out = {}
+    for a in (d.get("achievementpercentages") or {}).get("achievements", []):
+        try:
+            out[a["name"]] = float(a.get("percent", 100))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return out
+
+
+def sync_achievements(sid, games, now=None):
+    """Record achievements of `games` [{appid, name}]; return the ones unlocked since the first sync.
+
+    The first sync only sets a baseline: older unlocks are history, not new XP.
+    New unlocks are appended to xp.jsonl, the points feed for Filip's gamification.
+    """
+    now = now or time.time()
+    path = os.path.join(state_dir(), "achievements.json")
+    state = load_json(path, {})
+    since = state.setdefault("since", now)
+    seen = state.setdefault("seen", {})
+    new = []
+    for g in games:
+        achs = player_achievements(sid, g["appid"])
+        if achs is None:
+            continue
+        known = seen.setdefault(str(g["appid"]), {})
+        fresh = [a for a in achs if a.get("apiname") not in known]
+        if not fresh:
+            continue
+        pct = global_percentages(g["appid"])
+        for a in fresh:
+            known[a["apiname"]] = a.get("unlocktime", 0)
+            if a.get("unlocktime", 0) < since:
+                continue
+            percent = pct.get(a["apiname"], 100.0)
+            label, points = rarity(percent)
+            new.append({"ts": dt.datetime.fromtimestamp(now).isoformat(timespec="seconds"),
+                        "source": "steam-achievement", "game": g["name"], "appid": g["appid"],
+                        "achievement": a.get("name") or a["apiname"], "description": a.get("description", ""),
+                        "percent": round(percent, 1), "rarity": label, "points": points,
+                        "unlocked": dt.datetime.fromtimestamp(a.get("unlocktime", 0)).isoformat(timespec="seconds")})
+    save_json(path, state)
+    if new:
+        with open(os.path.join(state_dir(), "xp.jsonl"), "a", encoding="utf-8") as f:
+            f.writelines(json.dumps(e, ensure_ascii=False) + "\n" for e in new)
+    return new
+
+
+def xp_since(days, now=None):
+    cutoff = dt.datetime.fromtimestamp((now or time.time()) - days * 86400)
+    out = []
+    try:
+        with open(os.path.join(state_dir(), "xp.jsonl"), encoding="utf-8") as f:
+            for line in f:
+                try:
+                    e = json.loads(line)
+                    if dt.datetime.fromisoformat(e["ts"]) >= cutoff:
+                        out.append(e)
+                except (ValueError, KeyError):
+                    continue
+    except OSError:
+        pass
+    return out
+
+
+# ---------- long-session break reminder ----------
+
+def check_break(sid, now=None, limit_min=None, repeat_min=None, gap_min=20):
+    """Track the current Steam game session; return a reminder text when it is time for a break, else "".
+
+    Run every ~10 min from cron. A session ends when no game is seen for `gap_min` minutes;
+    finished sessions go to sessions.jsonl.
+    """
+    now = now or time.time()
+    limit_min = limit_min or int(setting("STEAM_BREAK_MINUTES") or 120)
+    repeat_min = repeat_min or int(setting("STEAM_BREAK_REPEAT") or 60)
+    path = os.path.join(state_dir(), "session.json")
+    st = load_json(path, {})
+    p = player_summary(sid)
+    game = p.get("gameextrainfo") or (f"app {p['gameid']}" if p.get("gameid") else None)
+    msg = ""
+
+    def close(state):
+        if state.get("game"):
+            minutes = round((state["last_seen"] - state["started"]) / 60)
+            with open(os.path.join(state_dir(), "sessions.jsonl"), "a", encoding="utf-8") as f:
+                f.write(json.dumps({"game": state["game"], "minutes": minutes,
+                                    "start": dt.datetime.fromtimestamp(state["started"]).isoformat(timespec="minutes")},
+                                   ensure_ascii=False) + "\n")
+
+    if game:
+        if st.get("game") != game or now - st.get("last_seen", 0) > gap_min * 60:
+            close(st)
+            st = {"game": game, "started": now, "reminded_at": None}
+        st["last_seen"] = now
+        played = (now - st["started"]) / 60
+        last = st.get("reminded_at")
+        if played >= limit_min and (last is None or now - last >= repeat_min * 60):
+            st["reminded_at"] = now
+            h, m = divmod(int(played), 60)
+            msg = (f"⏳ Grasz w {game} już {h} h {m:02d} min. Dobry moment na przerwę: wstań, napij się wody, "
+                   "5 minut bez ekranu. Jeśli to zaplanowany czas na granie, po prostu graj dalej.")
+    elif st.get("game") and now - st.get("last_seen", 0) > gap_min * 60:
+        close(st)
+        st = {}
+    save_json(path, st)
+    return msg, st
+
+
 # ---------- output ----------
 
 MODE_PL = {"coop": "kooperacja", "versus": "rywalizacja", "both": "kooperacja lub rywalizacja"}
@@ -602,6 +744,58 @@ def cmd_history(args):
     return 0
 
 
+def quiet_in_cron(func):
+    """Cron runs every few minutes: a missing key or a network blip must not alert Filip each time
+    (`status` reports configuration problems). Errors go to stderr, exit 0, empty stdout = silent."""
+    def run(args):
+        if not args.cron:
+            return func(args)
+        try:
+            return func(args)
+        except (ConfigError, PrivateProfile, RuntimeError) as e:
+            print(f"steam_games {args.cmd}: {e}", file=sys.stderr)
+            return 0
+    return run
+
+
+@quiet_in_cron
+def cmd_achievements(args):
+    sid = steam_id()
+    if args.wszystkie:
+        games = [g for g in sorted(owned_games(sid), key=lambda g: -g["hours"]) if g["hours"] > 0][:50]
+    else:
+        games = recent_games(sid)
+    new = sync_achievements(sid, games)
+    week = xp_since(args.dni)
+    if args.cron and not new:
+        return 0  # empty stdout = silent cron run
+    lines = []
+    if new:
+        lines.append(f"🏆 Nowe osiągnięcia: +{sum(e['points'] for e in new)} XP")
+        lines += [f"- {e['game']}: {e['achievement']} ({e['rarity']}, {e['percent']}% graczy) +{e['points']} XP"
+                  for e in new]
+    else:
+        lines.append("Brak nowych osiągnięć od ostatniego sprawdzenia.")
+    lines.append(f"Ostatnie {args.dni} dni: {sum(e['points'] for e in week)} XP z {len(week)} osiągnięć.")
+    emit(args, {"new": new, "recent": week, "xp_recent": sum(e["points"] for e in week)}, "\n".join(lines))
+    return 0
+
+
+@quiet_in_cron
+def cmd_break(args):
+    msg, st = check_break(steam_id(), limit_min=args.limit)
+    if args.cron:
+        if msg:
+            print(msg)
+        return 0
+    if st.get("game"):
+        text = msg or f"Teraz: {st['game']}, od {round((st['last_seen'] - st['started']) / 60)} min."
+    else:
+        text = "Teraz nie grasz w nic na Steamie."
+    emit(args, {"session": st, "reminder": msg}, text)
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Steam i planszówki dla Hermesa")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -635,6 +829,13 @@ def main(argv=None):
     p.add_argument("--notatka")
     p.add_argument("--data", help="YYYY-MM-DD, domyślnie dziś")
     add("historia", cmd_history, ["history"])
+    p = add("osiagniecia", cmd_achievements, ["osiągnięcia", "achievements"])
+    p.add_argument("--dni", type=int, default=7, help="okno podsumowania XP")
+    p.add_argument("--wszystkie", action="store_true", help="50 najdłużej granych zamiast ostatnio granych")
+    p.add_argument("--cron", action="store_true", help="drukuj tylko nowe osiągnięcia (pusto = cisza)")
+    p = add("przerwa", cmd_break, ["break"])
+    p.add_argument("--limit", type=int, help="minut grania do przypomnienia (domyślnie STEAM_BREAK_MINUTES albo 120)")
+    p.add_argument("--cron", action="store_true", help="drukuj tylko przypomnienie (pusto = cisza)")
 
     args = ap.parse_args(argv)
     try:

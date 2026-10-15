@@ -181,3 +181,86 @@ def test_api_key_never_in_errors(env, monkeypatch):
     with pytest.raises(RuntimeError) as e:
         sg.steam_api("IPlayerService/GetOwnedGames/v1/", steamid="1")
     assert "SECRET123" not in str(e.value)
+
+
+def test_rarity_tiers():
+    assert sg.rarity(0.5) == ("legendarne", 100)
+    assert sg.rarity(3) == ("epickie", 50)
+    assert sg.rarity(12) == ("rzadkie", 25)
+    assert sg.rarity(60) == ("zwykłe", 10)
+
+
+def _ach_routes(unlocks):
+    return {
+        "GetPlayerAchievements": lambda p: {"playerstats": {"success": True, "achievements": unlocks.get(p["appid"], [])}}
+        if p["appid"] in unlocks else (_ for _ in ()).throw(RuntimeError("HTTP 400")),
+        "GetGlobalAchievementPercentages": {"achievementpercentages": {"achievements": [
+            {"name": "DRAGON", "percent": "0.7"}, {"name": "START", "percent": 91.2}]}},
+    }
+
+
+def test_achievements_baseline_then_xp(env, monkeypatch):
+    unlocks = {292030: [{"apiname": "START", "achieved": 1, "unlocktime": 1000, "name": "Początek"}]}
+    monkeypatch.setattr(sg, "http_json", fake_http(_ach_routes(unlocks)))
+    games = [{"appid": 292030, "name": "The Witcher 3"}, {"appid": 1, "name": "No stats"}]
+    assert sg.sync_achievements("1", games, now=5000) == []  # first sync: history only
+    unlocks[292030].append({"apiname": "DRAGON", "achieved": 1, "unlocktime": 6000, "name": "Smokobójca"})
+    unlocks[292030].append({"apiname": "LOCKED", "achieved": 0, "unlocktime": 0})
+    new = sg.sync_achievements("1", games, now=7000)
+    assert [(e["achievement"], e["rarity"], e["points"]) for e in new] == [("Smokobójca", "legendarne", 100)]
+    assert sg.sync_achievements("1", games, now=8000) == []  # no double counting
+    assert sum(e["points"] for e in sg.xp_since(7, now=8000)) == 100
+
+
+def test_achievements_cron_is_silent_without_news(env, monkeypatch, capsys):
+    routes = {"GetRecentlyPlayedGames": {"response": {"games": [{"appid": 292030, "name": "W3"}]}},
+              **_ach_routes({292030: []})}
+    monkeypatch.setattr(sg, "http_json", fake_http(routes))
+    assert sg.main(["osiagniecia", "--cron"]) == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_cron_commands_silent_without_config(env, monkeypatch, capsys, tmp_path):
+    monkeypatch.delenv("STEAM_ID")
+    monkeypatch.setattr(sg, "real_home", lambda: str(tmp_path))
+    assert sg.main(["przerwa", "--cron"]) == 0
+    assert sg.main(["osiagniecia", "--cron"]) == 0
+    assert capsys.readouterr().out == ""
+    assert sg.main(["przerwa"]) == 2  # interactive use still reports the problem
+
+
+def test_break_reminder_cycle(env, monkeypatch):
+    playing = {"v": "Baldur's Gate 3"}
+    monkeypatch.setattr(sg, "player_summary",
+                        lambda sid: {"gameextrainfo": playing["v"], "gameid": "1086940"} if playing["v"] else {})
+    t0 = 1_000_000
+
+    def at(minute, **kw):  # cron runs every 10 min; replay the ticks up to `minute`
+        msg = ""
+        for m in range(at.last + 10, minute + 1, 10):
+            msg = sg.check_break("1", now=t0 + m * 60, limit_min=120, repeat_min=60, **kw)[0] or msg
+        at.last = minute
+        return sg.check_break("1", now=t0 + minute * 60, limit_min=120, repeat_min=60, **kw)[0] or msg
+    at.last = 0
+
+    assert sg.check_break("1", now=t0, limit_min=120, repeat_min=60)[0] == ""
+    assert at(110) == ""
+    msg = at(121)
+    assert "2 h 0" in msg and "Baldur" in msg
+    assert at(150) == ""  # not again yet
+    assert at(181) != ""  # an hour later
+    playing["v"] = None
+    sg.check_break("1", now=t0 + 190 * 60)  # short pause: session kept
+    _, st = sg.check_break("1", now=t0 + 205 * 60)  # gap > 20 min: session closed and logged
+    assert st == {}
+    with open(os.path.join(sg.state_dir(), "sessions.jsonl")) as f:
+        log = [json.loads(line) for line in f]
+    assert [(e["game"], e["minutes"]) for e in log] == [("Baldur's Gate 3", 181)]
+
+
+def test_break_new_session_after_long_gap(env, monkeypatch):
+    monkeypatch.setattr(sg, "player_summary", lambda sid: {"gameextrainfo": "Terraria"})
+    t0 = 2_000_000
+    sg.check_break("1", now=t0, limit_min=120)
+    _, st = sg.check_break("1", now=t0 + 3 * 3600, limit_min=120)  # no runs in between = VM was off
+    assert st["started"] == t0 + 3 * 3600
