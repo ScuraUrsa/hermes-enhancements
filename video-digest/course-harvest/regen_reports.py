@@ -114,7 +114,11 @@ def main() -> int:
         try:
             while time.time() < pause_until[0]:
                 time.sleep(30)
+            (site_dir / "regen.current").write_text(json.dumps({"key": rec["key"], "title": rec.get("title"),
+                                                               "course": rec.get("course"), "started": time.time()}),
+                                                   encoding="utf-8")  # for regen_status.py
             r = regen(cfg, a.site, rec, a.model, fixes_for(site_dir, rec.get("course_url", "")))
+            (site_dir / "regen.current").unlink(missing_ok=True)
             print(time.strftime("%H:%M:%S"), f"v2 {r['key']} {r['title'][:60]} ({r['seconds']} s)", flush=True)
             time.sleep(a.pause_sec)
         except Exception as exc:
