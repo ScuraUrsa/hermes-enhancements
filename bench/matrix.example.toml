@@ -1,0 +1,44 @@
+# hbench matrix matrix.example.toml
+# Every [[cell]] runs on every selected task, `repeats` times.
+#
+# First real run (2026-10-09): Claude on Filip's Claude Code subscription, Ollama = Ollama Cloud.
+# Cloud models picked from https://ollama.com/search?c=cloud for coding / agentic work with tool calling:
+#   glm-5.3          described as the strongest open-weights coding model
+#   kimi-k2.7-code   coding/agentic variant of Kimi
+#   minimax-m3       coding/agentic workflows
+#   deepseek-v4-pro  Hermes' current default model (baseline for "what Hermes uses today")
+#   glm-5.3-flash    small/fast tier (~18B active): is a cheap model good enough for easy fixes?
+
+repeats = 1
+tasks = ["*"]          # id globs or tag:NAME
+
+# --- Same framework, different providers/models (isolates the model) ---
+[[cell]]
+agent = "claude-code"
+provider = "anthropic"
+models = ["opus", "sonnet"]
+options = { max_turns = 100 }
+
+[[cell]]
+agent = "claude-code"
+provider = "ollama-cloud"
+models = ["glm-5.3", "kimi-k2.7-code", "minimax-m3", "deepseek-v4-pro", "glm-5.3-flash"]
+options = { max_turns = 100 }
+
+# --- Same model, different frameworks (isolates the harness) ---
+[[cell]]
+agent = "copilot-cli"
+provider = "ollama-cloud"
+models = ["glm-5.3"]
+
+# Zed needs eval-cli built from the Zed repo (see hbench/agents/zed.py); enable once it exists.
+# [[cell]]
+# agent = "zed"
+# provider = "ollama-cloud"
+# models = ["glm-5.3"]
+
+# --- Copilot on its own subscription models (separate quota pool), if Filip has Copilot ---
+# [[cell]]
+# agent = "copilot-cli"
+# provider = "github"
+# models = ["claude-sonnet-4.5"]

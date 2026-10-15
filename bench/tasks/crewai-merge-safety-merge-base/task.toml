@@ -1,0 +1,16 @@
+repo = "ScuraUrsa/crewai-orchestrator"
+fix_commit = "aafae790d293768b8c4d1fd0bd90c6736bcfee93"
+category = "bugfix"
+difficulty = "easy"
+tags = ["python", "git", "crewai", "private"]
+hidden_tests = ["tests/test_check_merge_safety.py"]
+
+[setup]
+command = 'uv venv -q .venv && uv pip install -q --python .venv/bin/python "pytest>=8"'
+
+[verify]
+command = ".venv/bin/python -m pytest -q tests/test_check_merge_safety.py"
+
+[agent]
+timeout_sec = 900
+env_hint = "A Python environment with pytest is ready: run tests with `.venv/bin/python -m pytest`."
