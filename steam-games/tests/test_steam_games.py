@@ -264,3 +264,11 @@ def test_break_new_session_after_long_gap(env, monkeypatch):
     sg.check_break("1", now=t0, limit_min=120)
     _, st = sg.check_break("1", now=t0 + 3 * 3600, limit_min=120)  # no runs in between = VM was off
     assert st["started"] == t0 + 3 * 3600
+
+
+def test_suggest_prefers_coop_when_steam_says_so():
+    games = [{"name": n, "players": [2, 2], "time": 30, "weight": 2, "mode": m, "themes": ["lekka"], "pitch_pl": "x"}
+             for n, m in (("C", "coop"), ("V", "versus"))]
+    rng = random.Random(0)
+    wins = sum(sg.suggest(games, count=1, interests={"coop": 4}, rng=rng)[0]["name"] == "C" for _ in range(300))
+    assert wins > 220
