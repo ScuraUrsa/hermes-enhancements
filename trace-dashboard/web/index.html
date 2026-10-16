@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ścieżka prompt → efekt</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #fcfcfb; --surface: #ffffff; --line: #e6e5e0; --line-strong: #cfcdc6;
+  --text: #0b0b0b; --text-2: #52514e; --text-3: #7a7973;
+  --accent: #2a78d6;
+  --p-anthropic: #2a78d6; --p-ollama: #eb6834; --p-gemini: #1baf7a; --p-local: #eda100; --p-other: #6250d6;
+  --ok: #0f7b3e; --warn: #a15c00; --bad: #b42318;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #141413; --surface: #1a1a19; --line: #2c2c2a; --line-strong: #3d3d3a;
+    --text: #f0efec; --text-2: #c3c2b7; --text-3: #8f8e86; --accent: #3987e5;
+    --p-anthropic: #3987e5; --p-ollama: #d95926; --p-gemini: #199e70; --p-local: #c98500; --p-other: #9085e9;
+    --ok: #4cc27d; --warn: #e0a040; --bad: #f07167;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #141413; --surface: #1a1a19; --line: #2c2c2a; --line-strong: #3d3d3a;
+  --text: #f0efec; --text-2: #c3c2b7; --text-3: #8f8e86; --accent: #3987e5;
+  --p-anthropic: #3987e5; --p-ollama: #d95926; --p-gemini: #199e70; --p-local: #c98500; --p-other: #9085e9;
+  --ok: #4cc27d; --warn: #e0a040; --bad: #f07167;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1180px; margin: 0 auto; padding: 20px 16px 60px; }
+h1 { font-size: 20px; margin: 0 0 2px; font-weight: 600; }
+.sub { color: var(--text-3); font-size: 12px; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 18px 0 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.kpi .v { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kpi .l { color: var(--text-2); font-size: 12px; }
+.split { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; }
+.bar { display: flex; gap: 2px; height: 14px; margin: 8px 0; }
+.bar > div { height: 100%; min-width: 2px; }
+.bar > div:first-child { border-radius: 4px 0 0 4px; } .bar > div:last-child { border-radius: 0 4px 4px 0; }
+.bar > div:only-child { border-radius: 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--text-2); }
+.legend span.sw, .pill .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; align-items: center; }
+.filters input, .filters select { background: var(--surface); color: var(--text); border: 1px solid var(--line-strong); border-radius: 8px; padding: 6px 9px; font: inherit; }
+.filters input[type=search] { flex: 1 1 220px; }
+.filters label { color: var(--text-2); font-size: 13px; display: flex; gap: 5px; align-items: center; }
+table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--text-2); font-weight: 500; cursor: pointer; user-select: none; white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tbody tr { cursor: pointer; } tbody tr:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+tr.sel { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.t-title { font-weight: 500; } .t-meta { color: var(--text-3); font-size: 12px; }
+.tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line-strong); color: var(--text-2); white-space: nowrap; }
+.st-done { color: var(--ok); border-color: currentColor; } .st-waiting, .st-review { color: var(--warn); border-color: currentColor; }
+.st-in_progress { color: var(--accent); border-color: currentColor; }
+.mini { display: flex; gap: 1px; height: 6px; width: 90px; margin-left: auto; margin-top: 4px; }
+.mini > div { height: 100%; border-radius: 2px; }
+#detail { position: fixed; top: 0; right: 0; bottom: 0; width: min(640px, 100%); background: var(--bg); border-left: 1px solid var(--line-strong); overflow-y: auto; padding: 18px 18px 60px; transform: translateX(100%); transition: transform .18s ease; z-index: 5; }
+#detail.open { transform: none; }
+#detail h2 { font-size: 17px; margin: 0 26px 4px 0; }
+.close { position: absolute; top: 12px; right: 14px; background: none; border: 0; color: var(--text-2); font-size: 22px; cursor: pointer; }
+.prompt { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; word-break: break-word; margin: 10px 0 14px; max-height: 220px; overflow: auto; }
+.path { position: relative; margin: 0; padding: 0 0 0 22px; list-style: none; }
+.path::before { content: ""; position: absolute; left: 7px; top: 6px; bottom: 6px; width: 2px; background: var(--line-strong); }
+.path li { position: relative; margin: 0 0 12px; }
+.path li::before { content: ""; position: absolute; left: -19px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--surface); border: 2px solid var(--dot, var(--line-strong)); }
+.path li.child { margin-left: 18px; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 11px; }
+.step .h { display: flex; gap: 8px; justify-content: space-between; align-items: baseline; }
+.step .h b { font-weight: 500; }
+.step .c { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+.step .m { color: var(--text-3); font-size: 12px; margin-top: 2px; }
+.step .w { color: var(--text-2); font-size: 13px; margin-top: 4px; }
+.pill { font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.sec { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); margin: 18px 0 8px; }
+.commits { margin: 6px 0 0; padding-left: 16px; color: var(--text-2); font-size: 12px; }
+.empty { color: var(--text-3); padding: 30px; text-align: center; }
+.note { color: var(--text-3); font-size: 12px; margin-top: 18px; }
+@media (max-width: 720px) { .hide-sm { display: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Ścieżka: prompt → wątki i sesje → commity i PR-y → efekt</h1>
+  <div class="sub" id="gen">Ładowanie…</div>
+  <div class="kpis" id="kpis"></div>
+  <div class="split" id="split"></div>
+  <div class="filters">
+    <input type="search" id="q" placeholder="Szukaj w promptach, tytułach, repo, PR…">
+    <select id="origin">
+      <option value="">Wszystkie źródła</option>
+      <option value="claude_project">Wątki Claude</option>
+      <option value="hermes_chat">Rozmowy z Hermesem</option>
+      <option value="kanban">Zadania kanban</option>
+      <option value="hermes_cron">Cron Hermesa</option>
+      <option value="hermes_autonomy">Autonomia (sondy, cc_run)</option>
+    </select>
+    <select id="period">
+      <option value="7">7 dni</option>
+      <option value="30" selected>30 dni</option>
+      <option value="0">Cały zakres</option>
+    </select>
+    <label><input type="checkbox" id="withpr"> tylko ze zmianami w repo</label>
+  </div>
+  <table>
+    <thead><tr>
+      <th data-k="at">Kiedy</th><th data-k="title">Prompt</th><th class="hide-sm" data-k="status">Stan</th>
+      <th class="num hide-sm" data-k="prs">PR / commity</th><th class="num" data-k="tokens">Tokeny</th><th class="num" data-k="cost_usd">Koszt</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="note" id="note"></div>
+</main>
+<aside id="detail" aria-live="polite"><button class="close" id="close" aria-label="Zamknij">×</button><div id="dbody"></div></aside>
+<script>
+const ORIGIN = {claude_project: "Wątek Claude", hermes_chat: "Hermes", kanban: "Kanban", hermes_cron: "Cron", hermes_autonomy: "Autonomia"};
+const STATUS = {done: "zakończone", in_progress: "w toku", waiting: "czeka na Ciebie", review: "do przeglądu", recurring: "cykliczne"};
+const KIND = {claude_thread: "Wątek Claude", claude_coordinator: "Koordynator Claude", hermes_session: "Sesja Hermesa",
+  claude_code_run: "Claude Code", kanban_task: "Zadanie kanban"};
+const PROVIDERS = ["anthropic", "ollama", "gemini", "local", "other"];
+let D = null, sortK = "at", sortDir = -1, selected = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const usd = v => (v >= 100 ? "$" + v.toFixed(0) : v >= 1 ? "$" + v.toFixed(2) : v > 0 ? "$" + v.toFixed(3) : "$0");
+const tok = v => v >= 1e9 ? (v / 1e9).toFixed(1) + " mld" : v >= 1e6 ? (v / 1e6).toFixed(1) + " mln" : v >= 1e3 ? (v / 1e3).toFixed(0) + " tys." : String(v || 0);
+const day = s => s ? new Date(s).toLocaleString("pl-PL", {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"}) : "—";
+const pcolor = p => `var(--p-${PROVIDERS.includes(p) ? p : "other"})`;
+const tsum = t => (t.input || 0) + (t.output || 0) + (t.cache_read || 0) + (t.cache_write || 0);
+
+function inPeriod(t) {
+  const days = +$("period").value;
+  if (!days) return true;
+  return (t.last_activity || t.at || "") >= new Date(Date.now() - days * 864e5).toISOString();
+}
+function visible() {
+  const q = $("q").value.trim().toLowerCase(), o = $("origin").value, w = $("withpr").checked;
+  return D.traces.filter(t => inPeriod(t) && (!o || t.origin === o) && (!w || t.changes.length) &&
+    (!q || [t.title, t.prompt, t.author, ...t.changes.map(c => `${c.repo} #${c.number || c.sha} ${c.title}`)].join(" ").toLowerCase().includes(q)));
+}
+function splitHTML(byP, title) {
+  const ents = PROVIDERS.map(p => [p, byP[p]]).filter(([, v]) => v && (v.cost_usd > 0 || v.tokens > 0));
+  const total = ents.reduce((a, [, v]) => a + v.cost_usd, 0);
+  const bar = total > 0 ? ents.filter(([, v]) => v.cost_usd > 0).map(([p, v]) =>
+    `<div style="flex:${v.cost_usd};background:${pcolor(p)}" title="${esc(v.label || p)}: ${usd(v.cost_usd)} (${(100 * v.cost_usd / total).toFixed(0)}%)"></div>`).join("") : "";
+  return `${title ? `<div class="t-meta">${title}</div>` : ""}<div class="bar">${bar}</div><div class="legend">` +
+    ents.map(([p, v]) => `<span><span class="sw" style="background:${pcolor(p)}"></span>${esc(v.label || p)}: <b>${usd(v.cost_usd)}</b> · ${tok(v.tokens)} tok.</span>`).join("") + `</div>`;
+}
+function aggregate(traces) {
+  const byP = {}; let cost = 0, tokens = 0, merged = 0, prs = 0;
+  for (const t of traces) {
+    for (const [p, v] of Object.entries(t.by_provider)) {
+      byP[p] ??= {cost_usd: 0, tokens: 0, label: v.label};
+      byP[p].cost_usd += v.cost_usd; byP[p].tokens += v.tokens;
+    }
+    cost += t.cost_usd; tokens += t.tokens; merged += t.result.merged; prs += t.result.prs;
+  }
+  return {byP, cost, tokens, merged, prs};
+}
+function render() {
+  const rows = visible();
+  const a = aggregate(rows);
+  $("kpis").innerHTML = [
+    [usd(a.cost), "koszt w widoku"], [tok(a.tokens), "tokeny"], [rows.length, "prompty / źródła pracy"],
+    [`${a.merged} / ${a.prs}`, "PR-y scalone / wszystkie"],
+  ].map(([v, l]) => `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+  $("split").innerHTML = splitHTML(a.byP, "Koszt wg providera (widok po filtrach)");
+  const key = t => sortK === "prs" ? t.result.prs * 1000 + t.result.commits : sortK === "at" ? (t.last_activity || t.at || "") : t[sortK] ?? "";
+  rows.sort((x, y) => (key(x) > key(y) ? 1 : key(x) < key(y) ? -1 : 0) * sortDir);
+  $("rows").innerHTML = rows.length ? rows.map(t => {
+    const parts = PROVIDERS.filter(p => t.by_provider[p]?.cost_usd > 0);
+    const mini = t.cost_usd > 0 ? `<div class="mini">${parts.map(p => `<div style="flex:${t.by_provider[p].cost_usd};background:${pcolor(p)}"></div>`).join("")}</div>` : "";
+    return `<tr data-id="${esc(t.id)}" class="${t.id === selected ? "sel" : ""}">
+      <td class="t-meta">${day(t.at)}</td>
+      <td><div class="t-title">${esc(t.title || "(bez tytułu)")}</div><div class="t-meta">${ORIGIN[t.origin] || t.origin} · ${esc(t.author || "")} · kroków: ${t.steps.length}</div></td>
+      <td class="hide-sm"><span class="tag st-${esc(t.status)}">${STATUS[t.status] || esc(t.status || "—")}</span></td>
+      <td class="num hide-sm">${t.result.prs ? `${t.result.merged}/${t.result.prs} PR` : "—"}${t.result.commits ? ` · ${t.result.commits} c.` : ""}</td>
+      <td class="num">${tok(t.tokens)}</td>
+      <td class="num"><b>${usd(t.cost_usd)}</b>${mini}</td></tr>`;
+  }).join("") : `<tr><td colspan="6" class="empty">Brak wyników dla tych filtrów.</td></tr>`;
+}
+function stepHTML(s, child) {
+  const t = s.tokens || {};
+  const cost = s.provider === "none" ? "" : `<span class="c">${usd(s.cost_usd)}</span>`;
+  const tokens = tsum(t) ? `${tok(t.input)} wej. · ${tok(t.output)} wyj.${t.cache_read ? ` · ${tok(t.cache_read)} z cache` : ""}${t.cache_write ? ` · ${tok(t.cache_write)} do cache` : ""}` : "";
+  const prov = s.provider === "none" ? "" : `<span class="pill"><span class="sw" style="background:${pcolor(s.provider)}"></span>${esc(s.provider_label)}${s.model ? " · " + esc(s.model) : ""}</span>`;
+  const meta = s.meta || {};
+  const extra = s.kind === "kanban_task" ? `${esc(meta.status)} · ${esc(meta.assignee)}${meta.branch ? " · " + esc(meta.branch) : ""}${meta.result ? `<div class="w">Wynik: ${esc(meta.result)}</div>` : ""}` : "";
+  return `<li class="${child ? "child" : ""}" style="--dot:${s.provider === "none" ? "var(--line-strong)" : pcolor(s.provider)}"><div class="step">
+    <div class="h"><b>${KIND[s.kind] || s.kind}: ${s.link ? `<a href="${esc(s.link)}" target="_blank" rel="noopener">${esc(s.title || "—")}</a>` : esc(s.title || "—")}</b>${cost}</div>
+    <div class="m">${day(s.at)}${s.end && s.end !== s.at ? " → " + day(s.end) : ""} · ${esc(s.where || "")}</div>
+    <div class="m">${prov}${tokens ? " · " + tokens : ""}${s.cost_basis ? " · " + esc(s.cost_basis) : ""}</div>
+    ${(s.models || []).length > 1 ? `<div class="m">Modele: ${s.models.map(m => `${esc(m.model)}${m.task ? " (" + esc(m.task) + ")" : ""}: ${tok(tsum(m.tokens))} tok., ${usd(m.cost_usd)}`).join("; ")}</div>` : ""}
+    ${s.why ? `<div class="w">Dlaczego: ${esc(s.why)}</div>` : ""}${extra ? `<div class="m">${extra}</div>` : ""}
+  </div></li>`;
+}
+function changeHTML(c) {
+  if (c.kind === "pr") {
+    const st = c.state === "merged" ? "scalony" : c.state === "open" ? (c.draft ? "szkic" : "otwarty") : "zamknięty";
+    return `<li style="--dot:${c.state === "merged" ? "var(--ok)" : "var(--line-strong)"}"><div class="step">
+      <div class="h"><b>PR <a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.repo.split("/")[1])} #${c.number}</a>: ${esc(c.title)}</b><span class="tag ${c.state === "merged" ? "st-done" : ""}">${st}</span></div>
+      <div class="m">${day(c.at)}${c.merged ? " → scalony " + day(c.merged) : ""} · powiązanie: ${esc(c.via)}</div>
+      ${c.commits?.length ? `<ul class="commits">${c.commits.map(k => `<li><a href="${esc(k.url)}" target="_blank" rel="noopener">${esc(k.sha)}</a> ${esc(k.title)}</li>`).join("")}</ul>` : ""}
+    </div></li>`;
+  }
+  return `<li><div class="step"><div class="h"><b>Commit <a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.repo.split("/")[1])}@${esc(c.sha)}</a>: ${esc(c.title)}</b></div>
+    <div class="m">${day(c.at)} · powiązanie: ${esc(c.via)}</div></div></li>`;
+}
+function openDetail(id) {
+  const t = D.traces.find(x => x.id === id); if (!t) return;
+  selected = id; render();
+  const steps = t.steps.map(s => D.steps[s]).filter(Boolean);
+  const top = steps.filter(s => s.cost_usd > 0).sort((a, b) => b.cost_usd - a.cost_usd).slice(0, 3);
+  const res = t.result;
+  const end = t.status === "done" || t.finished
+    ? `Zakończone${t.finished ? " " + day(t.finished) : ""}. ${res.prs ? `${res.merged} z ${res.prs} PR scalone.` : ""}`
+    : `${STATUS[t.status] || t.status || "w toku"}. ${res.open ? `${res.open} PR otwarte.` : ""}`;
+  $("dbody").innerHTML = `
+    <h2>${esc(t.title || "(bez tytułu)")}</h2>
+    <div class="sub">${ORIGIN[t.origin] || t.origin} · ${esc(t.author)} · ${day(t.at)}${t.link ? ` · <a href="${esc(t.link)}" target="_blank" rel="noopener">otwórz wątek</a>` : ""}</div>
+    <div class="kpis"><div class="kpi"><div class="v">${usd(t.cost_usd)}</div><div class="l">koszt całej ścieżki</div></div>
+      <div class="kpi"><div class="v">${tok(t.tokens)}</div><div class="l">tokeny</div></div>
+      <div class="kpi"><div class="v">${res.merged}/${res.prs}</div><div class="l">PR scalone / wszystkie</div></div></div>
+    <div class="split">${splitHTML(t.by_provider, "Gdzie poszły pieniądze")}${top.length ? `<div class="w" style="margin-top:8px;font-size:13px;color:var(--text-2)">Najdroższe: ${top.map(s => `${esc(s.title || KIND[s.kind])} (${usd(s.cost_usd)}, ${esc(s.provider_label)})`).join("; ")}</div>` : ""}</div>
+    <div class="sec">1. Prompt</div><div class="prompt">${esc(t.prompt || "(brak treści)")}</div>
+    <div class="sec">2. Gdzie wykonano pracę (${steps.length})</div>
+    <ul class="path">${steps.map(s => stepHTML(s, !!s.parent_step)).join("") || '<li><div class="step">Brak zapisanych kroków.</div></li>'}</ul>
+    <div class="sec">3. Zmiany w repozytoriach (${t.changes.length})</div>
+    <ul class="path">${t.changes.map(changeHTML).join("") || '<li><div class="step">Brak powiązanych commitów ani PR.</div></li>'}</ul>
+    <div class="sec">4. Efekt</div><div class="step">${esc(end)}</div>`;
+  $("detail").classList.add("open");
+  history.replaceState(null, "", "#" + encodeURIComponent(id));
+}
+function closeDetail() { $("detail").classList.remove("open"); selected = null; history.replaceState(null, "", location.pathname); render(); }
+
+async function load() {
+  const r = await fetch("trace.json", {cache: "no-store"});
+  D = await r.json();
+  const s = D.sources;
+  $("gen").innerHTML = `Zaktualizowano ${day(D.generated_at)} · ${s.hermes_sessions} sesji Hermesa, ${s.claude_threads} wątków Claude` +
+    `${s.claude_threads_exported_at ? ` (eksport ${day(s.claude_threads_exported_at)})` : ""}, ${s.kanban_tasks} zadań kanban, ${s.claude_code_runs} uruchomień Claude Code, ${s.pull_requests} PR`;
+  $("note").innerHTML = Object.values(D.pricing).filter(p => p.note).map(p => `<div><b>${esc(p.label)}:</b> ${esc(p.note)}</div>`).join("");
+  render();
+  const h = decodeURIComponent(location.hash.slice(1)); if (h) openDetail(h);
+}
+$("rows").addEventListener("click", e => { const tr = e.target.closest("tr[data-id]"); if (tr) openDetail(tr.dataset.id); });
+document.querySelectorAll("th[data-k]").forEach(th => th.addEventListener("click", () => {
+  sortDir = sortK === th.dataset.k ? -sortDir : -1; sortK = th.dataset.k; render();
+}));
+["q", "origin", "period", "withpr"].forEach(id => $(id).addEventListener("input", render));
+$("close").addEventListener("click", closeDetail);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDetail(); });
+load().catch(e => { $("gen").textContent = "Nie udało się wczytać trace.json: " + e; });
+setInterval(() => load().catch(() => {}), 5 * 60 * 1000);
+</script>
+</body>
+</html>
