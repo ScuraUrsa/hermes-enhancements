@@ -1,0 +1,8 @@
+name: pantry-guard
+version: 0.1.0
+description: "Replaces a pantry reply that claims a write (dodałem/zapisałem…) when no dom.py call in that turn saved anything; appends ❌ lines a partial batch reply left out."
+author: "Filip Kaźmierczak + Claude Code"
+provides_hooks:
+  - pre_llm_call
+  - post_tool_call
+  - transform_llm_output
