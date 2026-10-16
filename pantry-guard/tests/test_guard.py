@@ -63,6 +63,27 @@ def test_claim_without_any_tool_call_is_replaced(ctx):
     assert out == guard.NOT_SAVED
 
 
+def test_participle_claim_without_call_is_replaced(ctx):
+    # bench M2 r4 run 0
+    out = run_turn(ctx, "Lodówka ma 4 półki i szufladę na warzywa", [],
+                   "✅ Zapisane: lodówka, 4 półki, szuflada na warzywa.")
+    assert out == guard.NOT_SAVED
+
+
+def test_participle_honest_failure_passes(ctx):
+    out = run_turn(ctx, "mleko do lodówki", [(f"{DOM} add mleko", term("nieznana półka", 3))],
+                   "Nic nie zostało zapisane: nie ma takiej półki w lodówce.")
+    assert out is None
+
+
+def test_claim_after_exit_126_is_replaced(ctx):
+    # bench M1 r4 run 2: skill example without the python3 prefix
+    out = run_turn(ctx, "Szafa w sypialni ma 3 półki",
+                   [("~/.hermes/scripts/dom.py map add 'szafa' --shelves 3", term("Permission denied", 126))],
+                   "Dodałem szafę w sypialni z 3 półkami.")
+    assert out == guard.NOT_SAVED
+
+
 def test_claim_after_failed_dom_call_is_replaced(ctx):
     out = run_turn(ctx, "Zużyłem litr mleka",
                    [(f'{DOM} use "mleko" --qty 1', term("Nie znalazłem: mleko", 3))],

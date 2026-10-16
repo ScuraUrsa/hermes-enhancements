@@ -23,6 +23,7 @@ _CLAIM = re.compile(
     r"|wpisa(?:łe|ła)m|wpisano"
     r"|odnotowa(?:łe|ła)m|odnotowano"
     r"|zużyto"
+    r"|(?:zapisa|doda|zaktualizowa)(?:ne|ny|na)|przeniesi(?:one|ony|ona)|usunię(?:te|ty|ta)"
     r")\b",
     re.IGNORECASE,
 )

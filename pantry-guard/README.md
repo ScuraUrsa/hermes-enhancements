@@ -28,4 +28,4 @@ plugins:
 ```
 
 Instalacja ręczna: skopiować `plugin/` jako `~/.hermes/plugins/pantry-guard/`, dopisać powyższe do
-`~/.hermes/config.yaml`, zrestartować gateway. Testy: `python3 -m pytest -q pantry-guard/tests` (18, bez Hermesa).
+`~/.hermes/config.yaml`, zrestartować gateway. Testy: `python3 -m pytest -q pantry-guard/tests` (21, bez Hermesa).
