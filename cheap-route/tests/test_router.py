@@ -138,3 +138,112 @@ def test_route_command_toggles_and_reports(setup):
     assert "wyłączony" in ctx.commands["route"]("off") and ctx.settings["enabled"] is False
     assert "włączony" in ctx.commands["route"]("on")
     assert "decyzji" in ctx.commands["route"]("")
+
+
+# ---------------------------------------------------------------- Hermes <= v0.20 compat (pre_gateway_dispatch)
+import asyncio
+from types import SimpleNamespace
+
+
+class FakeAdapter:
+    def __init__(self):
+        self.sent = []
+        self.redispatched = []
+
+    async def send(self, chat_id, content, reply_to=None, metadata=None):
+        self.sent.append((chat_id, content))
+
+    async def handle_message(self, event):
+        self.redispatched.append(event)
+        # the gateway runs the hook again on re-dispatch
+        plugin.on_dispatch(event=event, gateway=self.gateway)
+
+
+class FakeGateway:
+    def __init__(self, authorized=True):
+        self.adapter = FakeAdapter()
+        self.adapter.gateway = self
+        self.authorized = authorized
+
+    def _is_user_authorized(self, source):
+        return self.authorized
+
+    def _adapter_for_source(self, source):
+        return self.adapter
+
+    def _thread_metadata_for_source(self, source):
+        return {}
+
+
+def _event(text, message_id="m1"):
+    source = SimpleNamespace(platform=SimpleNamespace(value="telegram"), chat_id="42", user_id="7")
+    return SimpleNamespace(text=text, source=source, message_id=message_id, media_urls=[])
+
+
+def _register(answers, tmp_path):
+    ctx = FakeCtx(answers)
+    plugin.register(ctx)
+    plugin._router = router_mod.Router(tmp_path / "decisions.jsonl")
+    plugin._passthrough.clear()
+    return ctx
+
+
+def _run_dispatch(answers, text, tmp_path, authorized=True):
+    gw = FakeGateway(authorized)
+    _register(answers, tmp_path)
+
+    async def go():
+        result = plugin.on_dispatch(event=_event(text), gateway=gw)
+        for _ in range(20):
+            await asyncio.sleep(0)
+        pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        if pending:
+            await asyncio.gather(*pending)
+        return result
+
+    return asyncio.run(go()), gw
+
+
+def test_dispatch_rule_forced_message_passes_through_untouched(tmp_path):
+    result, gw = _run_dispatch({plugin.ROUTER_TASK: FREE, plugin.FREE_TASK: "Lima."}, "Dodaj T12 do kanbana", tmp_path)
+    assert result is None
+    assert gw.adapter.sent == [] and gw.adapter.redispatched == []
+
+
+def test_dispatch_free_answer_is_sent_through_the_adapter(tmp_path):
+    result, gw = _run_dispatch({plugin.ROUTER_TASK: FREE, plugin.FREE_TASK: "Lima."}, "Jaka jest stolica Peru?", tmp_path)
+    assert result == {"action": "skip", "reason": "cheap-route: evaluating"}
+    assert len(gw.adapter.sent) == 1 and gw.adapter.sent[0][0] == "42"
+    assert gw.adapter.sent[0][1].startswith("Lima.") and "darmowego kanału" in gw.adapter.sent[0][1]
+    assert gw.adapter.redispatched == []
+
+
+def test_dispatch_hermes_decision_is_redispatched_once(tmp_path):
+    answers = {plugin.ROUTER_TASK: '{"route": "hermes", "confidence": 0.9}', plugin.FREE_TASK: "Lima."}
+    result, gw = _run_dispatch(answers, "Jaka jest stolica Peru?", tmp_path)
+    assert result["action"] == "skip"
+    assert gw.adapter.sent == []
+    assert len(gw.adapter.redispatched) == 1
+    assert plugin._passthrough == set()
+
+
+def test_dispatch_evaluator_failure_redispatches(tmp_path):
+    answers = {plugin.ROUTER_TASK: RuntimeError("down"), plugin.FREE_TASK: "Lima."}
+    result, gw = _run_dispatch(answers, "Jaka jest stolica Peru?", tmp_path)
+    assert result["action"] == "skip"
+    assert gw.adapter.sent == [] and len(gw.adapter.redispatched) == 1
+
+
+def test_dispatch_unauthorized_sender_is_left_to_the_gateway(tmp_path):
+    result, gw = _run_dispatch({plugin.ROUTER_TASK: FREE, plugin.FREE_TASK: "Lima."},
+                               "Jaka jest stolica Peru?", tmp_path, authorized=False)
+    assert result is None and gw.adapter.sent == []
+
+
+def test_dispatch_commands_and_media_are_left_to_the_gateway(tmp_path):
+    gw = FakeGateway()
+    _register({plugin.ROUTER_TASK: FREE, plugin.FREE_TASK: "Lima."}, tmp_path)
+    assert plugin.on_dispatch(event=_event("/route"), gateway=gw) is None
+    ev = _event("Jaka jest stolica Peru?")
+    ev.media_urls = ["/tmp/x.jpg"]
+    assert plugin.on_dispatch(event=ev, gateway=gw) is None

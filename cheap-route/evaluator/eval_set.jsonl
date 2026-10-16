@@ -81,3 +81,6 @@
 {"id": "q081", "text": "Jak działa quota-governor i gdzie zapisuje tryb?", "label": "hermes", "note": "mój system"}
 {"id": "q082", "text": "Dzięki!", "label": "hermes", "note": "odpowiedź w rozmowie, nie pytanie"}
 {"id": "q083", "text": "Ok, zrób to.", "label": "hermes", "note": "kontynuacja rozmowy"}
+{"id": "q84", "text": "Pomysł: nauczyć się grać na gitarze", "label": "hermes", "note": "plan osobisty (wyciek w benchmarku A)"}
+{"id": "q85", "text": "Lista rozwiązań do aplikacji do budżetu, które rozważaliśmy", "label": "hermes", "note": "projekt budżetu Filipa (wyciek w benchmarku A)"}
+{"id": "q86", "text": "Jak implementujesz obsługę exit 75 z cc_run.py?", "label": "hermes", "note": "kod z repo Filipa (wyciek w benchmarku A)"}
