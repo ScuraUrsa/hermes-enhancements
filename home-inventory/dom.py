@@ -11,7 +11,7 @@ Model:
   events  append-only log of what happened (added, used, thrown out, moved).
 
 Exit codes: 0 ok, 1 error, 2 bad input (date, sector), 3 nothing found, 4 ambiguous (candidates printed),
-5 unknown place.
+5 unknown place, 6 batch: not every line succeeded.
 """
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ try:
 except ImportError:  # Windows (benches on the laptop)
     pwd = None
 import re
+import shlex
 import sqlite3
 import sys
 import unicodedata
@@ -928,6 +929,79 @@ def cmd_history(con, a) -> tuple[str, object]:
     return "\n".join(lines), [dict(r) for r in rows]
 
 
+def verify(con, argv: list[str], data) -> str | None:
+    """Read back what a write claims to have done. Returns a problem or None."""
+    cmd = argv[0] if argv else ""
+    if cmd == "add" and isinstance(data, dict):
+        row = con.execute(STOCK_SQL + " AND s.id=?", (data.get("id"),)).fetchone()
+        if row is None:
+            return "partii nie ma w bazie"
+        a = build_parser().parse_args(argv)
+        if abs(row["qty"] - a.qty) > 1e-9:
+            return f"ilość {row['qty']} zamiast {a.qty}"
+        if a.exp and row["expires"] != parse_date(a.exp):
+            return f"termin {row['expires']} zamiast {parse_date(a.exp)}"
+    if cmd == "map" and len(argv) > 1 and argv[1] == "add" and isinstance(data, dict):
+        a = build_parser().parse_args(argv)
+        want = (a.shelves or 0) + (a.drawers or 0)
+        if want and len(data.get("inside", [])) < want:
+            return f"w środku {len(data.get('inside', []))} zamiast {want}"
+    return None
+
+
+def cmd_batch(con, a) -> tuple[str, object]:
+    """Several operations, one per line; each is run and verified on its own (the loop is code, not the model)."""
+    lines = list(a.lines)
+    if not lines:
+        lines = sys.stdin.read().splitlines() if a.file == "-" else open(a.file, encoding="utf-8").read().splitlines()
+    ops = []
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            argv = shlex.split(line)
+        except ValueError as e:
+            ops.append((line, None, f"zły cudzysłów: {e}"))
+            continue
+        while argv and (argv[0] in ("dom", "python3", "python") or argv[0].endswith("dom.py")):
+            argv = argv[1:]
+        if not argv or argv[0] in ("batch", "--db") or argv[0] not in HANDLERS:
+            ops.append((line, None, "nieznane polecenie"))
+            continue
+        ops.append((line, argv, None))
+    if not ops:
+        raise DomError("Pusta lista. Jedna operacja na linię, np.: add masło --exp 30.10 --where \"lodówka > półka 3\"", 2)
+    out, results, ok = [], [], 0
+    for i, (line, argv, err) in enumerate(ops, 1):
+        text = ""
+        if err is None:
+            try:
+                args = build_parser().parse_args(argv)
+            except SystemExit:
+                err = "złe argumenty (sprawdź dom <polecenie> --help)"
+        if err is None:
+            try:
+                with con:
+                    text, data = HANDLERS[args.cmd](con, args)
+                err = verify(con, argv, data)
+            except DomError as e:
+                err = str(e)
+        if err is None:
+            ok += 1
+            out.append(f"✅ {i}/{len(ops)} {text.splitlines()[0] if text else line}")
+        else:
+            out.append(f"❌ {i}/{len(ops)} {line} → {err}")
+        results.append({"line": line, "ok": err is None, "error": err, "text": text})
+    summary = f"Wykonano {ok} z {len(ops)}."
+    if ok < len(ops):
+        summary += " Nie wszystko się udało: powiedz Filipowi, czego NIE zapisano."
+    out.append(summary)
+    if ok < len(ops):
+        raise DomError("\n".join(out), 6, results)
+    return "\n".join(out), results
+
+
 # ---------------------------------------------------------------- CLI
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1001,6 +1075,9 @@ def build_parser() -> argparse.ArgumentParser:
     x.add_argument("--days", type=int, default=5)
     x = sub.add_parser("remind", help="przypomnienie do crona (puste, gdy nic)")
     x.add_argument("--days", type=int, default=2)
+    x = sub.add_parser("batch", help="kilka operacji naraz, jedna na linię; każda wykonana i sprawdzona osobno")
+    x.add_argument("lines", nargs="*", help='np. \'add masło --exp 30.10 --where "lodówka > półka 3"\'')
+    x.add_argument("--file", default="-", help="plik z liniami (domyślnie stdin, gdy brak linii w argumentach)")
     x = sub.add_parser("history", help="historia zmian")
     x.add_argument("query", nargs="?")
     x.add_argument("--limit", type=int, default=20)
@@ -1011,7 +1088,7 @@ HANDLERS = {
     "map": cmd_map, "add": cmd_add, "where": cmd_where, "list": cmd_list,
     "use": lambda c, a: consume(c, a, "zużyte"), "throw": lambda c, a: consume(c, a, "wyrzucone"),
     "move": cmd_move, "set": cmd_set, "expiring": cmd_expiring, "plan": cmd_plan, "remind": cmd_remind,
-    "history": cmd_history,
+    "history": cmd_history, "batch": cmd_batch,
 }
 
 

@@ -282,9 +282,9 @@ CASES = [
     dict(id="P6 several products", base=FURNISHED, setup=[],
          say=["Przywiozłem z zakupów: masło ważne do 30.10, ser żółty do 25.10 i dwa kefiry do 19.10. "
               "Wszystko poszło do lodówki na trzecią półkę."],
-         check=c_p6, golden=[f'{M} add masło --exp 30.10 --where "lodówka > półka 3"',
-                             f'{M} add "ser żółty" --exp 25.10 --where "lodówka > półka 3"',
-                             f'{M} add kefir --qty 2 --exp 19.10 --where "lodówka > półka 3"']),
+         check=c_p6, golden=[f"""{M} batch 'add masło --exp 30.10 --where "lodówka > półka 3"' """
+                             f"""'add "ser żółty" --exp 25.10 --where "lodówka > półka 3"' """
+                             f"""'add kefir --qty 2 --exp 19.10 --where "lodówka > półka 3"'"""]),
     dict(id="P7 use", base=FURNISHED, setup=[["add", "mleko", "--qty", "2", "--unit", "l", "--exp", "20.10",
                                                "--where", "lodówka > półka 1"]],
          say=["Zużyłem litr mleka."], check=c_p7, golden=[f"{M} use mleko --qty 1"]),

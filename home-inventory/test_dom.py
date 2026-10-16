@@ -167,3 +167,22 @@ def test_map_add_with_shelves_in_one_call(run):
     assert code == 0 and "W środku (5)" in out
     code, out = run("map", "add", "Pokój Teosia > Komoda nowa", "--drawers", "4")
     assert "W środku (4)" in out and "4. szuflada od góry, 1. od dołu" in out
+
+
+def test_batch_runs_and_verifies_each_line(run):
+    code, out = run("batch",
+                    'add masło --exp 30.10 --where "lodówka > półka 3"',
+                    'add "ser żółty" --exp 25.10 --where "lodówka > półka 3"',
+                    'dom add kefir --qty 2 --exp 19.10 --where "lodówka > półka 3"')
+    assert code == 0, out
+    assert out.count("✅") == 3 and "Wykonano 3 z 3." in out
+    code, out = run("--json", "where", "kefir")
+    assert json.loads(out)["data"][0]["qty"] == 2
+
+
+def test_batch_reports_partial_failure(run):
+    code, out = run("batch", 'add mąka --where "lodówka > półka 1"', 'add cukier --where "spiżarka"',
+                    'map add "Sypialnia > Szafa" --shelves 2')
+    assert code == 6
+    assert "❌ 2/3" in out and "Wykonano 2 z 3." in out and "NIE zapisano" in out
+    assert run("where", "mąka")[0] == 0 and run("where", "cukier")[0] == 3
