@@ -19,6 +19,16 @@ memory or Honcho: run the script. Talk to Filip in Polish, short; in voice repli
 no `#id`s.
 
 Run: `python3 ~/.hermes/scripts/dom.py <command> ...` (below: `dom`). Add `--json` when you need to compute.
+`dom <command> --help` shows the exact arguments.
+
+## Hard rules
+
+1. **Act, then confirm.** Every change (bought, used, moved, new furniture, rename) is a `dom` call run through the
+   terminal tool. Never write „dodałem / zapisałem / zaktualizowałem” before you have seen `exit=0` from that call,
+   and never print a command as text instead of running it.
+2. **One call per product.** Three products = three `dom add` calls. Furniture with N shelves/drawers = one
+   `dom map add ... --shelves N` / `--drawers N`. Report only what the output says was created.
+3. **Answers come from `dom` output**, never from memory: run `dom where` / `dom list` / `dom plan` first.
 
 ## When to use
 
@@ -33,9 +43,14 @@ Run: `python3 ~/.hermes/scripts/dom.py <command> ...` (below: `dom`). Add `--jso
 | „przełożyłem body do komody, druga szuflada” | `dom move "body" --where "pokój Teosia > komoda > szuflada 2"` |
 | „otworzyłem śmietanę, po otwarciu 3 dni” | `dom set "śmietana" --opened --days-after-opening 3` |
 | „co się kończy?”, „co się przeterminuje w tym tygodniu?” | `dom expiring --days 7` |
-| meal planning (the timeplane meal procedure, „co na obiad?”, „zaplanujmy posiłki”) | `dom plan --days 5` first, then propose meals that use the listed food, saying where each item is |
+| meal planning (the timeplane meal procedure, „co na obiad?”, „zaplanujmy posiłki”) | `dom plan --days 5` first (keep 5 days even for „jutro”), then propose meals that use the listed food, saying where each item is |
 | describing the flat: „w kuchni mam lodówkę z 3 półkami…” | `dom map add "Kuchnia > Lodówka > Półka 1"` (one per shelf) or write an outline and `dom map import` |
 | „pokaż mapę mieszkania”, „co jest w szafie Teosia” | `dom map show ["pokój Teosia > szafa 1"]` |
+| „w sypialni jest szafa z 5 półkami”, „komoda z 4 szufladami”, „lodówka z 3 półkami i szufladą na warzywa” | ONE call: `dom map add "Sypialnia > Szafa" --shelves 5` / `dom map add "Pokój Teosia > Komoda" --drawers 4` / `dom map add "Kuchnia > Lodówka" --shelves 3`, then `dom map add "Kuchnia > Lodówka > Szuflada na warzywa"`. The output lists what is inside: say only that. |
+| „lodówka ma półki na drzwiach” | `dom map add "Kuchnia > Lodówka > Drzwi lodówki"` (missing room/furniture levels are created) |
+| correcting a product just added („ważny do 22.10”, „to były 3 sztuki”) | `dom set "jogurt grecki" --exp 22.10` / `--qty 3` — never a second `dom add` |
+| „zmień nazwę szafy na Szafa biała” | `dom map rename "pokój Teosia > szafa 1" "Szafa biała"` (path first, then the new name) |
+| „wynieśliśmy komodę” | `dom map rm "pokój Teosia > komoda"` |
 
 ## When not to use
 

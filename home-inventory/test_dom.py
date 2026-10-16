@@ -160,3 +160,10 @@ def test_where_falls_back_to_place_contents(run):
     run("add", "musztarda", "--where", "lodówka > półka 3")
     code, out = run("where", "lodówka > półka 3")
     assert code == 0 and "musztarda" in out
+
+
+def test_map_add_with_shelves_in_one_call(run):
+    code, out = run("map", "add", "Sypialnia > Szafa", "--shelves", "5")
+    assert code == 0 and "W środku (5)" in out
+    code, out = run("map", "add", "Pokój Teosia > Komoda nowa", "--drawers", "4")
+    assert "W środku (4)" in out and "4. szuflada od góry, 1. od dołu" in out

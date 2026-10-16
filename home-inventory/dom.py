@@ -20,7 +20,10 @@ import calendar
 import difflib
 import json
 import os
-import pwd
+try:
+    import pwd
+except ImportError:  # Windows (benches on the laptop)
+    pwd = None
 import re
 import sqlite3
 import sys
@@ -293,7 +296,8 @@ def db_path() -> str:
     env = os.environ.get("DOM_DB")
     if env:
         return env
-    home = pwd.getpwuid(os.getuid()).pw_dir  # workers run with a fake $HOME; use the real one
+    # workers run with a fake $HOME; use the real one from passwd
+    home = pwd.getpwuid(os.getuid()).pw_dir if pwd else os.path.expanduser("~")
     return os.path.join(home, ".hermes", "autonomy", "home-inventory", "dom.db")
 
 
@@ -614,10 +618,18 @@ def cmd_map(con, a) -> tuple[str, object]:
     places = place_rows(con)
     if a.map_cmd == "add":
         pid, created = add_place_path(con, a.path, a.kind, a.alias or "", a.note or "", a.pos)
+        # "szafa z 5 półkami" in one call: small models stop half way through long call sequences
+        for word, n in (("Półka", a.shelves), ("Szuflada", a.drawers)):
+            for i in range(1, (n or 0) + 1):
+                _, sub = add_place_path(con, f"{place_path(place_rows(con), pid, pretty=False)} > {word} {i}")
+                created += sub
         places = place_rows(con)
+        inside = [place_label(places, r) for r in sorted(
+            (r for r in places.values() if r["parent_id"] == pid),
+            key=lambda r: (r["pos"] if r["pos"] is not None else 10**6, r["name"]))]
         msg = (f"Dodałem: {', '.join(created)}. " if created else "To miejsce już było. ") + \
-              f"Ścieżka: {place_path(places, pid)}"
-        return msg, {"id": pid, "created": created, "path": place_path(places, pid)}
+              f"Ścieżka: {place_path(places, pid)}" + (f". W środku ({len(inside)}): {'; '.join(inside)}" if inside else "")
+        return msg, {"id": pid, "created": created, "path": place_path(places, pid), "inside": inside}
     if a.map_cmd == "import":
         if a.file == "-":
             text = sys.stdin.read()
@@ -932,6 +944,8 @@ def build_parser() -> argparse.ArgumentParser:
     x.add_argument("--alias", help="aliasy po przecinku")
     x.add_argument("--note")
     x.add_argument("--pos", type=int, help="numer półki/szuflady od góry")
+    x.add_argument("--shelves", type=int, help="utwórz od razu N półek (Półka 1..N, od góry)")
+    x.add_argument("--drawers", type=int, help="utwórz od razu N szuflad (Szuflada 1..N, od góry)")
     x = ms.add_parser("import", help="zaimportuj mapę z konspektu z wcięciami (plik albo - dla stdin)")
     x.add_argument("file")
     x = ms.add_parser("show", help="pokaż mapę (całą albo od miejsca)")
