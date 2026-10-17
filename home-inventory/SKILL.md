@@ -1,7 +1,7 @@
 ---
 name: home-inventory
 description: "Spis rzeczy w domu i mapa mieszkania: co mamy (spożywka, chemia, ubrania), gdzie leży (pokój, szafa, półka, sektor), do kiedy ważne. Użyj ~/.hermes/scripts/dom.py zamiast pamięci."
-version: 0.3.1
+version: 0.3.2
 author: Claude Code (for Filip), 2026-10-16
 license: MIT
 platforms: [linux]
@@ -24,6 +24,8 @@ What is at home, where it lies, until when it is good. Use the terminal tool; ev
    It runs every line and checks it in the database. Multi-word names and paths always in "double quotes".
 3. **Read the output.** Say only what has ✅ / exit=0. For each ❌ say it was NOT saved and why.
    Never say „dodałem / zapisałem” without that output. Never print a command instead of running it.
+   After every command, always answer Filip in words (never an empty reply).
+   Exit 5 (unknown place): ask Filip where that place is; do not paste commands to him.
 4. Questions („gdzie”, „co jest”, „co się kończy”, meals) are answered only from its output.
 
 ## Commands
@@ -50,7 +52,7 @@ What is at home, where it lies, until when it is good. Use the terminal tool; ev
 
 - Names: plain Polish nominative („mleko”, „ser żółty”). `--exp` takes Filip's words (`20.10`, `10.2026`,
   „20 października”, „za 5 dni”, `jutro`). Fresh food without a date: ask once for it.
-- No `--where`: the item goes where it usually lies. Shelves count from the top (`półka 1`); `półka 2 od dołu` works.
+- No `--where`: the item goes where it usually lies (do not ask where or how much; qty defaults to 1). Shelves count from the top (`półka 1`); `półka 2 od dołu` works.
 - Paths go room → furniture → shelf with `>`; any unique part is enough. Missing levels are created by `map add`.
   The side/depth on a shelf go in `--side`/`--depth`, not in `--where`.
 - `python3 ~/.hermes/scripts/dom.py <command> --help` shows exact arguments.

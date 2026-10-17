@@ -247,14 +247,16 @@ def parse_date(text: str | None) -> str | None:
         return None
     raw = str(text).strip()
     s = fold(raw).strip(" .")
+    s = re.sub(r"^(?:wazn\w*|termin|przydatn\w*)\s+", "", s)
+    s = re.sub(r"^(?:do|na|przez)\s+", "", s)  # "do jutra", "do 20.10", "na 5 dni"
     t = today()
     if s in ("brak", "bez", "-", "nie ma", "none"):
         return None
-    if s in ("dzis", "dzisiaj"):
+    if s in ("dzis", "dzisiaj", "dzisiaj wlacznie", "dzisiejszego"):
         return t.isoformat()
-    if s == "jutro":
+    if s in ("jutro", "jutra", "jutrzejszego"):
         return (t + timedelta(days=1)).isoformat()
-    if s == "pojutrze":
+    if s in ("pojutrze", "pojutrza"):
         return (t + timedelta(days=2)).isoformat()
     m = re.fullmatch(r"(?:za\s+)?(\d+|tydzien|miesiac|rok)\s*(dni|dzien|dnia|tydzien|tygodnie|tygodni|tyg|"
                      r"miesiac|miesiace|miesiecy|mies|rok|lata|lat)?", s)
@@ -466,9 +468,8 @@ def resolve_place(con, path: str, places: dict | None = None) -> int:
         if ok:
             cands.append((score, row["id"]))
     if not cands:
-        near = difflib.get_close_matches(fold(segs[-1]), [fold(r["name"]) for r in places.values()], n=3)
-        hint = f" Podobne: {', '.join(near)}." if near else ""
-        raise DomError(f"Nie znam miejsca „{path}”.{hint} Dodaj je: dom map add \"Pokój > Mebel > Półka\".", 5)
+        raise DomError(f"Nie znam miejsca „{path}”. NIC nie zapisano. Zapytaj Filipa, gdzie jest „{segs[-1]}” "
+                       "(w którym pokoju, jaki to mebel), potem dodaj je przez map add i powtórz.", 5)
     cands.sort(reverse=True)
     best = [c for c in cands if c[0] == cands[0][0]]
     if len(best) > 1:
@@ -668,7 +669,7 @@ def pick_batches(rows: list, query: str) -> list:
 
 # ---------------------------------------------------------------- commands
 
-COUNT_SEG = re.compile(r"^(?:z\s+)?(\d+)?\s*(półk\w*|polk\w*|szuflad\w*)$")
+COUNT_SEG = re.compile(r"^(?:z\s+)?(\d+)?\s*(półk\w*|polk\w*|szuflad\w*)(?:\s+(\d+))?$")
 
 
 def peel_count(a) -> str:
@@ -680,8 +681,12 @@ def peel_count(a) -> str:
     m = COUNT_SEG.match(segs[-1].strip().lower()) if len(segs) > 1 else None
     if not m:
         return a.path
-    n = int(m.group(1)) if m.group(1) else None
-    if fold(m.group(2)).startswith("polk"):
+    kind = fold(m.group(2))
+    if m.group(3) and kind in ("polka", "szuflada"):  # "Półka 3" is one shelf, "półki 3" means three
+        return a.path
+    num = m.group(1) or m.group(3)
+    n = int(num) if num else None
+    if kind.startswith("polk"):
         a.shelves = a.shelves or n
         if not a.shelves:
             raise DomError("Ile półek? Użyj --shelves N.", 2)

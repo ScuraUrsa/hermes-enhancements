@@ -221,3 +221,16 @@ def test_clothes_get_their_category(run):
     run("add", "skarpetki", "--where", "komoda > szuflada 1")
     code, out = run("list", "--cat", "ubrania")
     assert "body Teosia" in out and "skarpetki" in out
+
+
+def test_round5_dates_unknown_place_and_shelf_count(run):
+    assert dom.parse_date("jutra") == "2026-10-16"
+    assert dom.parse_date("do jutra") == "2026-10-16"
+    assert dom.parse_date("ważny do 20.10") == "2026-10-20"
+    assert dom.parse_date("pojutrze") == "2026-10-17"
+    code, out = run("add", "ryż", "--where", "spiżarnia")
+    assert code == 5 and "Zapytaj Filipa" in out and "Podobne" not in out
+    code, out = run("map", "add", "Kuchnia > Lodówka nowa > półki 3")
+    assert code == 0 and "W środku (3)" in out
+    code, out = run("map", "add", "Kuchnia > Lodówka nowa > Półka 4")  # a single shelf stays a place
+    assert code == 0 and "Półka 4" in out
