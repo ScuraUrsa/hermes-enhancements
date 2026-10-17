@@ -1,0 +1,68 @@
+{
+  "_comment": "How the dashboard turns tokens into money. mode=reported: the source reports the cost (Claude Code and claude.ai report the API list-price equivalent). mode=per_model: USD per 1M tokens by model as [input, cached input, output]; the collector reads Hermes' ~/.hermes/autonomy/budget.json (the table budget.py uses) and falls back to prices_per_mtok below. mode=per_token: flat USD per 1M tokens.",
+  "currency": "USD",
+  "providers": {
+    "anthropic": {
+      "label": "Anthropic (Claude, subskrypcja)",
+      "mode": "reported",
+      "note": "Koszt = cena API (list price) zużytych tokenów, liczona przez Claude Code / claude.ai. Faktycznie płacisz abonament Claude, więc to wartość równoważna, nie faktura."
+    },
+    "ollama": {
+      "label": "Ollama Cloud (Pro)",
+      "mode": "per_model",
+      "note": "Koszt = tokeny × cennik modeli z ~/.hermes/autonomy/budget.json (ten sam, którego używa budget.py). To równoważnik cen API: faktycznie płacisz abonament Ollama Pro (20 USD/mies. za klucz, w tym ok. 60 USD użycia)."
+    },
+    "gemini": {
+      "label": "Google Gemini API",
+      "mode": "per_token",
+      "input_per_mtok": 0.0,
+      "output_per_mtok": 0.0,
+      "note": "Darmowy limit Gemini (cheap-route free channel)."
+    },
+    "local": {
+      "label": "Lokalnie (llama.cpp)",
+      "mode": "per_token",
+      "input_per_mtok": 0.0,
+      "output_per_mtok": 0.0,
+      "note": "Model lokalny (llama.cpp), bez opłat za tokeny."
+    },
+    "other": {
+      "label": "Inny / nieznany",
+      "mode": "per_token",
+      "input_per_mtok": 0.0,
+      "output_per_mtok": 0.0
+    }
+  },
+  "prices_per_mtok": {
+    "deepseek-v4.1-flash": [
+      0.3,
+      0.006,
+      1.2
+    ],
+    "deepseek-v4-pro": [
+      1.32,
+      0.044,
+      3.96
+    ],
+    "glm-5.3-flash": [
+      0.15,
+      0.03,
+      0.5
+    ],
+    "gpt-oss:120b": [
+      0.15,
+      0.014,
+      0.6
+    ],
+    "kimi-k2.7-code": [
+      0.95,
+      0.19,
+      4.0
+    ],
+    "_default": [
+      1.32,
+      0.044,
+      3.96
+    ]
+  }
+}
