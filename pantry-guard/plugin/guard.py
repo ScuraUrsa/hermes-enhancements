@@ -122,8 +122,35 @@ NOT_SAVED = (
 )
 
 
+# An empty final reply as Hermes hands it to the hook: blank, the "(empty)" sentinel, or the
+# turn-completion explainer's "⚠️ No reply: …" (empty content after retries).
+_NO_REPLY = re.compile(r"^\s*(?:\(empty\)\s*$|⚠️\s*No reply:)")
+
+NO_REPLY_HEADER = "Model nie napisał odpowiedzi. Wynik dom.py z tej tury:"
+_MAX_FALLBACK_LINES = 15
+
+
+def _call_summary(call: DomCall) -> list[str]:
+    lines = [ln.strip() for ln in call.output.splitlines() if ln.strip()]
+    marked = [ln for ln in lines if ln.startswith(("✅", "❌", "Wykonano"))]
+    if marked:
+        return marked
+    mark = "✅" if call.ok else f"❌ (exit {call.exit_code})"
+    return [f"{mark} {ln}" for ln in lines[:5]] or [mark]
+
+
+def fallback_reply(turn: Turn) -> str:
+    lines = [ln for c in turn.calls for ln in _call_summary(c)]
+    if len(lines) > _MAX_FALLBACK_LINES:
+        lines = lines[:_MAX_FALLBACK_LINES] + ["…"]
+    return NO_REPLY_HEADER + "\n" + "\n".join(lines)
+
+
 def check(reply: str, turn: Turn) -> Optional[str]:
     """Return the replacement reply, or None when the reply may go out unchanged."""
+    if turn.calls and (not (reply or "").strip() or _NO_REPLY.match(reply)):
+        # Thinking ate the answer after dom.py ran: show what dom.py actually did.
+        return fallback_reply(turn)
     if not reply or not _CLAIM.search(reply):
         return None
     if not turn.calls:

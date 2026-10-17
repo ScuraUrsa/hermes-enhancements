@@ -190,3 +190,34 @@ def test_dom_command_detection(cmd):
 def test_non_json_result_does_not_crash(ctx):
     out = run_turn(ctx, "mleko do lodówki", [(f"{DOM} add mleko", "garbage output")], "Dodałem mleko.")
     assert out == guard.NOT_SAVED
+
+
+ADD_OK = term("Zapisałem. mleko · lodówka > półka 2 (ważne do 2026-10-25)")
+
+
+@pytest.mark.parametrize("reply", [
+    "(empty)",
+    "⚠️ No reply: the model returned empty content after retries and any fallback providers. "
+    "Try `continue`, switch model/provider, or inspect the tool output above.",
+    "   ",
+])
+def test_empty_reply_after_dom_call_shows_dom_output(ctx, reply):
+    # bench r5: thinking on, dom.py succeeded, final text empty
+    out = run_turn(ctx, "mleko do lodówki, ważne do 25.10", [(f'{DOM} add mleko --exp 2026-10-25', ADD_OK)], reply)
+    assert out.startswith(guard.NO_REPLY_HEADER)
+    assert "✅ Zapisałem. mleko · lodówka > półka 2" in out
+
+
+def test_empty_reply_after_batch_shows_marked_lines_only(ctx):
+    output = "✅ 1/2 Zapisałem. masło\n❌ 2/2 add kefir → nieznana półka\nWykonano 1 z 2."
+    out = run_turn(ctx, "masło i kefir", [(f"{DOM} batch 'add masło' 'add kefir'", term(output, 6))], "(empty)")
+    assert out.splitlines()[1:] == ["✅ 1/2 Zapisałem. masło", "❌ 2/2 add kefir → nieznana półka", "Wykonano 1 z 2."]
+
+
+def test_empty_reply_after_failed_call_marks_exit(ctx):
+    out = run_turn(ctx, "mleko", [(f"{DOM} add mleko", term("nieznana półka: półka 9", 5))], "(empty)")
+    assert "❌ (exit 5) nieznana półka: półka 9" in out
+
+
+def test_no_reply_without_dom_call_is_left_to_hermes(ctx):
+    assert run_turn(ctx, "mleko do lodówki", [], "(empty)") is None

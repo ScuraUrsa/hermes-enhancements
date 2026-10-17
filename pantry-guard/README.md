@@ -8,12 +8,13 @@ odpowiedź ich nie wspomina. Ten plugin Hermesa sprawdza odpowiedź, zanim trafi
 |---|---|
 | Odpowiedź mówi „dodałem / zapisałem / przeniosłem / usunąłem / zmieniłem…”, a żadne wywołanie `dom.py` nic nie zapisało (brak wywołania albo exit ≠ 0 bez linii ✅) | Zastępuje odpowiedź: „⚠️ Nic nie zostało zapisane w spiżarni…” |
 | `dom batch` miał linie ❌, a odpowiedź ich nie przyznaje | Dopisuje „⚠️ Tego NIE zapisano:” z liniami ❌ |
+| `dom.py` się wykonał, ale odpowiedź jest pusta (`(empty)` albo „⚠️ No reply: …”, np. gdy myślenie zjadło odpowiedź) | Pokazuje wynik `dom.py` z tej tury: linie ✅/❌, a przy pojedynczej komendzie jej wynik z exit code |
 | Odpowiedź sama mówi, że czegoś nie zapisano, albo nic nie twierdzi o zapisie | Bez zmian |
 | Brak `dom.py` i nic o spiżarni/szafach w pytaniu ani w odpowiedzi (np. „Dodałem spotkanie”) | Bez zmian |
 
 Hooki: `pre_llm_call` (zeruje bufor sesji), `post_tool_call` (zapisuje wywołania terminala z `dom.py`,
 exit code i wynik), `transform_llm_output` (sprawdza odpowiedź). Hook może tylko podmienić tekst, więc
-plugin nie każe modelowi powtórzyć, tylko mówi uczciwie, że nic nie zapisano.
+plugin nie każe modelowi powtórzyć (puste odpowiedzi Hermes już sam ponawia, zanim trafią do hooka), tylko mówi uczciwie, że nic nie zapisano.
 Działa na Hermesie 0.20 (prod, `a6ede70c2`). Przy streamingu użytkownik zobaczyłby oba teksty, ale prod
 ma streaming wyłączony.
 
@@ -28,4 +29,4 @@ plugins:
 ```
 
 Instalacja ręczna: skopiować `plugin/` jako `~/.hermes/plugins/pantry-guard/`, dopisać powyższe do
-`~/.hermes/config.yaml`, zrestartować gateway. Testy: `python3 -m pytest -q pantry-guard/tests` (21, bez Hermesa).
+`~/.hermes/config.yaml`, zrestartować gateway. Testy: `python3 -m pytest -q pantry-guard/tests` (27, bez Hermesa).
