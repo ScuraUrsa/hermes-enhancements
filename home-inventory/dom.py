@@ -11,13 +11,15 @@ Model:
   events  append-only log of what happened (added, used, thrown out, moved).
 
 Exit codes: 0 ok, 1 error, 2 bad input (date, sector), 3 nothing found, 4 ambiguous (candidates printed),
-5 unknown place.
+5 unknown place, 6 batch: not every line succeeded.
 """
 from __future__ import annotations
 
 import argparse
 import calendar
+import contextlib
 import difflib
+import io
 import json
 import os
 try:
@@ -25,6 +27,7 @@ try:
 except ImportError:  # Windows (benches on the laptop)
     pwd = None
 import re
+import shlex
 import sqlite3
 import sys
 import unicodedata
@@ -176,6 +179,57 @@ def norm_choice(value: str | None, table: dict, what: str) -> str | None:
     raise DomError(f"Nie rozumiem {what}: „{value}”. Dozwolone: {', '.join(table)}.", 2)
 
 
+def sector_words(text: str) -> tuple[str | None, str | None] | None:
+    """'lewo', 'z lewej z przodu', 'prawa tył' -> (side, depth); None if the text is not only sector words."""
+    words = fold(text).replace(",", " ").split()
+    side = depth = None
+    i = 0
+    while i < len(words):
+        for n in (2, 1):  # "z lewej", "po prawej", "z tyłu" first
+            chunk = " ".join(words[i:i + n])
+            hit_s = next((c for c, ws in SIDES.items() if chunk in {fold(w) for w in ws if len(w) > 1}), None)
+            hit_d = next((c for c, ws in DEPTHS.items() if chunk in {fold(w) for w in ws if len(w) > 1}), None)
+            if hit_d and not hit_s or hit_d and side and not depth:
+                depth, i = hit_d, i + n
+                break
+            if hit_s:
+                side, i = hit_s, i + n
+                break
+        else:
+            if words[i] in ("strona", "strony", "stronie", "na"):
+                i += 1
+                continue
+            return None
+    return (side, depth) if side or depth else None
+
+
+def split_sector(where: str | None) -> tuple[str | None, str | None, str | None]:
+    """Small models write the sector into the path: "szafa 1 > półka 2 > lewo przód". Peel it off."""
+    if not where:
+        return where, None, None
+    segs = split_path(where)
+    side = depth = None
+    while len(segs) > 1:
+        sd = sector_words(segs[-1])
+        if not sd:
+            break
+        side, depth = side or sd[0], depth or sd[1]
+        segs.pop()
+    return " > ".join(segs), side, depth
+
+
+CLOTHES = ("body", "skarpet", "spodn", "bluz", "koszul", "sweter", "swetr", "kurtk", "czapk", "rękawicz", "rekawicz",
+           "piżam", "pizam", "majt", "bielizn", "legginsy", "sukienk", "kombinezon", "śpiochy", "spiochy", "pajac",
+           "rajstop", "szalik", "bucik", "buty", "kapcie", "t-shirt", "podkoszul")
+
+
+def guess_cat(name: str, expires: str | None) -> str:
+    n = fold(name)
+    if any(n.startswith(fold(w)) or f" {fold(w)}" in f" {n}" for w in CLOTHES):
+        return "ubrania"
+    return FOOD if expires else "inne"
+
+
 def infer_kind(name: str) -> str:
     first = fold(name).split()
     for kind, words in KIND_WORDS:
@@ -193,14 +247,16 @@ def parse_date(text: str | None) -> str | None:
         return None
     raw = str(text).strip()
     s = fold(raw).strip(" .")
+    s = re.sub(r"^(?:wazn\w*|termin|przydatn\w*)\s+", "", s)
+    s = re.sub(r"^(?:do|na|przez)\s+", "", s)  # "do jutra", "do 20.10", "na 5 dni"
     t = today()
     if s in ("brak", "bez", "-", "nie ma", "none"):
         return None
-    if s in ("dzis", "dzisiaj"):
+    if s in ("dzis", "dzisiaj", "dzisiaj wlacznie", "dzisiejszego"):
         return t.isoformat()
-    if s == "jutro":
+    if s in ("jutro", "jutra", "jutrzejszego"):
         return (t + timedelta(days=1)).isoformat()
-    if s == "pojutrze":
+    if s in ("pojutrze", "pojutrza"):
         return (t + timedelta(days=2)).isoformat()
     m = re.fullmatch(r"(?:za\s+)?(\d+|tydzien|miesiac|rok)\s*(dni|dzien|dnia|tydzien|tygodnie|tygodni|tyg|"
                      r"miesiac|miesiace|miesiecy|mies|rok|lata|lat)?", s)
@@ -412,9 +468,8 @@ def resolve_place(con, path: str, places: dict | None = None) -> int:
         if ok:
             cands.append((score, row["id"]))
     if not cands:
-        near = difflib.get_close_matches(fold(segs[-1]), [fold(r["name"]) for r in places.values()], n=3)
-        hint = f" Podobne: {', '.join(near)}." if near else ""
-        raise DomError(f"Nie znam miejsca „{path}”.{hint} Dodaj je: dom map add \"Pokój > Mebel > Półka\".", 5)
+        raise DomError(f"Nie znam miejsca „{path}”. NIC nie zapisano. Zapytaj Filipa, gdzie jest „{segs[-1]}” "
+                       "(w którym pokoju, jaki to mebel), potem dodaj je przez map add i powtórz.", 5)
     cands.sort(reverse=True)
     best = [c for c in cands if c[0] == cands[0][0]]
     if len(best) > 1:
@@ -614,9 +669,38 @@ def pick_batches(rows: list, query: str) -> list:
 
 # ---------------------------------------------------------------- commands
 
+COUNT_SEG = re.compile(r"^(?:z\s+)?(\d+)?\s*(półk\w*|polk\w*|szuflad\w*)(?:\s+(\d+))?$")
+
+
+def peel_count(a) -> str:
+    """"Szafa > 3 półki" / "Komoda > szuflady" as the last segment means --shelves/--drawers, not a place."""
+    segs = split_path(a.path)
+    inline = re.match(r"^(.+?)\s+(?:z|ze|na)\s+(\d+\s*(?:półk|polk|szuflad)\w*)$", segs[-1], re.I)
+    if inline:  # "Szafa z 3 półkami"
+        segs[-1:] = [inline.group(1), inline.group(2)]
+    m = COUNT_SEG.match(segs[-1].strip().lower()) if len(segs) > 1 else None
+    if not m:
+        return a.path
+    kind = fold(m.group(2))
+    if m.group(3) and kind in ("polka", "szuflada"):  # "Półka 3" is one shelf, "półki 3" means three
+        return a.path
+    num = m.group(1) or m.group(3)
+    n = int(num) if num else None
+    if kind.startswith("polk"):
+        a.shelves = a.shelves or n
+        if not a.shelves:
+            raise DomError("Ile półek? Użyj --shelves N.", 2)
+    else:
+        a.drawers = a.drawers or n
+        if not a.drawers:
+            raise DomError("Ile szuflad? Użyj --drawers N.", 2)
+    return " > ".join(segs[:-1])
+
+
 def cmd_map(con, a) -> tuple[str, object]:
     places = place_rows(con)
     if a.map_cmd == "add":
+        a.path = peel_count(a)
         pid, created = add_place_path(con, a.path, a.kind, a.alias or "", a.note or "", a.pos)
         # "szafa z 5 półkami" in one call: small models stop half way through long call sequences
         for word, n in (("Półka", a.shelves), ("Szuflada", a.drawers)):
@@ -696,10 +780,11 @@ def cmd_add(con, a) -> tuple[str, object]:
             raise DomError(f"Kategoria: {', '.join(CATEGORIES)}.", 2)
     expires = parse_date(a.exp)
     if cat is None and find_item(con, a.name) is None:
-        cat = FOOD if expires else "inne"
+        cat = guess_cat(a.name, expires)
     item = get_or_create_item(con, a.name, cat, a.unit, a.alias or "")
-    side = norm_choice(a.side, SIDES, "strony")
-    depth = norm_choice(a.depth, DEPTHS, "głębokości")
+    a.where, w_side, w_depth = split_sector(a.where)
+    side = norm_choice(a.side, SIDES, "strony") or w_side
+    depth = norm_choice(a.depth, DEPTHS, "głębokości") or w_depth
     places = place_rows(con)
     if a.where:
         pid = resolve_place(con, a.where, places)
@@ -816,9 +901,10 @@ def cmd_move(con, a) -> tuple[str, object]:
     if not rows:
         raise DomError(f"Nie mam w spisie niczego pasującego do „{a.query}”.", 3)
     rows = pick_batches(rows, a.query)
+    a.where, w_side, w_depth = split_sector(a.where)
     pid = resolve_place(con, a.where, places) if a.where else None
-    side = norm_choice(a.side, SIDES, "strony")
-    depth = norm_choice(a.depth, DEPTHS, "głębokości")
+    side = norm_choice(a.side, SIDES, "strony") or w_side
+    depth = norm_choice(a.depth, DEPTHS, "głębokości") or w_depth
     if pid is None and side is None and depth is None:
         raise DomError("Podaj --where i/lub --side/--depth.", 2)
     for r in rows:
@@ -928,6 +1014,77 @@ def cmd_history(con, a) -> tuple[str, object]:
     return "\n".join(lines), [dict(r) for r in rows]
 
 
+def verify(con, a, data) -> str | None:
+    """Read back what a write claims to have done. Returns a problem or None."""
+    if a.cmd == "add" and isinstance(data, dict):
+        row = con.execute(STOCK_SQL + " AND s.id=?", (data.get("id"),)).fetchone()
+        if row is None:
+            return "partii nie ma w bazie"
+        if abs(row["qty"] - a.qty) > 1e-9:
+            return f"ilość {row['qty']} zamiast {a.qty}"
+        if a.exp and row["expires"] != parse_date(a.exp):
+            return f"termin {row['expires']} zamiast {parse_date(a.exp)}"
+    if a.cmd == "map" and a.map_cmd == "add" and isinstance(data, dict):
+        want = (a.shelves or 0) + (a.drawers or 0)
+        if want and len(data.get("inside", [])) < want:
+            return f"w środku {len(data.get('inside', []))} zamiast {want}"
+    return None
+
+
+def cmd_batch(con, a) -> tuple[str, object]:
+    """Several operations, one per line; each is run and verified on its own (the loop is code, not the model)."""
+    lines = list(a.lines)
+    if not lines:
+        lines = sys.stdin.read().splitlines() if a.file == "-" else open(a.file, encoding="utf-8").read().splitlines()
+    ops = []
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            argv = shlex.split(line)
+        except ValueError as e:
+            ops.append((line, None, f"zły cudzysłów: {e}"))
+            continue
+        while argv and (argv[0] in ("dom", "python3", "python") or argv[0].endswith("dom.py")):
+            argv = argv[1:]
+        if not argv or argv[0] in ("batch", "--db") or argv[0] not in HANDLERS:
+            ops.append((line, None, "nieznane polecenie"))
+            continue
+        ops.append((line, argv, None))
+    if not ops:
+        raise DomError("Pusta lista. Jedna operacja na linię, np.: add masło --exp 30.10 --where \"lodówka > półka 3\"", 2)
+    out, results, ok = [], [], 0
+    for i, (line, argv, err) in enumerate(ops, 1):
+        text = ""
+        if err is None:
+            try:
+                with contextlib.redirect_stderr(io.StringIO()):
+                    args = parse(argv)
+            except SystemExit:
+                err = "złe argumenty (sprawdź dom <polecenie> --help)"
+        if err is None:
+            try:
+                with con:
+                    text, data = HANDLERS[args.cmd](con, args)
+                err = verify(con, args, data)
+            except DomError as e:
+                err = str(e)
+        if err is None:
+            ok += 1
+            out.append(f"✅ {i}/{len(ops)} {text.splitlines()[0] if text else line}")
+        else:
+            out.append(f"❌ {i}/{len(ops)} {line} → {err}")
+        results.append({"line": line, "ok": err is None, "error": err, "text": text})
+    summary = f"Wykonano {ok} z {len(ops)}."
+    if ok < len(ops):
+        summary += " Nie wszystko się udało: powiedz Filipowi, czego NIE zapisano."
+    out.append(summary)
+    if ok < len(ops):
+        raise DomError("\n".join(out), 6, results)
+    return "\n".join(out), results
+
+
 # ---------------------------------------------------------------- CLI
 
 def build_parser() -> argparse.ArgumentParser:
@@ -939,59 +1096,59 @@ def build_parser() -> argparse.ArgumentParser:
     m = sub.add_parser("map", help="mapa mieszkania")
     ms = m.add_subparsers(dest="map_cmd", required=True)
     x = ms.add_parser("add", help='dodaj miejsce: "Pokój Teosia > Szafa 2 > Półka 3"')
-    x.add_argument("path")
+    x.add_argument("path", nargs="+")
     x.add_argument("--kind", choices=("pokój", "mebel", "półka", "szuflada", "pojemnik", "inne"))
-    x.add_argument("--alias", help="aliasy po przecinku")
-    x.add_argument("--note")
+    x.add_argument("--alias", nargs="+", help="aliasy po przecinku")
+    x.add_argument("--note", nargs="+")
     x.add_argument("--pos", type=int, help="numer półki/szuflady od góry")
     x.add_argument("--shelves", type=int, help="utwórz od razu N półek (Półka 1..N, od góry)")
     x.add_argument("--drawers", type=int, help="utwórz od razu N szuflad (Szuflada 1..N, od góry)")
     x = ms.add_parser("import", help="zaimportuj mapę z konspektu z wcięciami (plik albo - dla stdin)")
     x.add_argument("file")
     x = ms.add_parser("show", help="pokaż mapę (całą albo od miejsca)")
-    x.add_argument("path", nargs="?")
+    x.add_argument("path", nargs="*")
     x = ms.add_parser("rm", help="usuń puste miejsce (z podmiejscami)")
-    x.add_argument("path")
+    x.add_argument("path", nargs="+")
     x = ms.add_parser("rename", help="zmień nazwę miejsca")
     x.add_argument("path")
     x.add_argument("new_name")
 
     x = sub.add_parser("add", help="dodaj rzecz (np. po zakupach)")
-    x.add_argument("name")
+    x.add_argument("name", nargs="+")
     x.add_argument("--qty", type=float, default=1.0)
     x.add_argument("--unit")
-    x.add_argument("--exp", help="termin: 2026-10-20, 20.10, 10.2026, „20 października”, „za 5 dni”")
-    x.add_argument("--where", help='miejsce: "Kuchnia > Lodówka > Półka 2"; bez tego: zwykłe miejsce tej rzeczy')
+    x.add_argument("--exp", nargs="+", help="termin: 2026-10-20, 20.10, 10.2026, „20 października”, „za 5 dni”")
+    x.add_argument("--where", nargs="+", help='miejsce: "Kuchnia > Lodówka > Półka 2"; bez tego: zwykłe miejsce tej rzeczy')
     x.add_argument("--side", help="lewo | środek | prawo")
     x.add_argument("--depth", help="przód | środek | tył")
     x.add_argument("--cat", help="spożywcze | chemia | ubrania | inne")
-    x.add_argument("--alias", help="inne nazwy po przecinku")
-    x.add_argument("--note")
+    x.add_argument("--alias", nargs="+", help="inne nazwy po przecinku")
+    x.add_argument("--note", nargs="+")
 
     x = sub.add_parser("where", help="gdzie jest rzecz")
-    x.add_argument("query")
+    x.add_argument("query", nargs="+")
     x = sub.add_parser("list", help="co jest (w miejscu / w kategorii)")
-    x.add_argument("--where")
+    x.add_argument("--where", nargs="+")
     x.add_argument("--cat")
     for name, hlp in (("use", "zużyłem"), ("throw", "wyrzuciłem")):
         x = sub.add_parser(name, help=hlp)
-        x.add_argument("query")
+        x.add_argument("query", nargs="+")
         x.add_argument("--qty", type=float)
         x.add_argument("--all", action="store_true")
         if name == "throw":
             x.add_argument("--expired-only", action="store_true", help="tylko przeterminowane partie")
     x = sub.add_parser("move", help="przenieś rzecz")
-    x.add_argument("query")
-    x.add_argument("--where")
+    x.add_argument("query", nargs="+")
+    x.add_argument("--where", nargs="+")
     x.add_argument("--side")
     x.add_argument("--depth")
     x.add_argument("--keep-home", action="store_true", help="nie zmieniaj zwykłego miejsca tej rzeczy")
     x = sub.add_parser("set", help="popraw partię (termin, ilość, otwarcie)")
-    x.add_argument("query")
-    x.add_argument("--exp")
+    x.add_argument("query", nargs="+")
+    x.add_argument("--exp", nargs="+")
     x.add_argument("--qty", type=float)
-    x.add_argument("--note")
-    x.add_argument("--alias")
+    x.add_argument("--note", nargs="+")
+    x.add_argument("--alias", nargs="+")
     x.add_argument("--opened", nargs="?", const="", help="data otwarcia (bez wartości: dziś)")
     x.add_argument("--days-after-opening", type=int, help="ile dni ważne po otwarciu")
     x = sub.add_parser("expiring", help="co traci termin")
@@ -1001,6 +1158,9 @@ def build_parser() -> argparse.ArgumentParser:
     x.add_argument("--days", type=int, default=5)
     x = sub.add_parser("remind", help="przypomnienie do crona (puste, gdy nic)")
     x.add_argument("--days", type=int, default=2)
+    x = sub.add_parser("batch", help="kilka operacji naraz, jedna na linię; każda wykonana i sprawdzona osobno")
+    x.add_argument("lines", nargs="*", help='np. \'add masło --exp 30.10 --where "lodówka > półka 3"\'')
+    x.add_argument("--file", default="-", help="plik z liniami (domyślnie stdin, gdy brak linii w argumentach)")
     x = sub.add_parser("history", help="historia zmian")
     x.add_argument("query", nargs="?")
     x.add_argument("--limit", type=int, default=20)
@@ -1011,12 +1171,25 @@ HANDLERS = {
     "map": cmd_map, "add": cmd_add, "where": cmd_where, "list": cmd_list,
     "use": lambda c, a: consume(c, a, "zużyte"), "throw": lambda c, a: consume(c, a, "wyrzucone"),
     "move": cmd_move, "set": cmd_set, "expiring": cmd_expiring, "plan": cmd_plan, "remind": cmd_remind,
-    "history": cmd_history,
+    "history": cmd_history, "batch": cmd_batch,
 }
 
 
-def run(argv: list[str], con: sqlite3.Connection | None = None) -> tuple[int, str]:
+MULTIWORD = ("path", "name", "query", "where", "exp", "note", "alias")
+
+
+def parse(argv: list[str]) -> argparse.Namespace:
+    """Unquoted multi-word names (`add ser żółty`, `--where lodówka > półka 2`) are joined back into one."""
     args = build_parser().parse_args(argv)
+    for k in MULTIWORD:
+        v = getattr(args, k, None)
+        if isinstance(v, list):
+            setattr(args, k, " ".join(v) if v else None)
+    return args
+
+
+def run(argv: list[str], con: sqlite3.Connection | None = None) -> tuple[int, str]:
+    args = parse(argv)
     own = con is None
     con = con or connect(args.db)
     try:
