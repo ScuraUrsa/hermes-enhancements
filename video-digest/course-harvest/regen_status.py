@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 SITE = Path.home() / ".hermes/sitedigest/akademiasaas-pl"
-CAP = 80
+CAP = 300
 
 
 def ago(ts: float) -> str:
@@ -31,7 +31,8 @@ def screen() -> str:
     m = json.loads((SITE / "map.json").read_text(encoding="utf-8"))
     # the map can list a lesson twice under one key: count each lesson once
     by_key = {p["key"]: p for p in m["pages"] if (p.get("digest") or {}).get("status") in ("done", "partial")}
-    pages = list(by_key.values())
+    # lessons without a video of their own keep their v1 report (nothing to regenerate)
+    pages = [p for p in by_key.values() if any(v.startswith("local:") for v in p.get("videos") or [])]
 
     out.append(f"v2 REPORT REBUILD   {now:%Y-%m-%d %H:%M:%S} UTC   (dev VM {os.uname().nodename})")
     out.append("=" * 72)
