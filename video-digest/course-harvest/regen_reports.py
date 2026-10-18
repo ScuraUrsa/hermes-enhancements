@@ -155,9 +155,11 @@ def main() -> int:
             elif not busy and (not a.follow or time.time() - idle_since > a.idle_min * 60):
                 break
             time.sleep(20)
-    left = sum(1 for p in crawl.load_map(cfg, a.site)["pages"]
-               if (p.get("digest") or {}).get("status") in ("done", "partial")
-               and not (crawl.page_dir(cfg, a.site, p["key"]) / "report.v2.done").is_file())
+    # lessons without a video of their own keep their v1 report (the transcript did not change)
+    left = len({p["key"] for p in crawl.load_map(cfg, a.site)["pages"]
+                if (p.get("digest") or {}).get("status") in ("done", "partial")
+                and any(v.startswith("local:") for v in p.get("videos") or [])
+                and not (crawl.page_dir(cfg, a.site, p["key"]) / "report.v2.done").is_file()})
     print(f"finished; digested lessons without a v2 report: {left}", flush=True)
     return 0
 
