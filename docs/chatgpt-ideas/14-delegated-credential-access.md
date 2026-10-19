@@ -8,6 +8,8 @@ Filip wanted a trusted second person to log into services as him (streaming, ban
 
 Source: fjkazmierczak account, *Third party credential access* (2025-08-25).
 
+Also from the other accounts: koalamis6 *Porównanie YubiKey USB* (2026-08-26) and kazmierczakfilipjan *Securing compromised accounts* (2025-08-19) and *Free vs Premium Bitwarden* (2026-06-01). These are planned separately in [31](31-family-passwordless-security.md).
+
 ## Architecture and recommendation
 - **Streaming and most web apps:** Bitwarden (Families/Organization) shared collection with "**hide passwords**" permission. Autofill works, but the password isn't shown. This is not cryptographically strong: a technical user can still extract it from the browser. Where the service offers them, use passkeys or per-profile household accounts instead.
 - **Banks:** do not share credentials at all. It usually breaks the bank's terms and voids liability protection. Use the bank's own proxy/authorised-user feature (pełnomocnictwo) or a joint account.

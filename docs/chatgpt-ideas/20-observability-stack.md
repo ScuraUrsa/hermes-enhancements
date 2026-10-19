@@ -16,6 +16,8 @@ Filip asked about the difference between monitoring and observability. Monitorin
 
 Source: fjkazmierczak account, *Monitoring vs Observability* (2026-08-08).
 
+Also from the **kazmierczakfilipjan** account: *Zabbix vs Grafana* (2026-03-20): Zabbix vs Prometheus, modern observability stacks, and a homelab stack that can grow into a start-up/enterprise one without migration.
+
 ## Architecture
 A lightweight stack sized for an 8 GB VM:
 ```
@@ -42,6 +44,9 @@ Retention (metrics 30 d, logs 14 d), scrape targets, the alert routing table, Gr
 
 ## Cost / hardware
 Free software. About 600 MB–1 GB RAM and 2–5 GB disk. Check the free disk space on prod first.
+
+## Additions from the kazmierczakfilipjan account
+- **"Enterprise stack in small mode".** The plan already uses tools that scale out (VictoriaMetrics → cluster version, Loki → simple-scalable mode, Grafana, OpenTelemetry Collector as the single ingestion point). Instrument through OTel from the start so back ends can change without touching agents. Zabbix is not needed alongside it.
 
 ## Open questions
 - Host it on prod (watching itself) or on dev (watching prod)? A dev box watching prod survives prod outages.

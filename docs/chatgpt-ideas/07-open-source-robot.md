@@ -10,6 +10,10 @@ Source: fjkazmierczak account.
 - *Open-source humanoid robots* (2025-08-13)
 - *Humanoid robot options* (2025-08-18)
 
+Also from the other accounts:
+- kazmierczakfilipjan: *Zapytania do wyszukiwania modeli* (2025-09-18, a printable mobile base for the PAROL6 arm), *Zwiększenie payloadu Parol6* (2025-10-26, which parts to change for more than 1 kg payload)
+- koalamis6: *Robotyka miniatury VR* (2026-07-21, a small rover/forklift robot (CyberBricks scale) driving through a 3D-printed diorama, seen in VR from its own camera); *Technic Duplo Comparison* (2026-08-20, printable Duplo-size Technic parts for a child)
+
 ## Architecture
 Start with the cheapest platform that teaches the whole learning loop: **Hugging Face LeRobot with an SO-101 leader/follower arm pair**. It is fully open, 3D-printable and costs a few hundred euros. Its pipeline:
 ```
@@ -38,6 +42,11 @@ LeRobot config per robot (ports, calibration files), the dataset repo (private o
 - LeKiwi base: roughly €200–400.
 - Training: the local GTX 1650 Ti (4 GB) is marginal. Rent a GPU (a few € per training run) or use an RTX-class card.
 - Humanoids (Unitree G1 class) cost about €15k or more, and are not justified until step 3 works.
+
+## Additions from the kazmierczakfilipjan and koalamis6 accounts
+- **PAROL6 as the "real arm" step after SO-101.** PAROL6 is fully open (hardware and software) but has about 1 kg payload. More payload means larger stepper motors and gearboxes on joints 1–3, a stiffer base and a bigger power supply. In practice that is a redesign, so buy for the payload you need. A wheeled base would need to be self-designed: printables only offer small rover chassis.
+- **Mini telepresence rover (cheap first project).** An ESP32-CAM or Raspberry Pi Zero 2 W rover at CyberBricks scale with a micro-servo lift. Stream the camera to a phone VR headset (WebRTC, stereo optional) and drive it over the tailnet. This teaches the same camera → teleop → policy loop as LeRobot, for about €50–100.
+- **Duplo-size Technic for a child.** Print from existing open libraries (PrintableBricks and similar), with PLA+ for bricks and PETG for axles and gears. No custom design is needed.
 
 ## Open questions
 - Is the goal learning and fun, or a real household helper? Household manipulation is still research-grade in 2026.

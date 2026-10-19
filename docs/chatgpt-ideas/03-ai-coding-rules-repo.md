@@ -22,6 +22,10 @@ Source: fjkazmierczak account.
 - *Idea helperów w programowaniu* (2025-08-06, a taxonomy of code categories)
 - *Tworzenie zasad kodowania AI* (2026-08-05)
 
+Also from the other accounts. The idea grew into a "knowledge compiler":
+- kazmierczakfilipjan: *Formalizacja wiedzy logicznej* (2025-10-29, book knowledge as formal logic that an AI can check), *LLM Knowledge Attribution* (2026-04-13, forcing verifiable sources), *Repozytorium standardów inżynierskich* and *Engineering Standards Repository* (2026-07-16, a standards repo plus a "repository factory" for Terraform/Ansible/Python/Bash/Azure DevOps/Packer)
+- koalamis6: *Research landscape map*, *Map knowledge compilation landscape*, *Research Policy Patterns*, *Research academic fields*, *Research Context Engineering* (all 2026-10-13, deep-research prompts on policy-as-code, knowledge graphs, ontology engineering and context compilation for coding agents)
+
 ## Architecture
 ```
 sources/ (private, NOT in git: PDFs, videos)
@@ -59,6 +63,12 @@ Run as a batch job on the Hermes dev VM (Kanban task per book). Book and video f
 - marker on CPU is slow (minutes per book) but free.
 - Extraction tokens: roughly 0.5–1.5M tokens per 400-page book. Use Ollama Cloud or Claude Code within the existing quotas.
 - If you use local models for dedupe embeddings, run them through llama.cpp (`llama-server --embedding`), not local Ollama.
+
+## Additions from the kazmierczakfilipjan and koalamis6 accounts
+- **Standards first, then a repository factory.** Example rules Filip gave: pinned versions only (never `latest`); a script must not depend on knowing its caller; functions take everything they need as inputs. The rule repo should come with a **repo template** (cookiecutter or `copier`) that generates new repos with pre-commit, CI bootstrap and the relevant rule packs already wired. Backstage-style software templates are the reference, without running Backstage.
+- **Compile, don't retrieve.** The 2026-10 research framing is: sources → knowledge graph → canonical rules → per-task "briefing packs" that an agent gets *before* it starts, instead of RAG at run time. That fits this doc's pipeline. Add one step: a `pack` command that selects the rules for a task (by globs and tags) into a small, versioned bundle and records the bundle hash in the PR. That gives the audit trail.
+- **Formal layer only where it pays.** Keep most rules as markdown with examples. Encode in Rego only the rules that are mechanically checkable (pinned versions, required tags, banned modules). Full first-order logic of book content is out of scope.
+- **Deep-research output.** The five 2026-10-13 deep-research reports should be saved (as summaries) into `docs/research/` of the rules repo as the "related work" section.
 
 ## Open questions
 - Copyright: keep quotes very short and the repo private. Is that acceptable for every source?

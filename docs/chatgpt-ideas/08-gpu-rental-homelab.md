@@ -8,6 +8,8 @@ Filip asked whether it pays to buy hardware just to rent it out online, given po
 
 Source: fjkazmierczak account, *Hardware rental profitability* (2025-08-14).
 
+Also from the **kazmierczakfilipjan** account: *Użycie Azure do GPU* (2025-08-05, reselling cloud VMs or remote desktops: mostly against Microsoft licence terms), *Earning from Distributed Compute* (2026-04-08, existing job meshes for home PCs).
+
 ## Architecture
 ```
 Linux host (bare metal, not WSL/VirtualBox) + GPU → provider agent (Vast.ai host daemon / Salad node / TensorDock host)
@@ -28,6 +30,9 @@ Power price (PLN/kWh, including distribution charges), min price per hour, the h
 
 ## Cost / hardware
 An RTX 4090 box costs roughly 10–14k PLN. It draws about 450 W under load, and at ~1.1 PLN/kWh that is about 12 PLN/day of power at 100% use. Marketplace prices fell through 2025–26, so payback is often more than 2 years. Treat this as low priority.
+
+## Additions from the kazmierczakfilipjan account
+- **Do not resell cloud capacity.** Putting Azure VMs into Salad/Vast-style networks, or reselling Windows desktops hosted on Azure, breaks licence terms unless it goes through a CSP/SPLA agreement. Only owned hardware is in scope for this idea.
 
 ## Open questions
 - Is the real goal income, or subsidising a GPU that Filip also wants for local LLMs (llama.cpp) and robotics ([07](07-open-source-robot.md))? If it's the latter, the dual use changes the math.

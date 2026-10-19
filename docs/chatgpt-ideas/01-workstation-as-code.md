@@ -14,6 +14,11 @@ Source: fjkazmierczak account.
 - *Prepare WSL for Azure VM* (2025-08-19)
 - *Redirect Installations to /mnt* (2025-03-19, a disk-full root partition on a cloud VM)
 
+Also from the **kazmierczakfilipjan** account:
+- *Move WSL to Azure VM* (2026-02-04): lift-and-shift the whole WSL distro (tools, dotfiles, Docker without Docker Desktop) to an Azure VM
+- *GitHub Codespaces vs Packer* (2026-04-14): when a Packer dev image beats Codespaces
+- *Hyper-V vs VirtualBox* (2026-05-28): move local VMs to Hyper-V, with a Terraform-like definition, Ansible post-provisioning and Packer images
+
 ## Architecture
 Don't convert a live WSL rootfs into a bootable disk. **Rebuild the environment from declarative code** instead:
 
@@ -55,6 +60,11 @@ Remote desktop (optional, phase 3): an Ubuntu VM with xrdp or KasmVNC, reached o
 - Local WSL and an OVA cost nothing.
 - An Azure B2ms Linux desktop with auto-shutdown runs roughly €15–40/month, depending on hours.
 - A GPU Windows VM for games is NV-series, roughly €0.5–1+/h, so local hardware is far cheaper.
+
+## Additions from the kazmierczakfilipjan account
+- **Export path for the existing WSL.** Until the Ansible "toolset" role is complete, `wsl --export` → `.tar` → import as an Azure managed disk is the one-off escape hatch. The goal is still "rebuild from code", not "copy the disk".
+- **Local hypervisor target.** Add Hyper-V as a second Packer builder (`hyperv-iso`) next to Azure, so the same workstation image boots locally and in the cloud. Terraform has only community Hyper-V providers, so manage local VMs with Ansible (`community.windows`) or a thin PowerShell wrapper.
+- **Codespaces.** Use it only for short, throw-away sessions on public repos. The Packer image stays the main dev environment because it is the same artifact Hermes and CI use.
 
 ## Open questions
 - Is the goal reproducibility (rebuild the laptop fast) or an always-on remote desktop? The answer decides whether phase 3 is worth doing.

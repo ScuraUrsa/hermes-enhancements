@@ -10,6 +10,11 @@ Source: fjkazmierczak account.
 - *Proxmox vs OpenStack* (2025-08-08)
 - *Prywatne użycie Twingate* (2025-03-03, the last question)
 
+Also from the **kazmierczakfilipjan** account:
+- *Homelab Power Management* (2026-07-07): old PCs/laptops as nodes, Proxmox on a management node, automatic power on/off without touching keyboards, Tailscale, Ansible; DIY storage vs Synology
+- *Dyski do cloud storage* (2026-07-30): which disks for home "cloud storage" (Nextcloud, Immich) and why buy a NAS at all
+- *Hyper-V vs VirtualBox* (2026-05-28), *Zwiększenie rozmiaru VDI*, *GRUB i problemy z bootem* (2026-06), *RHEL 10 ESXi Support* (2026-07-07): pain with VirtualBox VMs
+
 ## Architecture
 For one person's homelab, **Proxmox VE** fits; OpenStack is meant for multi-tenant clouds and needs a team to run it. Target:
 ```
@@ -42,6 +47,11 @@ Terraform vars per VM, Proxmox API token in Bitwarden, ZFS pool layout, VLANs (I
 - A used mini PC (i5/i7, 32–64 GB) costs roughly 1,500–3,000 PLN.
 - Power: about 15–30 W idle, roughly 15–30 PLN/month.
 - Proxmox is free (no-subscription repo).
+
+## Additions from the kazmierczakfilipjan account
+- **Power control.** One always-on management node (low-power mini PC or the Hermes VM host) runs Proxmox or just the control tools. Other nodes sleep. Wake them with Wake-on-LAN (BIOS + NIC setting). Fall back to smart plugs with "power on after AC loss" in BIOS for machines without WoL. Shut them down with Ansible/SSH when idle (e.g. no running VMs for 30 min). Expose all of it as HA buttons and a Hermes skill. Laptops: keep the lid-close action as "nothing" and cap the battery charge if the BIOS allows.
+- **Storage.** DIY beats a Synology on cost: a mini PC or old PC + 2× CMR HDDs (WD Red Plus / Seagate IronWolf) in a ZFS mirror, or TrueNAS/OMV as a VM with the disks passed through. Nextcloud/Immich run on top. Back up off-site (restic to cloud object storage), because a mirror is not a backup.
+- **VirtualBox pain is the trigger.** Repeated disk-resize and boot problems are a reason to move workloads off VirtualBox on Windows to the Proxmox node rather than to Hyper-V.
 
 ## Open questions
 - Is a dedicated always-on box acceptable at home (noise, power)?

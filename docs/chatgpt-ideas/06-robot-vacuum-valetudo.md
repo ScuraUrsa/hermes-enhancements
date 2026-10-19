@@ -12,6 +12,8 @@ Filip wants strong vacuuming and mopping with a self-emptying, self-washing dock
 
 Source: fjkazmierczak account, *Dobór robota sprzątającego* (2026-09-16).
 
+Also from the **kazmierczakfilipjan** account: *Roborock Models Comparison* (2024-01-17, what the "+", "MaxV", "Pro" and "Ultra" suffixes mean). This shows the vacuum question has been open since early 2024.
+
 ## Architecture
 ```
 Dreame (Valetudo-supported model, rooted)  ──MQTT──►  Mosquitto (VM)  ──► Home Assistant (VM)

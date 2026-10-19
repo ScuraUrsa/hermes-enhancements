@@ -17,6 +17,11 @@ Source: fjkazmierczak account.
 - *Dowód zastępowania inteligencji* (2026-09-30)
 - the follow-up in *Ollama Clef classifier overview* (2026-10-07)
 
+Also from the **kazmierczakfilipjan** account:
+- *Algorytm vs AI* (2026-02-05): when an algorithm is cheaper or faster than AI; AI should be for one-off cases or for writing algorithms that are then reused; code "rendered" from archetype repos instead of generated
+- *AI Agents for Automation* (2026-04-14): the agent does a UI task once, translates it into an AutoIt script, and is called again only when the script breaks
+- *LLM Cost Optimization* (2026-04-14): a task-router score (prompt length, context, expected output, past failure rate) that picks a cheap model, a strong model or an API
+
 ## Architecture
 Write code for a task when the expected LLM cost over the horizon exceeds the cost of building and maintaining code plus the cost of the code's errors:
 ```
@@ -47,6 +52,11 @@ Horizon T (default 90 days), prices from `budget.json` `prices_per_mtok`, minimu
 
 ## Cost / hardware
 Negligible. The report itself uses no LLM.
+
+## Additions from the kazmierczakfilipjan account
+- **Archetype rendering.** For frequent code shapes (a new Ansible role, a Terraform module, a pipeline stage), keep templates (`copier`) and let the agent fill in parameters instead of generating whole files. This is the cheapest form of "distillation" and links to the repository factory in [03](03-ai-coding-rules-repo.md).
+- **Record → script → AI only on failure.** The same pattern for UI work is planned in [23](23-computer-use-automation.md).
+- **Router score.** The `cheap-route` router can take the same features (prompt length, context size, expected output, past failure rate per task type) as inputs. Log them from day one so the thresholds can be fitted later.
 
 ## Open questions
 Which logs are the best source of tool-call sequences: `state.db` sessions, or Honcho telemetry?

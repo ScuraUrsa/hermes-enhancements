@@ -8,6 +8,12 @@ Filip's idea: one app replaces all apps, and every feature is an optional module
 
 Source: fjkazmierczak account, *OS app model comparison* (2025-08-25).
 
+Also from the **kazmierczakfilipjan** account:
+- *Nazwa dla IDP* (2025-08-17, a "Life Engineering Platform": an internal developer platform for the whole of life: time, health, diet, relationships, spirituality)
+- *Custom desktop setup options* (2025-11-28, every directory as its own "desktop" with background and icon size; no special main desktop)
+- *Build Notion Tutorial Help* (2026-01-13, building your own Notion)
+- *AI System Name Ideas* (2026-03-06) and *Postacie samowystarczalne* (2026-03-09): naming for a self-sufficient "build your own fortress" open-source AI system (Robinson Crusoe, Wokulski, Bill from The Last of Us)
+
 ## Architecture
 A custom OS would not be faster or more stable in practice. The cost is drivers, security and app compatibility. The workable version is a **super app on Linux**:
 ```
@@ -27,6 +33,10 @@ None until the prototype exists.
 
 ## Configuration / Cost
 Learning project only. Hardware: none.
+
+## Additions from the kazmierczakfilipjan account
+- **Life Engineering Platform = Hermes + its data planes.** Most planned modules already have a home: calendar/time (timeplane, calendar recon), tasks (Kanban, user inbox), health and diet (HA, notes), decision log. The super app is a **single UI shell over Hermes data**, not a new backend. A Notion-like block editor is the hardest part. Reuse an open one (AFFiNE, AppFlowy, or Outline) as a module, don't build one.
+- **Directory-as-desktop.** On Linux this is a file-manager/shell extension (per-directory `.directory` metadata or a GNOME extension). It is a small, separate experiment and a good first module for the shell.
 
 ## Open questions
 What specific pain does it solve that Hermes plus existing apps don't? Without an answer, keep it parked.

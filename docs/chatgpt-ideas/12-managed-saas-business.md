@@ -15,6 +15,13 @@ Source: fjkazmierczak account.
 - *SaaS with Azure accounts* (2025-08-22)
 - *Porównanie architektur runnerów* (2025-09-16, the SaaS question)
 
+Also from the **kazmierczakfilipjan** account:
+- *Qubes OS Deployment Options* (2025-07-01, "Qubes OS as a service" on Proxmox/OpenStack vs containers)
+- *Compute resource estimation methods* (2025-08-23, right-sizing a web app and Desktop-as-a-Service)
+- *Naming Open Source Platform*, *Currency Naming Suggestions*, *Darmowe opcje deploymentu* (2026-02-11, a brand for an open-source AI + cloud platform with an internal credit currency; whether a SaaS on CrewAI/LangGraph may be sold)
+- *Shared Subscription Legal Issues* (2026-02-17, a credential-pool service for streaming: rejected as illegal)
+- *Amazon Oracle Custom OS* (2026-04-23, thin clients replacing PCs: build your own thin-client OS?)
+
 ## Architecture
 ```
 Customer tenant (customer owns subscription; Filip has delegated access via Azure Lighthouse)
@@ -41,6 +48,13 @@ Per-customer tfvars, Lighthouse offer definition, monitoring alerts.
 ## Cost / hardware
 - Demo: roughly €50–150/month while running.
 - Business overhead: accounting, insurance, MPN registration.
+
+## Additions from the kazmierczakfilipjan account
+- **Thin-client DaaS.** Don't build an OS. Use a stock thin-client distro (e.g. IGEL-like Linux, or a locked-down Debian kiosk with the RDP/Moonlight client), and spend the effort on the VDI back end and sizing.
+- **Sizing method.** Load-test one reference desktop/web profile (k6 for web, a scripted desktop workload for DaaS), find the knee point, then size at ~70 % of it. Re-measure on every major image change.
+- **Platform credits.** One internal unit ("credits") priced against cost of tokens + compute is simpler than a branded currency. Branding (the FAVICUP idea) can come later.
+- **Licensing.** CrewAI and LangChain/LangGraph core are MIT and fine for a commercial SaaS. LangSmith self-hosting is a paid enterprise product. Credential-pooling for streaming services is out: it breaks the services' terms and probably the law.
+- **Qubes-as-a-service.** Not practical (Qubes needs bare metal and its own Xen). The sellable version is per-app isolated workspaces (containers or microVMs, see [27](27-agent-sandboxes.md)).
 
 ## Open questions
 - Does this conflict with Filip's employment contract?

@@ -8,6 +8,10 @@ An agent takes a list of tools or skills, researches each one on the internet, p
 
 Source: fjkazmierczak account, *AI Self-Learning Framework* (2025-03-18).
 
+Also from the **koalamis6** account:
+- *Architektura dla Copilot i Hermes* (2026-08-06): Hermes or Copilot running 24/7, deciding from past tasks which new cloud/K8s/Terraform/Ansible tech to learn and building a POC; split into Research, Execution and Supervisor agents; sources ranked by trust (official docs, arXiv, CNCF, benchmarks)
+- *Skill czy CrewAI Workflow* (2026-10-09): when to use a skill vs a CrewAI workflow, and how to test that a coding agent really knows a framework
+
 ## Architecture
 ```
 learning_queue (SQLite: tool, status, depth, discovered_from, budget_used, skill_path)
@@ -38,6 +42,12 @@ Run on the dev VM `hermes-dev` (where Kanban runs). Sandboxes are Docker contain
 
 ## Cost / hardware
 It only spends tokens inside the existing $4/day self budget. Sandboxes need 1–2 GB RAM each; prod has 8 GB, so run them one at a time.
+
+## Additions from the koalamis6 account
+- **Three roles map onto Hermes profiles.** Research = `researcher` profile (writes a knowledge pack, no code), Execution = `coder` (POC in a worktree), Supervisor = the Kanban planner plus quota governor (budget, priority, review). No CrewAI layer is needed. Hermes Kanban already does the delegation.
+- **Topic picker from history.** Seed the learning queue from what past Kanban tasks touched (tags such as terraform, k8s, ansible), plus a weekly scan of trusted feeds (official release notes, CNCF landscape changes, arXiv cs.SE/cs.DC listing). Rank by "used in past tasks × new release".
+- **Skill vs workflow rule.** A skill is reusable know-how for one agent. A multi-step, multi-role process belongs to Kanban (task chain), not to a framework like CrewAI.
+- **Framework-knowledge test.** Before trusting an agent with a new framework, give it a small task in a scratch repo that needs the current docs, and accept only if the tests pass. Store that as the skill's eval.
 
 ## Open questions
 - What is the seed list? (The DevOps tools from the 2026-08 series, or something else?)

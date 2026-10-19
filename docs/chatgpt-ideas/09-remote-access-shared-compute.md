@@ -12,6 +12,10 @@ Filip asked several related questions:
 
 Source: fjkazmierczak account, *Prywatne użycie Twingate* (2025-03-03).
 
+Also from the other accounts:
+- koalamis6: *SSH i transfer video* (2026-08-03, Linux laptop → Windows PC over SSH with full desktop control; enabling OpenSSH on Windows 11; RDP logs out the local user)
+- kazmierczakfilipjan: *Raspberry Pi laptop DIY* (2026-01-06, a 13" touch Raspberry Pi 5 laptop, 3D-printed case, as a thin client to Proxmox VMs)
+
 ## Architecture
 Use the **Tailscale** network that already exists instead of Twingate, which would duplicate it. Layer a remote-desktop tool on top:
 ```
@@ -35,6 +39,10 @@ Tailscale ACLs (who can reach which PC on port 47984–48010 for Sunshine, 21115
 
 ## Cost / hardware
 Free software. The client can be an old laptop or a ~€150 mini PC with hardware HEVC decode.
+
+## Additions from the koalamis6 and kazmierczakfilipjan accounts
+- **Linux → Windows.** Use RDP tunnelled over SSH (`ssh -L 3389:localhost:3389`) or directly over the tailnet with Remmina/FreeRDP. Windows RDP logs out the local user, even with the same account. If someone sits at the PC, use RustDesk or Sunshine instead, which share the live session.
+- **Pi 5 thin-client laptop.** Feasible, but a 13" touch panel, battery (UPS HAT) and printed case cost about as much as a used business ultrabook. Build it as a maker project, not to save money. Client software: Moonlight/RustDesk, or the Proxmox SPICE console.
 
 ## Open questions
 - Who are the users (family, friends for LAN games, Filip only)?

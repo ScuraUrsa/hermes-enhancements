@@ -8,6 +8,8 @@ Cloudflare's Clef (27B) and Clef Flash (9B) were announced as Ollama models. The
 
 Source: fjkazmierczak account, *Ollama Clef classifier overview* (2026-10-07).
 
+Also from the **kazmierczakfilipjan** account: *Model lokalny do browser-use* (2026-06-23, the smallest local model that is enough for repeated clicks on known pages and desktop apps). That use case is planned in [23](23-computer-use-automation.md).
+
 ## Architecture
 Filip's rule is local models via **llama.cpp only, never local Ollama**:
 ```

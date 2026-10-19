@@ -32,6 +32,13 @@ Source: fjkazmierczak account.
 - *Checksum filename explanation* (2025-09-22)
 - *Ansible read HCL config* (2025-10-01)
 
+Also from the **kazmierczakfilipjan** account (work CI threads, 2025-11 to 2026-07):
+- *Scaling Azure DevOps Agents* (2026-03-16), *Skalowanie agentów na VM* (2026-02-20): several agent instances on one VM
+- *Packer Reusable Templates* (2026-04-01): shared upload/provision blocks across builds
+- *Storing Private Images on GHCR* (2026-04-09)
+- *Ansible playbook compilation* and *Install Ansible offline* (2025-11-05): ship Ansible as a self-contained bundle to air-gapped VMs
+- *CI/CD Tools Comparison* (2026-07-07): Azure DevOps / GitHub Actions vs Jenkins, and when to move to Forgejo Actions
+
 ## Architecture
 ```
 tools.yaml (name, type: apt|binary|github_release|pipx|toolcache, versions[], checksum_url)
@@ -58,6 +65,12 @@ Change WOBI `iac/final` through a PR. Apply on the dev VM first (`pull.sh --role
 
 ## Cost / hardware
 Free on the existing VM. Watch disk use: each Ruby or Python version is about 100–300 MB, and the VM disk was at 51% after the 2026-10-06 cleanup.
+
+## Additions from the kazmierczakfilipjan account
+- **N agents per VM.** The runner role should take `runner_count` and create `agent-1..N` services with separate work dirs, so one large VM can run several jobs in parallel. This is cheaper than N small VMs for short jobs.
+- **Reusable Packer parts.** Packer has no include mechanism. Use one `sources.pkr.hcl` plus shared `provisioner` script dirs, selected with `-only=` and variables, rather than copying templates.
+- **Offline Ansible bundle.** Build a venv tarball (or a container image on GHCR) with ansible-core and the needed collections, so air-gapped hosts need only SSH and Python.
+- **Forge choice.** Stay on GitHub plus self-hosted runners. Move to Forgejo Actions only if private-repo minutes or data-residency rules start to cost more than running a forge (backups, upgrades, SSO) yourself.
 
 ## Open questions
 - Are any Hermes repos really going to need multi-version Ruby? If not, keep this only as a pattern.
