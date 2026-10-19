@@ -167,3 +167,70 @@ def test_map_add_with_shelves_in_one_call(run):
     assert code == 0 and "W środku (5)" in out
     code, out = run("map", "add", "Pokój Teosia > Komoda nowa", "--drawers", "4")
     assert "W środku (4)" in out and "4. szuflada od góry, 1. od dołu" in out
+
+
+def test_batch_runs_and_verifies_each_line(run):
+    code, out = run("batch",
+                    'add masło --exp 30.10 --where "lodówka > półka 3"',
+                    'add "ser żółty" --exp 25.10 --where "lodówka > półka 3"',
+                    'dom add kefir --qty 2 --exp 19.10 --where "lodówka > półka 3"')
+    assert code == 0, out
+    assert out.count("✅") == 3 and "Wykonano 3 z 3." in out
+    code, out = run("--json", "where", "kefir")
+    assert json.loads(out)["data"][0]["qty"] == 2
+
+
+def test_batch_reports_partial_failure(run):
+    code, out = run("batch", 'add mąka --where "lodówka > półka 1"', 'add cukier --where "spiżarka"',
+                    'map add "Sypialnia > Szafa" --shelves 2')
+    assert code == 6
+    assert "❌ 2/3" in out and "Wykonano 2 z 3." in out and "NIE zapisano" in out
+    assert run("where", "mąka")[0] == 0 and run("where", "cukier")[0] == 3
+
+
+def test_unquoted_multiword_names_and_paths(run):
+    code, out = run("add", "ser", "żółty", "--exp", "20", "października", "--where", "lodówka", ">", "półka", "2")
+    assert code == 0, out
+    code, out = run("--json", "where", "ser", "żółty")
+    d = json.loads(out)["data"][0]
+    assert d["expires"] == "2026-10-20" and d["place"].startswith("Kuchnia → Lodówka → Półka 2")
+    code, out = run("batch", "add jogurt grecki --where lodówka > półka 1", "map add Sypialnia > Szafa --shelves 3")
+    assert code == 0 and "Wykonano 2 z 2." in out, out
+
+
+def test_sector_written_into_where_is_peeled_off(run):
+    code, out = run("add", "body Teosia", "--where", "pokój Teosia > szafa 1 > półka 2 > z lewej z przodu")
+    assert code == 0, out
+    code, out = run("where", "body Teosia")
+    assert "Półka 2" in out and "po lewej, z przodu" in out
+    code, out = run("move", "body Teosia", "--where", "komoda > szuflada 1 > prawo")
+    assert code == 0 and "Szuflada 1" in out and "po prawej" in out
+
+
+def test_shelf_count_written_as_last_segment(run):
+    code, out = run("map", "add", "Sypialnia > Regał > 4 półki")
+    assert code == 0 and "W środku (4)" in out and "półki" not in out.split("Ścieżka:")[1].split(".")[0].lower()
+    code, out = run("map", "add", "Sypialnia > Komoda > z 3 szufladami")
+    assert code == 0 and "W środku (3)" in out
+    code, out = run("map", "add", "Gabinet > Regał biały z 5 półkami")
+    assert code == 0 and "Regał biały" in out and "W środku (5)" in out
+
+
+def test_clothes_get_their_category(run):
+    run("add", "body Teosia z długim rękawem", "--where", "pokój Teosia > szafa 1 > półka 2")
+    run("add", "skarpetki", "--where", "komoda > szuflada 1")
+    code, out = run("list", "--cat", "ubrania")
+    assert "body Teosia" in out and "skarpetki" in out
+
+
+def test_round5_dates_unknown_place_and_shelf_count(run):
+    assert dom.parse_date("jutra") == "2026-10-16"
+    assert dom.parse_date("do jutra") == "2026-10-16"
+    assert dom.parse_date("ważny do 20.10") == "2026-10-20"
+    assert dom.parse_date("pojutrze") == "2026-10-17"
+    code, out = run("add", "ryż", "--where", "spiżarnia")
+    assert code == 5 and "Zapytaj Filipa" in out and "Podobne" not in out
+    code, out = run("map", "add", "Kuchnia > Lodówka nowa > półki 3")
+    assert code == 0 and "W środku (3)" in out
+    code, out = run("map", "add", "Kuchnia > Lodówka nowa > Półka 4")  # a single shelf stays a place
+    assert code == 0 and "Półka 4" in out

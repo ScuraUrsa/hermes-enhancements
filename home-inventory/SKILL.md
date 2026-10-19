@@ -1,8 +1,8 @@
 ---
 name: home-inventory
 description: "Spis rzeczy w domu i mapa mieszkania: co mamy (spożywka, chemia, ubrania), gdzie leży (pokój, szafa, półka, sektor), do kiedy ważne. Użyj ~/.hermes/scripts/dom.py zamiast pamięci."
-version: 0.1.0
-author: Claude Code (for Filip), 2026-10-15
+version: 0.3.2
+author: Claude Code (for Filip), 2026-10-16
 license: MIT
 platforms: [linux]
 metadata:
@@ -11,103 +11,58 @@ metadata:
     related_skills: [hermes-timeplane, weather]
 ---
 
-# home-inventory — spiżarnia i mapa mieszkania (Filip, 2026-10-15)
+# home-inventory: spiżarnia i mapa mieszkania
 
-The single source of truth for what is at home, where it lies and until when it is good. State is a SQLite file
-in `~/.hermes/autonomy/home-inventory/dom.db` (nightly backup). Never answer "where is X" or "what expires" from
-memory or Honcho: run the script. Talk to Filip in Polish, short; in voice replies one or two sentences, no tables,
-no `#id`s.
+What is at home, where it lies, until when it is good. Use the terminal tool; every command starts with
+`python3 ~/.hermes/scripts/dom.py` exactly as below (a bare `dom` does not exist). Reply in Polish, short; voice: 1–2 sentences, no `#id`s.
 
-Run: `python3 ~/.hermes/scripts/dom.py <command> ...` (below: `dom`). Add `--json` when you need to compute.
-`dom <command> --help` shows the exact arguments.
+## Procedure (every request)
 
-## Hard rules
+1. **Split** Filip's message into single items (one product, one piece of furniture, one move).
+2. **Write one line per item.** One item → run it. Two or more → run them together in ONE call:
+   `python3 ~/.hermes/scripts/dom.py batch 'add masło --exp 30.10 --where "lodówka > półka 3"' 'add kefir --qty 2 --exp 19.10'`
+   It runs every line and checks it in the database. Multi-word names and paths always in "double quotes".
+3. **Read the output.** Say only what has ✅ / exit=0. For each ❌ say it was NOT saved and why.
+   Never say „dodałem / zapisałem” without that output. Never print a command instead of running it.
+   After every command, always answer Filip in words (never an empty reply).
+   Exit 5 (unknown place): ask Filip where that place is; do not paste commands to him.
+4. Questions („gdzie”, „co jest”, „co się kończy”, meals) are answered only from its output.
 
-1. **Act, then confirm.** Every change (bought, used, moved, new furniture, rename) is a `dom` call run through the
-   terminal tool. Never write „dodałem / zapisałem / zaktualizowałem” before you have seen `exit=0` from that call,
-   and never print a command as text instead of running it.
-2. **One call per product.** Three products = three `dom add` calls. Furniture with N shelves/drawers = one
-   `dom map add ... --shelves N` / `--drawers N`. Report only what the output says was created.
-3. **Answers come from `dom` output**, never from memory: run `dom where` / `dom list` / `dom plan` first.
+## Commands
 
-## When to use
-
-| Filip says | Do |
+| Filip says | Command |
 |---|---|
-| „gdzie mam body Teosia z długim rękawem?”, „gdzie jest płyn do naczyń?” | `dom where "body Teosia z długim rękawem"` |
-| „co jest w lodówce?”, „co leży na drugiej półce w szafie Teosia?” | `dom list --where "lodówka"` / `dom list --where "pokój Teosia > szafa > półka 2"` |
-| „przywiozłem mleko 2 litry, ważne do 20.10, i jogurt do jutra” | one `dom add` per product (see Adding), then tick them off the shopping list (below) |
-| „włożyłem ser do lodówki na górną półkę z lewej” | `dom add "ser żółty" --where "lodówka > półka 1" --side lewo` |
-| „zużyłem / zjedliśmy / skończyło się mleko” | `dom use "mleko"` (`--qty N`, or `--all` when it is gone) |
-| „wyrzuciłem przeterminowany jogurt” | `dom throw "jogurt" --expired-only --all` |
-| „przełożyłem body do komody, druga szuflada” | `dom move "body" --where "pokój Teosia > komoda > szuflada 2"` |
-| „otworzyłem śmietanę, po otwarciu 3 dni” | `dom set "śmietana" --opened --days-after-opening 3` |
-| „co się kończy?”, „co się przeterminuje w tym tygodniu?” | `dom expiring --days 7` |
-| meal planning (the timeplane meal procedure, „co na obiad?”, „zaplanujmy posiłki”) | `dom plan --days 5` first (keep 5 days even for „jutro”), then propose meals that use the listed food, saying where each item is |
-| describing the flat: „w kuchni mam lodówkę z 3 półkami…” | `dom map add "Kuchnia > Lodówka > Półka 1"` (one per shelf) or write an outline and `dom map import` |
-| „pokaż mapę mieszkania”, „co jest w szafie Teosia” | `dom map show ["pokój Teosia > szafa 1"]` |
-| „w sypialni jest szafa z 5 półkami”, „komoda z 4 szufladami”, „lodówka z 3 półkami i szufladą na warzywa” | ONE call: `dom map add "Sypialnia > Szafa" --shelves 5` / `dom map add "Pokój Teosia > Komoda" --drawers 4` / `dom map add "Kuchnia > Lodówka" --shelves 3`, then `dom map add "Kuchnia > Lodówka > Szuflada na warzywa"`. The output lists what is inside: say only that. |
-| „lodówka ma półki na drzwiach” | `dom map add "Kuchnia > Lodówka > Drzwi lodówki"` (missing room/furniture levels are created) |
-| correcting a product just added („ważny do 22.10”, „to były 3 sztuki”) | `dom set "jogurt grecki" --exp 22.10` / `--qty 3` — never a second `dom add` |
-| „zmień nazwę szafy na Szafa biała” | `dom map rename "pokój Teosia > szafa 1" "Szafa biała"` (path first, then the new name) |
-| „wynieśliśmy komodę” | `dom map rm "pokój Teosia > komoda"` |
+| „przywiozłem mleko 2 l, ważne do 20.10, na górną półkę lodówki” | `python3 ~/.hermes/scripts/dom.py add mleko --qty 2 --unit l --exp 20.10 --where "lodówka > półka 1"` |
+| „płyn do naczyń pod zlewem” | `python3 ~/.hermes/scripts/dom.py add "płyn do naczyń" --cat chemia --where "szafka pod zlewem"` |
+| „body Teosia, szafa, 2. półka od dołu, z lewej z przodu, 3 sztuki” | `python3 ~/.hermes/scripts/dom.py add "body Teosia" --qty 3 --cat ubrania --where "pokój Teosia > szafa 1 > półka 2 od dołu" --side lewo --depth przód` |
+| „ważny do 22.10” / „to były 3 sztuki” (correction) | `python3 ~/.hermes/scripts/dom.py set "jogurt grecki" --exp 22.10` / `--qty 3` (never a second add) |
+| „otworzyłem śmietanę, 3 dni po otwarciu” | `python3 ~/.hermes/scripts/dom.py set śmietana --opened --days-after-opening 3` |
+| „zużyłem litr mleka” / „skończyło się” | `python3 ~/.hermes/scripts/dom.py use mleko --qty 1` / `python3 ~/.hermes/scripts/dom.py use mleko --all` |
+| „wyrzuciłem przeterminowany ser” | `python3 ~/.hermes/scripts/dom.py throw ser --expired-only --all` |
+| „przełożyłem body do komody, 2. szuflada” | `python3 ~/.hermes/scripts/dom.py move body --where "pokój Teosia > komoda > szuflada 2"` |
+| „gdzie jest X?” | `python3 ~/.hermes/scripts/dom.py where "X"` |
+| „co jest w lodówce?” | `python3 ~/.hermes/scripts/dom.py list --where lodówka` |
+| „co się kończy w tym tygodniu?” | `python3 ~/.hermes/scripts/dom.py expiring --days 7` |
+| „co na obiad?” (any meal planning) | `python3 ~/.hermes/scripts/dom.py plan --days 5` (always 5), then meals using that food + where it lies |
+| „szafa z 5 półkami w sypialni”, „komoda z 4 szufladami” | `python3 ~/.hermes/scripts/dom.py map add "Sypialnia > Szafa" --shelves 5` / `python3 ~/.hermes/scripts/dom.py map add "Pokój Teosia > Komoda" --drawers 4` |
+| „lodówka ma półki na drzwiach” | `python3 ~/.hermes/scripts/dom.py map add "Kuchnia > Lodówka > Drzwi lodówki"` |
+| „zmień nazwę szafy na Szafa biała” | `python3 ~/.hermes/scripts/dom.py map rename "pokój Teosia > szafa 1" "Szafa biała"` |
+| „wynieśliśmy komodę” | `python3 ~/.hermes/scripts/dom.py map rm "pokój Teosia > komoda"` |
+| „pokaż mapę (pokoju Teosia)” | `python3 ~/.hermes/scripts/dom.py map show ["pokój Teosia"]` |
 
-## When not to use
-
-- The shopping list itself („dopisz do listy zakupów masło”) lives in timeplane (🛒 Zakupy): use the timeplane skill.
-  This skill only records what is already at home.
-- Buying online or paying: not here, and paying needs Filip's OK.
-
-## Adding
-
-`dom add NAME [--qty N] [--unit l|kg|g|szt|op] [--exp DATE] [--where PLACE] [--side lewo|środek|prawo] [--depth przód|środek|tył] [--cat spożywcze|chemia|ubrania|inne] [--alias "inne nazwy"]`
-
-- NAME: the plain Polish product name in the nominative („mleko”, „jogurt naturalny”, „płyn do naczyń”,
-  „body Teosia z długim rękawem”). Reuse the existing name (check `dom where`) so batches stack up.
-- `--exp` accepts what Filip says: `20.10`, `20.10.2026`, `10.2026` (end of month), `„20 października”`,
-  `„za 5 dni”`, `jutro`. Pass his words; exit code 2 means ask him again.
-- `--cat chemia` for cleaning/washing products, `ubrania` for clothes. With `--exp` and no `--cat`, food is assumed.
-- No `--where`: the item goes where it usually lies (its last place). If the reply says „Nie wiem, gdzie to leży”,
-  ask Filip and run `dom move`.
-- Shelves are numbered from the top (`półka 1` = top). „Druga od dołu” → `półka 2 od dołu` also works.
-
-After „przywiozłem … z listy zakupów”: add each product here, then tick the same products off the timeplane shopping
-list. Ask once for missing expiry dates of fresh food („Jaki termin ma jogurt?”); chemicals and clothes need none.
-
-## Places (apartment map)
-
-Paths go from the room down: `"Pokój Teosia > Szafa 1 > Półka 3"`; `>` or `/` separate levels and any unique part
-of the path is enough (`"lodówka > półka 2"`). The sector on a shelf is `--side` (lewo/środek/prawo) and `--depth`
-(przód/środek/tył). Import an outline (2 spaces per level; shelves top to bottom; `| aliasy`, `# uwaga`):
-
-```
-Kuchnia
-  Lodówka | lodowka
-    Półka 1
-    Półka 2
-  Szafka pod zlewem | chemia  # środki czystości
-Pokój Teosia | pokój syna
-  Szafa 1
-    Półka 1
-```
-
-`echo "<outline>" | dom map import -` (re-import is safe: existing places are kept). `dom map rename`, `dom map rm`
-(only empty places).
+- Names: plain Polish nominative („mleko”, „ser żółty”). `--exp` takes Filip's words (`20.10`, `10.2026`,
+  „20 października”, „za 5 dni”, `jutro`). Fresh food without a date: ask once for it.
+- No `--where`: the item goes where it usually lies (do not ask where or how much; qty defaults to 1). Shelves count from the top (`półka 1`); `półka 2 od dołu` works.
+- Paths go room → furniture → shelf with `>`; any unique part is enough. Missing levels are created by `map add`.
+  The side/depth on a shelf go in `--side`/`--depth`, not in `--where`.
+- `python3 ~/.hermes/scripts/dom.py <command> --help` shows exact arguments.
 
 ## Exit codes
 
-0 ok · 1 error · 2 bad date or sector: ask again · 3 nothing found (the message says where the item usually lies, if
-known) · 4 several matches: ask Filip which one, or pass `#id` from the listing · 5 unknown place: create it with
-`dom map add` only if Filip described it, otherwise ask.
+0 ok · 2 bad date/sector: ask again · 3 not found · 4 several matches: ask which · 5 unknown place: `map add` it only
+if Filip described it, else ask · 6 batch: some lines failed (see ❌).
 
-## Answering
+## Not here
 
-- „gdzie”: room → furniture → shelf (from the top/bottom) → sector, e.g. „W pokoju Teosia, szafa 1, druga półka od
-  góry, po lewej z przodu.”
-- Expiry: say the date and how many days are left; mention expired food first.
-- When `use` reports the last piece („ostatnia sztuka”), ask whether to add it to the shopping list.
-
-## Reminder
-
-A no-agent cron job may run `dom remind --days 2` every morning; it prints nothing when nothing expires, otherwise
-a short 🧺 list to deliver to Filip.
+The shopping list is timeplane (🛒 Zakupy): after „przywiozłem … z listy” add here, then tick them off there.
+When `use` says „ostatnia sztuka”, ask whether to put it on the list. Buying/paying needs Filip's OK.
