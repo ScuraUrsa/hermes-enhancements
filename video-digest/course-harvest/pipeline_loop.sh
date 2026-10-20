@@ -22,5 +22,6 @@ while true; do
   echo "$(date +%H:%M:%S) $($SSH "cd ~/$DEST && python3 prune_media.py" 2>&1 | tail -1); $(/d/hermes/course-harvest/venv/Scripts/python.exe /d/hermes/course-harvest/pc_prune.py --site "$SITE" 2>&1 | tail -1)"
   if echo "$out" | grep -q "files to copy: 0"; then idle=$((idle+1)); else idle=0; fi
   [ $idle -ge 30 ] && { echo "nothing new for ~90 min, sync loop stops"; break; }
+  [ -n "$ONCE" ] && break  # one sync + pool check (cohort_watch.py)
   sleep 180
 done
