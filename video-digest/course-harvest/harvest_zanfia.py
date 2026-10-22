@@ -126,8 +126,21 @@ def map_products(page, library_url: str) -> list[dict]:
     page.goto(library_url, wait_until="domcontentloaded")
     page.wait_for_selector("text=Moje produkty", timeout=60000)
     page.wait_for_timeout(2500)
-    titles = page.evaluate("() => [...new Set([...document.querySelectorAll('[role=button] h3')].map(h => h.innerText.trim()))]")
     products, seen = [], set()
+    # since 2026-10 the cards are links (<a href> with an h3): read them directly
+    links = page.evaluate("""() => [...document.querySelectorAll('a[href] h3')].map(h => { const a = h.closest('a');
+        const lines = (a.innerText||'').split('\\n').map(s => s.trim()).filter(Boolean);
+        return {title: h.innerText.trim(), url: a.href.split('?')[0], lines}; })""")
+    for i, l in enumerate(links, 1):
+        if l["url"] in seen or l["url"].rstrip("/").endswith("/library"):
+            continue
+        seen.add(l["url"])
+        kind = next((x for x in l["lines"] if x in ("Kurs", "Baza wiedzy", "Społeczność")), "")
+        log(f"product {i}/{len(links)}: {kind} | {l['title']} -> {l['url']}")
+        products.append({"title": l["title"], "kind": kind, "url": l["url"], "card": l["lines"][:4]})
+    if products:
+        return products
+    titles = page.evaluate("() => [...new Set([...document.querySelectorAll('[role=button] h3')].map(h => h.innerText.trim()))]")
     for i, t in enumerate(titles, 1):
         page.goto(library_url, wait_until="domcontentloaded")
         page.wait_for_selector("text=Moje produkty", timeout=60000)
@@ -189,6 +202,8 @@ def cmd_map(a) -> None:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         ensure_logged_in(page, a.site_url)
         products = map_products(page, a.site_url)
+        if not products:  # 2026-10-20: a run that saw no cards emptied map/products/courses; keep the old files
+            raise SystemExit("map: no products found on the library page, nothing written")
         save_json(out / "products.json", products)
         courses = {}
         for p in products:
