@@ -30,10 +30,20 @@ mają do nich linki. KOLEJKA.md linkuje do każdego z nich.
    to utrzymywał i obsługiwał (alerty, aktualizacje, naprawy, raport), z czego czyta stan i kiedy woła
    Filipa. Bez tej fazy plan nie jest kompletny.
 5. **Dopisz się do kolejki.** Dodaj wiersz w [KOLEJKA.md](KOLEJKA.md) (nowe ID `K<numer>`, etap `plan`
-   albo `czeka na Filipa`) albo zaktualizuj istniejący. Przeczytaj plik tuż przed edycją (inne wątki też
-   piszą) i nie przestawiaj kolejności cudzych pozycji bez powodu.
-6. **Decyzje Filipa** zapisz w [decyzje.md](decyzje.md) z datą, linkiem i warunkiem powrotu do tematu.
-7. Plik ma być samowystarczalny: linki klikalne (Notion, PR, strony), bez sekretów, bez surowych danych
+   albo `czeka na Filipa`) albo zaktualizuj istniejący. Nie przestawiaj kolejności cudzych pozycji bez powodu.
+6. **Nie nadpisuj cudzych zmian** (reguła Filipa z 22.10). Wspólnych plików (`KOLEJKA.md`, `decyzje.md`,
+   `README.md` i każdego pliku, który edytuje więcej niż jeden wątek) nie zapisuj narzędziem Write/Edit ani `>`.
+   Zawsze przez [narzedzia/plik_cas.py](narzedzia/plik_cas.py):
+   1. `python3 /mnt/project-files/plany/narzedzia/plik_cas.py wersja KOLEJKA.md` → zapamiętaj sha i od razu
+      przeczytaj plik (pracuj na tej wersji, kopię zmienioną zapisz w swoim katalogu roboczym);
+   2. `python3 /mnt/project-files/plany/narzedzia/plik_cas.py zapisz KOLEJKA.md <sha> <twoja_kopia>`;
+   3. wynik `ODRZUCONE` (kod 3) znaczy, że ktoś zmienił plik w międzyczasie: przeczytaj nową wersję, nanieś na
+      nią swoje zmiany (nie kopiuj starej całości) i wróć do kroku 2 z nowym sha.
+   W git tak samo: przed pushem `git fetch`; jeśli zdalna gałąź ma nowsze commity niż te, na których
+   pracowałeś, najpierw je scal (`git pull --rebase` na własnej gałęzi albo merge), sprawdź wynik, dopiero
+   potem push. Nigdy `push --force` na cudze zmiany.
+7. **Decyzje Filipa** zapisz w [decyzje.md](decyzje.md) z datą, linkiem i warunkiem powrotu do tematu.
+8. Plik ma być samowystarczalny: linki klikalne (Notion, PR, strony), bez sekretów, bez surowych danych
    prywatnych. Język: polski.
 
 ## Etapy w kolejce
@@ -44,7 +54,7 @@ mają do nich linki. KOLEJKA.md linkuje do każdego z nich.
 Priorytety jak w `hermes-enhancements/docs/chatgpt-ideas`: **P1** teraz, **P2** wkrótce, **P3** bez
 pośpiechu, **P4** miło mieć / do decyzji, **P5** zaparkowane.
 
-## Później (propozycja)
+## Kopia w git
 
-Te pliki widzą tylko wątki Claude. Żeby czytał je też sam Hermes (planner, radar, coordinator), kopię
-`plany/` można trzymać w git (np. `hermes-enhancements/docs/plany/`) i synchronizować.
+Kopia `plany/` jest w `hermes-enhancements/docs/plany/` (PR [#31](https://github.com/ScuraUrsa/hermes-enhancements/pull/31)),
+żeby czytał ją też Hermes. Źródłem prawdy są pliki projektu; kopia idzie przez PR, z zasadą z pkt 6.
