@@ -27,6 +27,17 @@ _PERSONAL = re.compile(
     re.I,
 )
 
+# Second-person forms and planning words addressed to the agent ("jak implementujesz", "pomysł: ...").
+_SECOND_PERSON = re.compile(
+    r"\b(ty|ciebie|tobie|twój|twoja|twoje|twoich|twoim|implementujesz|robisz|masz|możesz|mozesz|potrafisz|"
+    r"pamiętasz|pamietasz|wiesz|widzisz|pomysł|pomysl|lista rozwiązań|lista rozwiazan|budżet|budzet|budget|"
+    r"you|your|yours|idea|budget)\b",
+    re.I,
+)
+
+# File names, scripts and exit codes: questions about code that only Filip's repos hold.
+_CODE = re.compile(r"\b\w+\.(py|sh|ps1|yml|yaml|md|json|toml|service|env)\b|\bexit\s?\d+\b|\bcc_run\b", re.I)
+
 # Requests for an action the agent must perform.
 _ACTION = re.compile(
     r"\b(dodaj|wyślij|wyslij|uruchom|zapisz|przesuń|przesun|przypomnij|zapamiętaj|zapamietaj|"
@@ -51,6 +62,8 @@ def hard_route(text: str, has_tool_history: bool = False) -> str | None:
     if has_tool_history:
         return "hermes"
     if _GLUE.match(t) or _IDS.search(t) or _MINE.search(t) or _PERSONAL.search(t) or _ACTION.search(t):
+        return "hermes"
+    if _SECOND_PERSON.search(t) or _CODE.search(t):
         return "hermes"
     if "@" in t or "~/" in t or re.search(r"[A-Z]:\\", t) or "github.com/ScuraUrsa" in t:
         return "hermes"

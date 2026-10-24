@@ -12,7 +12,7 @@ Plan i stan: folder projektu `free-web-proxy/plan.md` (projekt Hermes_local).
 evaluator/
   prompt.md        system prompt routera (JSON: route, confidence, reason)
   rules.py         twarde reguły, które wymuszają "hermes" bez pytania modelu
-  eval_set.jsonl   83 pytania: 44 prawdziwe z sesji Filipa + 24 ogólne + 15 pułapek
+  eval_set.jsonl   86 pytań: 44 prawdziwe z sesji Filipa + 24 ogólne + 18 pułapek
   bench_route.py   benchmark przeciwko llama-server (/v1/chat/completions)
 ```
 
@@ -42,7 +42,7 @@ plugin/
   router.py        decyzja (reguły → model → próg), pamięć sesji, dziennik decisions.jsonl
   rules.py         kopia evaluator/rules.py (trzymać w zgodzie)
   prompt.md        kopia evaluator/prompt.md
-tests/test_router.py   13 testów zachowania (pytest), bez Hermesa
+tests/test_router.py   19 testów zachowania (pytest), bez Hermesa
 ```
 
 Instalacja na VM: rola Ansible `cheap_route` w repo WOBI (llama-router + plugin + config + klucz z BWS;
@@ -61,6 +61,12 @@ auxiliary:
                        extra_body: {chat_template_kwargs: {enable_thinking: false}}}   # Qwen3.5: bez myślenia
   cheap_route_free:   {provider: gemini, model: gemini-3.6-flash}   # GEMINI_API_KEY w .env/BWS
 ```
+
+Wersje Hermesa: na forku ≥ 2026-10-12 (merge upstream, hook `post_gateway_admission`) plugin
+przechwytuje wiadomość po autoryzacji i komendach. Na starszym Hermesie (prod: v0.20.0, pin a6ede70
+w WOBI) używa `pre_gateway_dispatch`: wiadomości wymuszone regułami przechodzą bez zmian, resztę
+przejmuje (`skip`), ocenia w wątku, odpowiada przez adapter albo oddaje bramce bez zmian. Na starym
+Hermesie ustawienia czyta wprost z `plugins.entries.cheap-route.settings`, a `/route on|off` nie działa.
 
 Zachowanie: reguły wymuszają `hermes` dla wszystkiego osobistego lub z prośbą o działanie, model
 decyduje o reszcie; `free_web` tylko przy pewności ≥ próg. Każdy błąd ewaluatora lub darmowego
