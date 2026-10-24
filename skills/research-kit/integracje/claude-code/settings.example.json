@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "WebFetch",
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/skills/research-kit/integracje/claude-code/bib_hook.py", "timeout": 15}]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "WebFetch|WebSearch",
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/skills/research-kit/integracje/claude-code/bib_hook.py", "timeout": 15}]
+      }
+    ]
+  }
+}
