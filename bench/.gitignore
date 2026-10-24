@@ -1,0 +1,5 @@
+results/*
+!results/.gitkeep
+__pycache__/
+*.egg-info/
+docker/eval-cli
