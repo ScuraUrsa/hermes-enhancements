@@ -1,0 +1,10 @@
+name: matrix_rooms
+version: 0.1.0
+description: >-
+  Tool matrix_room_create: a new encrypted Matrix room for a project or a long task;
+  invites Filip and hands the task brief to the first turn there.
+author: "Filip Kaźmierczak + Claude Code"
+provides_tools:
+  - matrix_room_create
+provides_hooks:
+  - pre_llm_call
