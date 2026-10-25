@@ -143,10 +143,9 @@ def test_retry_exhaustion_makes_five_attempts_then_raises(client, sleeps):
         nt._req("POST", "/x")
 
     assert len(session.calls) == 5
-    # Pinned as-is: _request() also waits once after the fifth and final attempt.
-    # Dropping that wasted wait changes behaviour, so it is out of scope for this
-    # test-only card and tracked in its own follow-up card.
-    assert sleeps == [2.0, 4.0, 6.0, 8.0, 10.0]
+    # Four waits for five attempts: sleeping after the last one buys nothing
+    # because the next action is to raise.
+    assert sleeps == [2.0, 4.0, 6.0, 8.0]
 
 
 def test_request_sends_auth_headers_version_and_timeout(client):
@@ -580,28 +579,38 @@ def test_data_source_id_is_not_validated_so_page_level_callers_work(ds):
     assert session.calls[0][1] == f"{API}/pages"
 
 
-def test_properties_with_null_lists_raises_type_error_today():
-    """A model emitting "tags": null currently kills the whole write path.
+def test_properties_treat_null_lists_as_empty_and_never_crash():
+    """A model emitting "tags": null / "playlists": null must not kill the write path.
 
-    That is the observed behaviour of the module as merged, so it is pinned
-    here; the fix (null and missing should both mean "no tags") changes
-    production behaviour and lives in its own follow-up card.
+    Null and missing both mean "nothing to tag", so the payload carries empty
+    multi_select arrays instead of raising TypeError.
     """
     bundle = {"video_id": "v1", "url": "u", "transcript": {"source": "none"}, "playlists": None}
 
-    with pytest.raises(TypeError):
-        notion.properties(bundle, {"tags": None}, {}, "queued")
+    props = notion.properties(bundle, {"tags": None}, {}, "queued")
+
+    assert props["Tagi"] == {"multi_select": []}
+    assert props["Playlista"] == {"multi_select": []}
 
 
-def test_unknown_status_raises_keyerror_today():
-    """An unknown status currently escapes as a bare KeyError from STATUS[status].
-
-    Pinned as the module's merged behaviour; turning it into a NotionError that
-    names the accepted vocabulary changes behaviour, so it is tracked separately.
-    """
+def test_unknown_status_is_a_notion_error_naming_the_vocabulary():
+    """STATUS[status] used to escape as a bare KeyError; callers catch NotionError."""
     bundle = {"video_id": "v1", "url": "u", "transcript": {"source": "none"}}
 
-    with pytest.raises(KeyError) as err:
+    with pytest.raises(NotionError) as err:
         notion.properties(bundle, {}, {}, "bogus")
 
-    assert "bogus" in str(err.value)
+    message = str(err.value)
+    assert "bogus" in message
+    for known in ("queued", "done", "failed"):
+        assert known in message
+
+
+def test_unknown_status_in_mark_fails_before_any_request():
+    session = FakeSession(Resp(200, {"id": "page-1"}))
+    nt = Notion("ds-1", token="tok-1", session=session)
+
+    with pytest.raises(NotionError, match="bogus"):
+        notion.mark(nt, "abc123", BUNDLE["url"], "", "bogus")
+
+    assert session.calls == []
