@@ -234,3 +234,15 @@ def test_round5_dates_unknown_place_and_shelf_count(run):
     assert code == 0 and "W środku (3)" in out
     code, out = run("map", "add", "Kuchnia > Lodówka nowa > Półka 4")  # a single shelf stays a place
     assert code == 0 and "Półka 4" in out
+
+
+def test_clothes_attributes_in_note_and_tag(run):
+    run("add", "płaszcz wełniany", "--cat", "ubrania", "--where", "pokój Teosia > szafa 1 > półka 1",
+        "--note", "typ:płaszcz ciepło:4 kto:filip stan:czyste")
+    code, out = run("set", "płaszcz wełniany", "--tag", "stan:pranie", "--tag", "kolor:granat")
+    assert code == 0, out
+    code, out = run("--json", "list", "--cat", "ubrania")
+    d = json.loads(out)["data"][0]
+    assert {"item", "place", "note"} <= d.keys()
+    assert d["note"] == "typ:płaszcz ciepło:4 kto:filip stan:pranie kolor:granat"
+    assert run("set", "płaszcz wełniany", "--tag", "zle")[0] == 2
