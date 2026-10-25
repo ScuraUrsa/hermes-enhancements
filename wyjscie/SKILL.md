@@ -49,7 +49,7 @@ plan the route (that is `trasa`, K107): it takes their results as input. Reply i
 Clothes live in home-inventory (`dom.py`, category `ubrania`). The script reads attributes from the item's note:
 `typ:<kurtka|płaszcz|sweter|koszula|spodnie|buty|…> ciepło:<1–5> styl:<sport|casual|smart|elegancki|formalny> woda:<tak|nie> kto:<filip|teos|…> kolor:<…> stan:<czyste|pranie>`.
 Adding a piece: `python3 ~/.hermes/scripts/dom.py add "płaszcz wełniany granatowy" --cat ubrania --where "Sypialnia > Szafa" --note "typ:płaszcz ciepło:4 styl:elegancki kto:filip kolor:granat"`.
-In the laundry: `dom.py set "<name>" --note "… stan:pranie"`. No wardrobe yet → the script gives a generic outfit; say so once.
+In the laundry / washed: `dom.py set "<name>" --tag stan:pranie` / `--tag stan:czyste` (changes one attribute, keeps the rest of the note; needs home-inventory PR #43). No wardrobe yet → the script gives a generic outfit; say so once.
 
 ## Rules
 
