@@ -202,3 +202,9 @@ private (VM disk, private Notion).
 Unattended: cron `sitedigest-idle` (at :15 and :45) digests 4 lessons per run while the
 YouTube idle gate is open and writes the overview after a site's last lesson. Mapping is
 started by hand or by the Hermes skill `course-digest` ("Hermes, przerób kurs <link>").
+
+## CI
+
+Every push to `master` and every PR touching `video-digest/**` runs the test suite
+on GitHub Actions (ubuntu-latest, Python 3.11): see `.github/workflows/test.yml`.
+Locally, run the same check from this directory with `python -m pytest tests -q`.
