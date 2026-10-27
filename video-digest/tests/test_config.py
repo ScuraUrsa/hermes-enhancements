@@ -92,3 +92,26 @@ def test_env_read_at_call_time(tmp_path, monkeypatch):
     (h / "config.yaml").write_text("a: 1\n", encoding="utf-8")
     monkeypatch.setenv("YTDIGEST_HOME", str(h))
     assert config.config_path() == h / "config.yaml"
+
+
+def _no_pyyaml(monkeypatch):
+    # sys.modules["yaml"] = None makes any `import yaml` raise ImportError,
+    # exactly like an interpreter without PyYAML installed.
+    monkeypatch.setitem(sys.modules, "yaml", None)
+
+
+def test_missing_pyyaml_with_yaml_file_means_clear_error_not_crash(tmp_path, monkeypatch):
+    f = tmp_path / "config.yaml"
+    f.write_text("report_language: en\n", encoding="utf-8")
+    _no_pyyaml(monkeypatch)
+    with pytest.raises(RuntimeError, match="PyYAML is needed"):
+        config.load(path=f)
+
+
+def test_missing_pyyaml_without_config_file_means_clean_defaults(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    monkeypatch.setenv("HERMES_REAL_HOME", str(home))  # no config file anywhere
+    monkeypatch.setenv("YTDIGEST_CONFIG", str(tmp_path / "none.json"))
+    _no_pyyaml(monkeypatch)
+    cfg = config.load()
+    assert set(cfg) == set(config.DEFAULTS)  # load() itself does not import yaml
