@@ -57,10 +57,21 @@ Wpis zbiorczy: szczegóły decyzji w
   `origin/master` (`721140b`) jako **jeden** PR zamiast 9 decyzji dla człowieka.
 - Konflikt `tests/conftest.py` (#46 × #47 × `vbench/routing.json` dopisany na masterze) rozwiązany
   addytywnie: `routing_file` → nieistniejąca ścieżka w `tmp_path`, `YTDIGEST_CONFIG` → pusty
-  `config.yaml` w `tmp_path`. Izolacja od `~/.hermes` z #46/#47 zachowana.
+  `config.yaml` w `tmp_path`.
+- **R1 po recenzji (defekt D1):** pierwsza wersja bundle'a zgubiła przy rozwiązywaniu konfliktu dwie
+  linie neutralizujące z mastera (`processed_playlist` z powrotem `enabled: True` + `account`, ścieżki
+  kont/cookies w `~/.hermes`), więc 6 testów `test_pipeline.py` sięgało po `GOOGLE_*_TOKEN_JSON`
+  z env i realną playlistę Filipa, a `except Exception` w kroku playlisty to połknął. Fixture `cfg`
+  dostała z powrotem neutralizację (playlisty off, `google_accounts_dir`/`cookies_file` w `tmp_path`)
+  plus autouse strażnik `_no_external_network`, który failuje test przy próbie `connect`/`getaddrinfo`
+  na nie-loopback — także wtedy, gdy kod połyka wyjątek. Ścieżki, które wcześniej „pokrywał” tylko
+  realny ruch (`youtube._call` + krok playlisty w `pipeline`), dostały hermetyczne testy.
 - Zmiany produkcyjne wyłącznie z gałęzi (#46 `config.py`, #38 `cli.py`, #39 `gemini.py`,
   #45 `mcp_bridge.py`), każda z testem czerwonym bez niej — tabela dowodowa w logu zbiorczym.
-- Pomiar: 84 → **416 passed, 1 skipped**; pokrycie `ytdigest` 64 % → **87 %**.
+  R1 nie dotknął `ytdigest/` (tylko `tests/` + dokumentacja).
+- Pomiar (clean-room, `--cov=ytdigest`): PRZED `721140b` → 84 passed, 1 skipped, 64 %;
+  PO `352ddc1` → 416 passed, 1 skipped, 87 %; PO po R1 (`d72dbe6`) → **419 passed, 1 skipped,
+  2308 stmt / 290 miss / 87 %**, `youtube.py` 100 % i zero prób sieci w całym suite.
 - Nie wciągnięto #44 (CI workflow — decyzja Filipa), #36 (`notion.py` poza dozwolonymi plikami),
   #32 (ASR) i PR-ów spoza `video-digest/`. Żaden otwarty PR nie został zamknięty.
 
