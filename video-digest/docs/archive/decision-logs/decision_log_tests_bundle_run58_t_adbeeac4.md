@@ -125,9 +125,16 @@ Naprawa (bez zmian produkcyjnych — tylko testy i ten dokument):
 **m2 — jedna liczba „po”.** Wszystkie wystąpienia liczb „po” w tym dokumencie i w opisie PR pochodzą
 z jednego przebiegu `d72dbe6`: **419 passed, 1 skipped, 20,1 s; 2308 stmt / 290 miss / 87 %**.
 
-Zakres R1: wyłącznie `video-digest/tests/` + ten dokument — `git diff --stat 352ddc1..d72dbe6`:
+Zakres R1: wyłącznie `video-digest/tests/` + ten dokument — `git diff --stat 352ddc1..053a2d1`:
 `tests/conftest.py`, `tests/test_pipeline.py`, `tests/test_topics_cleanup_youtube.py`,
-`docs/archive/decision-logs/decision_log_tests_bundle_run58_t_adbeeac4.md`. Zero zmian w `ytdigest/`.
+`docs/archive/decision-logs/decision_log_tests_bundle_run58_t_adbeeac4.md`, `decision_log.md`, `.gitignore`.
+Zero zmian w `ytdigest/`.
+
+**Higiena R1.** Pierwszy commit dokumentacyjny (`0fb739e`) wciągnął przez `git add -A` plik binarny
+`video-digest/.coverage` z przebiegu pomiarowego — usunięty z drzewa w `053a2d1` (bez przepisywania
+historii: `push --force` jest poza zakresem karty), a `.gitignore` dostał `.coverage`, `.coverage.*`
+i `htmlcov/`. `git diff --name-only origin/master | grep -E '\.coverage|pytest_cache|__pycache__'` →
+puste.
 
 **Następne kroki.** Merge tylko Filip (brama człowieka — PR czeka na `master`). Po merge'u #44 (workflow)
 każdy kolejny PR dostanie realne checks. Kandydaci do następnej rundy pokrycia: `notion.py` (PR #36,
