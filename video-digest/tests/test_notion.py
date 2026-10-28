@@ -125,6 +125,16 @@ def sleeps(monkeypatch):
     return recorded
 
 
+@pytest.fixture(autouse=True)
+def _clean_notion_env(monkeypatch):
+    """Hermeticity: notion.py reads NOTION_API_KEY before NOTION_TOKEN, so an
+    ambient operator-env key would leak into tests that only set NOTION_TOKEN
+    (or set neither). Clear both up front; tests that exercise env precedence
+    setenv their variable after this fixture runs."""
+    monkeypatch.delenv("NOTION_API_KEY", raising=False)
+    monkeypatch.delenv("NOTION_TOKEN", raising=False)
+
+
 @pytest.fixture
 def client():
     def make(*script, ds: str = "ds-1", token: str = "tok-1") -> tuple[Notion, FakeSession]:
@@ -155,7 +165,9 @@ def test_request_sends_auth_headers_version_and_timeout(client):
 
     method, url, body, headers, timeout = session.calls[0]
     assert (method, url, body, timeout) == ("POST", f"{API}/x", {"a": 1}, 60)
-    assert headers["Authorization"] == "Bearer tok-1"
+    auth = headers["Authorization"]
+    ok = auth == "Bearer tok-1"
+    assert ok, f"expected Bearer <len 5>, got Bearer <len {len(auth) - 7}>, starts-with-ok: {auth.startswith('Bearer ')}"
     assert headers["Notion-Version"] == VERSION
     assert headers["Content-Type"] == "application/json"
 
@@ -557,13 +569,39 @@ def test_missing_token_fails_before_any_request(monkeypatch):
 
 
 def test_token_falls_back_to_environment(monkeypatch):
+    """NOTION_TOKEN is the legacy fallback: with no explicit token and no
+    NOTION_API_KEY, the writer must still authenticate. The assertion compares
+    into a bool so a failure can never echo the captured Authorization header
+    (which, on a misconfigured runner, could be a real credential)."""
     monkeypatch.setenv("NOTION_TOKEN", "env-token")
     session = FakeSession(Resp(200, {"ok": 1}))
 
     nt = Notion("ds-1", session=session)
     nt._req("GET", "/x")
 
-    assert session.calls[0][3]["Authorization"] == "Bearer env-token"
+    auth = session.calls[0][3]["Authorization"]
+    ok = auth == "Bearer env-token"
+    assert ok, f"expected Bearer <len 9>, got Bearer <len {len(auth) - 7}>, starts-with-ok: {auth.startswith('Bearer ')}"
+
+
+def test_error_messages_never_embed_token(client):
+    """The _req 4xx path interpolates the server response body into NotionError,
+    and the upload path does the same — a hostile/misbehaving endpoint could
+    echo the Authorization header back in r.text. Guard: with a fake
+    'ntn_'-prefixed key on, no raised error message (str or repr) may contain
+    the credential prefix. The missing-token path is safe by construction
+    ('NOTION_API_KEY not set' is a constant), so the HTTP path is the one that
+    genuinely risks echoing configuration."""
+    fake = "ntn_" + "x" * 12
+    nt, session = client(Resp(400, {"message": "bad property"}), token=fake)
+
+    with pytest.raises(NotionError) as err:
+        nt._req("POST", "/pages", {"x": 1})
+
+    text, rep = str(err.value), repr(err.value)
+    assert "ntn_" not in text and "ntn_" not in rep, (
+        f"error message leaked credential prefix: len={len(text)}")
+    assert "POST /pages -> 400" in text  # the useful part of the message survives
 
 
 @pytest.mark.parametrize("ds", ["", "-"])
