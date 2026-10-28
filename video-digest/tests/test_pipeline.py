@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from ytdigest import fetch, gemini, llm, notion, pipeline, transcript
+from ytdigest import fetch, gemini, llm, notion, pipeline, transcript, youtube
 
 INFO = {
     "id": "abcdefghijk", "title": "Jak działa inflacja", "channel": "Ekonomia", "duration": 40,
@@ -98,6 +98,12 @@ def test_falls_back_to_frames_when_gemini_fails(cfg, faked, monkeypatch, synthet
     assert run["visual"] and not run.get("degraded")
 
 
+def _no_download(monkeypatch):
+    """yt-dlp is never executed here: the media step fails fast and the run degrades."""
+    monkeypatch.setattr(fetch, "download_video",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("HTTP Error 403: Forbidden")))
+
+
 def _frames_path(monkeypatch, synthetic_video):
     monkeypatch.setattr(gemini, "analyse", lambda *a, **k: (_ for _ in ()).throw(llm.LLMError("no key")))
     monkeypatch.setattr(fetch, "download_video", lambda url, out, h, cookies=None: synthetic_video)
@@ -164,3 +170,33 @@ def test_refused_download_marks_run_degraded(cfg, faked, monkeypatch):
     monkeypatch.setattr(fetch, "download_video", refused)
     res = pipeline.process("abcdefghijk", cfg, log=lambda m: None)
     assert res["status"] == "done" and res["degraded"] == "vision"
+
+
+def test_processed_playlist_step_runs_through_the_fake(cfg, faked, monkeypatch):
+    """The playlist step is real when enabled — but reached through a fake, not Google.
+
+    `cfg` keeps `processed_playlist` off so no test spends Filip's YouTube token; this
+    test turns it back on and pins the contract: pipeline hands the account, the title
+    and the video id to youtube.add_to_playlist and logs the result.
+    """
+    cfg["processed_playlist"] = {"enabled": True, "account": "fjkazmierczak",
+                                 "title": "Przetworzone przez Hermesa"}
+    _no_download(monkeypatch)
+    calls = []
+    monkeypatch.setattr(youtube, "add_to_playlist", lambda cfg, account, title, vid: calls.append((account, title, vid)) or True)
+    logs = []
+    res = pipeline.process("abcdefghijk", cfg, log=logs.append)
+    assert res["status"] == "done"
+    assert calls == [("fjkazmierczak", "Przetworzone przez Hermesa", "abcdefghijk")]
+    assert any("added to YouTube playlist" in m for m in logs)
+
+
+def test_processed_playlist_failure_does_not_fail_the_run(cfg, faked, monkeypatch):
+    """A playlist hiccup is logged and swallowed: the report is already written."""
+    cfg["processed_playlist"] = {"enabled": True, "account": "fjkazmierczak", "title": "Przetworzone"}
+    _no_download(monkeypatch)
+    monkeypatch.setattr(youtube, "add_to_playlist", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("quota exceeded")))
+    logs = []
+    res = pipeline.process("abcdefghijk", cfg, log=logs.append)
+    assert res["status"] == "done"
+    assert any("YouTube playlist skipped: quota exceeded" in m for m in logs)
