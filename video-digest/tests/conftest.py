@@ -19,6 +19,12 @@ def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_REAL_HOME", str(tmp_path / "home"))
     c = config.load(None)
     assert set(c) == set(config.DEFAULTS), "cfg fixture must yield pure defaults"
+    # routing.load() falls back to the sibling vbench/routing.json when routing_file
+    # is empty. That table only landed on master after these test branches were cut,
+    # and it would silently swap the default vision model (gemma4:31b) for a vbench
+    # pick, so keep the fixture on DEFAULT_ROUTING. A missing path is enough — no
+    # operator file is read.
+    c["routing_file"] = str(tmp_path / "no-routing.json")
     return c
 
 
