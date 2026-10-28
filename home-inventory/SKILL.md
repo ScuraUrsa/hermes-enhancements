@@ -1,7 +1,7 @@
 ---
 name: home-inventory
 description: "Spis rzeczy w domu i mapa mieszkania: co mamy (spożywka, chemia, ubrania), gdzie leży (pokój, szafa, półka, sektor), do kiedy ważne. Użyj ~/.hermes/scripts/dom.py zamiast pamięci."
-version: 0.3.2
+version: 0.3.3
 author: Claude Code (for Filip), 2026-10-16
 license: MIT
 platforms: [linux]
@@ -38,6 +38,8 @@ What is at home, where it lies, until when it is good. Use the terminal tool; ev
 | „ważny do 22.10” / „to były 3 sztuki” (correction) | `python3 ~/.hermes/scripts/dom.py set "jogurt grecki" --exp 22.10` / `--qty 3` (never a second add) |
 | „otworzyłem śmietanę, 3 dni po otwarciu” | `python3 ~/.hermes/scripts/dom.py set śmietana --opened --days-after-opening 3` |
 | „zużyłem litr mleka” / „skończyło się” | `python3 ~/.hermes/scripts/dom.py use mleko --qty 1` / `python3 ~/.hermes/scripts/dom.py use mleko --all` |
+| „płaszcz wełniany granatowy, ciepły, elegancki, do sypialni” (clothes) | `python3 ~/.hermes/scripts/dom.py add "płaszcz wełniany granatowy" --cat ubrania --where "Sypialnia > Szafa" --note "typ:płaszcz ciepło:4 styl:elegancki woda:nie kto:filip kolor:granat stan:czyste"` |
+| „płaszcz w praniu” / „wyprany” | `python3 ~/.hermes/scripts/dom.py set "płaszcz wełniany granatowy" --tag stan:pranie` / `--tag stan:czyste` |
 | „wyrzuciłem przeterminowany ser” | `python3 ~/.hermes/scripts/dom.py throw ser --expired-only --all` |
 | „przełożyłem body do komody, 2. szuflada” | `python3 ~/.hermes/scripts/dom.py move body --where "pokój Teosia > komoda > szuflada 2"` |
 | „gdzie jest X?” | `python3 ~/.hermes/scripts/dom.py where "X"` |
@@ -55,6 +57,9 @@ What is at home, where it lies, until when it is good. Use the terminal tool; ev
 - No `--where`: the item goes where it usually lies (do not ask where or how much; qty defaults to 1). Shelves count from the top (`półka 1`); `półka 2 od dołu` works.
 - Paths go room → furniture → shelf with `>`; any unique part is enough. Missing levels are created by `map add`.
   The side/depth on a shelf go in `--side`/`--depth`, not in `--where`.
+- Clothes: always `--cat ubrania` and a note with `typ: ciepło:1–5 styl:sport|casual|smart|elegancki|formalny
+  woda:tak|nie kto:filip|teos kolor: stan:czyste|pranie` (only keys Filip's words give; the `wyjscie` skill reads them).
+  Change one attribute with `set … --tag key:value`, never by rewriting `--note`.
 - `python3 ~/.hermes/scripts/dom.py <command> --help` shows exact arguments.
 
 ## Exit codes

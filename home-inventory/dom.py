@@ -918,6 +918,22 @@ def cmd_move(con, a) -> tuple[str, object]:
     return f"Przeniosłem {r0['name']} (partii: {len(rows)}): {where_txt(place_rows(con), r0)}.", batch_dict(places, r0)
 
 
+def merge_tags(note: str, tags: list[str]) -> str:
+    """Set `klucz:wartość` attributes in a note (clothes: "typ:płaszcz ciepło:4 stan:czyste"), keep other text."""
+    words = note.split()
+    for tag in tags:
+        for t in tag.split():
+            key, sep, _ = t.partition(":")
+            if not sep or not key:
+                raise DomError(f"--tag wymaga klucz:wartość, np. stan:pranie (dostałem „{t}”).", 2)
+            idx = [i for i, w in enumerate(words) if w.split(":", 1)[0] == key and ":" in w]
+            if idx:
+                words[idx[0]] = t
+            else:
+                words.append(t)
+    return " ".join(words)
+
+
 def cmd_set(con, a) -> tuple[str, object]:
     places = place_rows(con)
     rows = search_stock(con, a.query)
@@ -931,6 +947,9 @@ def cmd_set(con, a) -> tuple[str, object]:
         con.execute("UPDATE stock SET qty=? WHERE id=?", (a.qty, r["id"]))
     if a.note is not None:
         con.execute("UPDATE stock SET note=? WHERE id=?", (a.note, r["id"]))
+    if a.tag:
+        note = con.execute("SELECT note FROM stock WHERE id=?", (r["id"],)).fetchone()["note"] or ""
+        con.execute("UPDATE stock SET note=? WHERE id=?", (merge_tags(note, a.tag), r["id"]))
     if a.opened is not None:
         opened = parse_date(a.opened) if a.opened else today().isoformat()
         con.execute("UPDATE stock SET opened=? WHERE id=?", (opened, r["id"]))
@@ -1151,6 +1170,7 @@ def build_parser() -> argparse.ArgumentParser:
     x.add_argument("--alias", nargs="+")
     x.add_argument("--opened", nargs="?", const="", help="data otwarcia (bez wartości: dziś)")
     x.add_argument("--days-after-opening", type=int, help="ile dni ważne po otwarciu")
+    x.add_argument("--tag", action="append", help="ustaw atrybut w notatce bez kasowania reszty, np. stan:pranie")
     x = sub.add_parser("expiring", help="co traci termin")
     x.add_argument("--days", type=int, default=7)
     x.add_argument("--cat")
