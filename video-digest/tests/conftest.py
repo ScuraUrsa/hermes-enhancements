@@ -17,6 +17,8 @@ def cfg(tmp_path, monkeypatch):
     HERMES_REAL_HOME is redirected so nothing reads the operator's ~/.hermes.
     """
     monkeypatch.setenv("YTDIGEST_DATA_DIR", str(tmp_path / "data"))
+    # A missing YTDIGEST_CONFIG means "no config file" in config_path() (#46),
+    # so this is enough to keep ~/.hermes/ytdigest/config.yaml out of tests.
     monkeypatch.setenv("YTDIGEST_CONFIG", str(tmp_path / "none.yaml"))
     monkeypatch.setenv("HERMES_REAL_HOME", str(tmp_path / "home"))
     c = config.load(None)
