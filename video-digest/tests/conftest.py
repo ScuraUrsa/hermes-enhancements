@@ -11,15 +11,19 @@ from ytdigest import config
 def cfg(tmp_path, monkeypatch):
     """Hermetic config: pure DEFAULTS, no operator files.
 
-    YTDIGEST_CONFIG points at a missing file, which config_path() treats as
-    "no config file" instead of falling through to ~/.hermes (that silent
-    fallthrough used to leak Filip's real config into every test).
+    YTDIGEST_CONFIG points at an empty file inside tmp_path, so config_path()
+    stops there instead of falling through to ~/.hermes (that silent fallthrough
+    used to leak Filip's real config into every test).
     HERMES_REAL_HOME is redirected so nothing reads the operator's ~/.hermes.
     """
     monkeypatch.setenv("YTDIGEST_DATA_DIR", str(tmp_path / "data"))
-    # A missing YTDIGEST_CONFIG means "no config file" in config_path() (#46),
-    # so this is enough to keep ~/.hermes/ytdigest/config.yaml out of tests.
-    monkeypatch.setenv("YTDIGEST_CONFIG", str(tmp_path / "none.yaml"))
+    # Merge resolution #46 x #47: #47's guard tests require YTDIGEST_CONFIG to name a
+    # real file (they assert config_path() resolves inside tmp_path), while #46 wants
+    # pure DEFAULTS without reading operator state. An empty YAML file satisfies both:
+    # config_path() stops here and load() only merges DEFAULTS.
+    pinned = tmp_path / "config.yaml"
+    pinned.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setenv("YTDIGEST_CONFIG", str(pinned))
     monkeypatch.setenv("HERMES_REAL_HOME", str(tmp_path / "home"))
     c = config.load(None)
     assert set(c) == set(config.DEFAULTS), "cfg fixture must yield pure defaults"
