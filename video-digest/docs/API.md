@@ -6,8 +6,13 @@ z gałęzi `wt/t_f9f61629` (baza `37513c4`) i uruchomione 2026-10-28 na VM `herm
 (Python 3.10.12; `pytest tests/ -q` → **83 passed in 45.31s**; mostek MCP sprawdzony
 `initialize` + `tools/list`, serwer HTTP sprawdzony curlem na portach 8799 i 8801).
 
-Uruchamiaj z katalogu `video-digest/` — `-m ytdigest` działa tylko przy `cwd` w tym
-katalogu (lokalna kopia pakietu przesłania zainstalowaną).
+Uruchamiaj z katalogu `video-digest/` (`cwd` = ten katalog). `-m ytdigest` **działa też poza nim**
+(rc=0), ale venv `~/.hermes/ytdigest/venv` ma instalację **editable** wskazującą na
+`/home/ubuntu/hermes-enhancements/video-digest`, więc poza katalogiem importujesz kopię z `master`,
+a nie z gałęzi, na której pracujesz. Zmierzone: z `/tmp` → `ytdigest.__file__` =
+`…/hermes-enhancements/video-digest/ytdigest/__init__.py`, z katalogu `video-digest/` tego worktree →
+`…/.worktrees/t_f9f61629/video-digest/ytdigest/__init__.py`. Wniosek: uruchamiaj z `cwd` gałęzi,
+inaczej testujesz nie ten kod, który edytujesz.
 
 > **Zero sekretów w plikach.** Klucze i tokeny przychodzą wyłącznie ze środowiska
 > (Hermes wczytuje je z Bitwarden do `~/.hermes/.env`); `config.py` nigdy ich nie czyta z YAML-a.
@@ -151,6 +156,15 @@ Zasady wiązania (`ytdigest/server.py`): tylko `localhost` albo adres Tailscale,
 
 Jedno źródło prawdy o archiwum YouTube: `/home/ubuntu/crewai-orchestrator/archive_manifest.json`
 (poza tym repo — konsument, nie producent). 259 wpisów, 209 404 B, `mtime` 2026-10-28 09:20:39Z.
+
+> ⚠️ **To jest dict kluczowany po `video_id`, nie lista `videos[]`.** Plik ma kształt
+> `{"<video_id>": {…}, …}` — **nie ma** klucza `videos`. Iteruj `d.values()`, nigdy `d['videos']`:
+>
+> - `d['videos']` → `KeyError: 'videos'` (sprawdzone na tym pliku),
+> - `for v in d:` iteruje **klucze-str**, więc `v['status']` → `TypeError: string indices must be integers, not 'str'`,
+> - lista wpisów = `list(d.values())`, liczba wpisów = `len(d)`.
+>
+> Na tej pułapce padł już one-liner z karty `t_2e1d1a9f` (`AttributeError` z listowego API).
 
 ```bash
 python3 -c "import json,collections;d=json.load(open('/home/ubuntu/crewai-orchestrator/archive_manifest.json'));print(len(d), collections.Counter(v['status'] for v in d.values()))"
