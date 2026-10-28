@@ -45,3 +45,22 @@ Claude Desktop (nie da się uruchomić w CI). Kontrakt na drucie jest pinowany, 
 **Następne kroki.** Merge tylko Filip (brama człowieka). Po merge warto powtórzyć pomiar pokrycia
 całego `ytdigest` — `mcp_bridge.py` przestał być najsłabszym ogniwem; kolejne kandydatki to moduły
 z poprzednich kart C2 pozostawione w `blocked` (`transcript.py`, `notion.py`, `discover.py`).
+
+---
+
+## 2026-10-28 — bundle 9 testowych PR-ów C2/C4 (karta `t_adbeeac4`, run58)
+
+Wpis zbiorczy: szczegóły decyzji w
+`docs/archive/decision-logs/decision_log_tests_bundle_run58_t_adbeeac4.md`.
+
+- 9 gałęzi (#33, #37, #38, #39, #40, #41, #45, #46, #47) zmergowano `--no-ff` na aktualny
+  `origin/master` (`721140b`) jako **jeden** PR zamiast 9 decyzji dla człowieka.
+- Konflikt `tests/conftest.py` (#46 × #47 × `vbench/routing.json` dopisany na masterze) rozwiązany
+  addytywnie: `routing_file` → nieistniejąca ścieżka w `tmp_path`, `YTDIGEST_CONFIG` → pusty
+  `config.yaml` w `tmp_path`. Izolacja od `~/.hermes` z #46/#47 zachowana.
+- Zmiany produkcyjne wyłącznie z gałęzi (#46 `config.py`, #38 `cli.py`, #39 `gemini.py`,
+  #45 `mcp_bridge.py`), każda z testem czerwonym bez niej — tabela dowodowa w logu zbiorczym.
+- Pomiar: 84 → **416 passed, 1 skipped**; pokrycie `ytdigest` 64 % → **87 %**.
+- Nie wciągnięto #44 (CI workflow — decyzja Filipa), #36 (`notion.py` poza dozwolonymi plikami),
+  #32 (ASR) i PR-ów spoza `video-digest/`. Żaden otwarty PR nie został zamknięty.
+
