@@ -116,6 +116,8 @@ Naprawa (bez zmian produkcyjnych — tylko testy i ten dokument):
 | GREEN (po naprawie `cfg`, `ca78da5`) | `pytest tests/test_pipeline.py -q` | `8 passed`, zero prób sieci |
 | pełny suite (`d72dbe6`) | `pytest tests -q --cov=ytdigest --cov-report=term` | `419 passed, 1 skipped, 20,1 s`, strażnik nie zebrał **żadnej** próby |
 | negative control (`d72dbe6` minus dwie linie neutralizujące, clean-room) | `pytest tests/test_pipeline.py -q` | `10 passed, **6 errors**` z tym samym hostem — strażnik nie jest pusty i złapałby regresję |
+| niezależny probe `sitecustomize.py` (loguje i blokuje `getaddrinfo`/`connect`), **strażnik wyłączony**, `cfg` naprawiony, cały suite | `PYTHONPATH=probe pytest tests -q` | **0 prób sieci** — izolację trzyma sam `cfg`, nie tylko strażnik |
+| ten sam probe, **strażnik wyłączony**, `cfg` bez neutralizacji (kontrola) | `PYTHONPATH=probe pytest tests -q` | **6 prób**, wszystkie `getaddrinfo oauth2.googleapis.com:443` — dokładnie pomiar z recenzji |
 
 **m1 — proweniencja pomiaru.** Baseline ma teraz SHA + timestamp + komendę + wersje (tabela wyżej);
 `827 miss` odtworzone dwukrotnie na czystym `721140b`, liczba `816` z recenzji nieodtwarzalna (opis wyżej).
