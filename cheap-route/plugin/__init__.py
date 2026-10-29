@@ -12,12 +12,14 @@ through untouched, the rest is taken over (``skip``), evaluated in a thread, ans
 adapter, or re-dispatched to the gateway unchanged when Hermes should handle it.
 
 Settings (``plugins.entries.cheap-route.settings``): ``enabled`` (true), ``threshold`` (0.8),
-``footer`` (true), ``platforms`` (list; empty = all), ``max_answer_chars`` (2000).
+``footer`` (true), ``platforms`` (list; empty = all), ``max_answer_chars`` (2000), ``router_timeout``
+(seconds, 30).
 """
 
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import os
 import time
@@ -65,20 +67,40 @@ def _setting_from_config(key: str, default: Any) -> Any:
     return settings.get(key, default)
 
 
+def _llm_takes_task() -> bool:
+    try:
+        return "task" in inspect.signature(_ctx.llm.complete).parameters
+    except (TypeError, ValueError):
+        return True
+
+
+def _complete(task: str, messages: list, purpose: str, **kw: Any) -> str:
+    """Run ``messages`` on the auxiliary ``task``, never on the user's main model.
+
+    Newer Hermes routes ``ctx.llm.complete(task=...)`` through the plugin's auxiliary slot. In v0.20
+    ``PluginLlm.complete`` has no ``task`` (it would use the main model), so go to the auxiliary
+    client directly; it reads ``auxiliary.<task>`` with the defaults registered below.
+    """
+    if _llm_takes_task():
+        return _ctx.llm.complete(messages=messages, task=task, purpose=purpose, **kw).text or ""
+    from agent.auxiliary_client import call_llm
+
+    response = call_llm(task=task, messages=messages, **kw)
+    return response.choices[0].message.content or ""
+
+
 def _evaluate(text: str) -> str:
-    result = _ctx.llm.complete(
-        messages=[{"role": "system", "content": PROMPT}, {"role": "user", "content": text}],
-        task=ROUTER_TASK, temperature=0.0, max_tokens=200, timeout=30, purpose="cheap-route.evaluate",
+    return _complete(
+        ROUTER_TASK, [{"role": "system", "content": PROMPT}, {"role": "user", "content": text}],
+        "cheap-route.evaluate", temperature=0.0, max_tokens=200, timeout=float(_setting("router_timeout", 30)),
     )
-    return result.text or ""
 
 
 def _answer_free(text: str) -> str:
-    result = _ctx.llm.complete(
-        messages=[{"role": "system", "content": _FREE_SYSTEM}, {"role": "user", "content": text}],
-        task=FREE_TASK, max_tokens=1024, timeout=60, purpose="cheap-route.answer",
-    )
-    return (result.text or "").strip()
+    return _complete(
+        FREE_TASK, [{"role": "system", "content": _FREE_SYSTEM}, {"role": "user", "content": text}],
+        "cheap-route.answer", max_tokens=1024, timeout=60,
+    ).strip()
 
 
 def on_admission(session_key: str = "", platform: str = "", text: str = "", **_: Any) -> Optional[dict]:
