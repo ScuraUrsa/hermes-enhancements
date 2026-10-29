@@ -65,7 +65,10 @@ persona that must not link back to Filip needs an alias from a forwarding servic
    use: name, e-mail, phone, address; custom text fields such as `birth_date` are shareable too,
    hidden fields and passport/ID numbers never are). `Agentowy/Konta` is created on the first account.
    Other names: `HIDENTITY_IDENTITY_FOLDER`, `HIDENTITY_ACCOUNTS_FOLDER`, `HIDENTITY_REAL_IDENTITY`.
-2. `bw` CLI logged in (`bw login`) on the PC and on prod (`npm i -g @bitwarden/cli` or the WOBI role).
+2. `bw` CLI on the PC (winget `Bitwarden.CLI`) and on prod (`npm i -g @bitwarden/cli` or the WOBI role),
+   pointed at the EU server once, then logged in: `bw config server https://vault.bitwarden.eu`,
+   `bw login`, `bw unlock`. Filip's account lives on vault.bitwarden.eu; the default US server
+   answers "Invalid master password".
 3. `pip install -e identity-vault` (or copy `hidentity/` and set `HIDENTITY_PATH`).
 4. Notion: the database exists under "Hermes Organized"; `NOTION_API_KEY` (env or `bws`) must have
    access to it. `hidentity map list` verifies.
