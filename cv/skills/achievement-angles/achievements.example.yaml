@@ -1,0 +1,29 @@
+# Achievement bank for the achievement-angles skill.
+# Live copy: ~/.hermes/autonomy/cv/achievements.yaml on prod. This example is made up.
+achievements:
+  - id: aks-migration
+    facts:
+      context: "Example Corp, platform team, 2024-03 to 2024-11"
+      problem: "40 services on hand-managed VMs, manual deploys, static service-principal secrets"
+      did: "designed the Terraform modules, built the pipelines, moved the services, led 3 engineers"
+      scope: "40 services, 3 environments"
+      tech: [Azure, AKS, Terraform, Azure DevOps, Entra ID workload identity]
+      results:
+        - "deploy time ~2 h manual -> 15 min pipeline"   # "~" = Filip's estimate
+        - "0 static secrets left in the migrated services"
+    variants:
+      devops:
+        text: "Migrated 40 services from VMs to AKS with Terraform and CI/CD pipelines, cutting deployment time from ~2 h to 15 min."
+        keywords: [Kubernetes, AKS, Terraform, CI/CD, IaC]
+        status: approved      # draft | needs_check | approved
+      iam:
+        text: "Replaced static service-principal secrets with Entra ID workload identity for 40 services, giving each one a least-privilege identity."
+        keywords: [IAM, Entra ID, workload identity, least privilege]
+        status: draft
+      finops:
+        status: n/a
+        reason: "no cost data"
+        question: "Did the migration change hosting cost?"
+    used_in:
+      - application: 2026-11-03-example-bank
+        lens: iam
