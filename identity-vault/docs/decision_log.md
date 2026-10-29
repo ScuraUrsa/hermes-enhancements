@@ -45,7 +45,20 @@ and their connections.
    (`HIDENTITY_ROTATE_DAYS`); rotation is detected via `passwordRevisionDate` or `mark-rotated`.
 6. Secrets never in argv: item JSON goes to `bw` via stdin, the session token via env.
 
+7. **Identities agents create (2026-10-27, Filip)**: folder `Agentowy` holds `Prawdziwy Ja` (his real
+   identity; every use needs his explicit yes) and identities Hermes and Claude create: formal/private
+   versions of Filip with other e-mails (`self-variant`) and generated personas (`persona`). Kind and
+   consent level live in `hermes_kind` / `hermes_consent`; an unmarked item counts as real, the real
+   one is always `always`, agents cannot set `none`. Personas: creation and data sharing need no
+   consent; accounts and logins still ask, per Filip's standing rule that no account is created
+   without his approval. E-mail via `--email` or plus addressing; truly unlinked personas need a
+   forwarding-alias service (follow-up).
+
 ## Follow-ups
+
+- E-mail aliases for personas that must not link back to Filip: a forwarding service (SimpleLogin,
+  addy.io or Firefox Relay through Bitwarden's username generator) needs an account and API key from
+  Filip.
 
 - WOBI role `identity_vault` (install `bw`, plugin, skill, cron job) once prod runs a Hermes with the vault.
 - Sign-up forms with a "confirm password" field: `browser_vault_fill` fills only one field; either

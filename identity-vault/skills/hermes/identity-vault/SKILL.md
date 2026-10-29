@@ -5,10 +5,19 @@ description: Create accounts and log in as Filip using Bitwarden, with his conse
 
 # Identity vault: accounts and logins as Filip
 
-Hermes never sees a password. Bitwarden holds Filip's identity (folder `Identity`) and the logins;
+Hermes never sees a password. Bitwarden holds the identities (folder `Agentowy`: `Prawdziwy Ja` is
+Filip's real data, plus his formal/private versions and generated personas) and the logins;
 `browser_vault_fill` types passwords into the page model-blind. The `identity_vault` plugin adds the
 consent step Filip requires: **ask before every account creation and before every login**, with where
 and why.
+
+## Identities
+
+`identity_list()` shows each identity's kind and consent level. `Prawdziwy Ja` always asks. Create a
+generated persona with `identity_create_persona(name, kind="persona", purpose, email_plus=...)` when a
+site should not get Filip's real data (or for Tor); no question needed, but an account or a login with
+it still asks. A formal or private version of Filip is `kind="self-variant"` with its own e-mail; it
+asks. Pass `identity="<name>"` to `identity_share` / `identity_create_account`.
 
 ## Rules
 

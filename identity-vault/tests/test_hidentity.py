@@ -25,12 +25,12 @@ class FakeBw:
     """Enough of ``bw`` to exercise the code paths. Secrets stay inside this object."""
 
     def __init__(self):
-        self.folders = [{"id": "f-id", "name": "Identity"}]
+        self.folders = [{"id": "f-id", "name": "Agentowy"}]
         self.items = [
             {
                 "id": "i-1",
                 "type": 4,
-                "name": "Filip",
+                "name": "Prawdziwy Ja",
                 "folderId": "f-id",
                 "identity": {
                     "firstName": "Filip",
@@ -376,3 +376,115 @@ def test_plugin_create_account_consent(monkeypatch, bw):
     assert again["error_type"] == "exists"
     share = json.loads(plug.identity_share("shop.example.com", "formularz", ["first_name", "email"]))
     assert share["values"] == {"first_name": "Filip", "email": "f@example.com"}
+
+
+# -- identities agents create ------------------------------------------------------------------
+
+
+def test_unmarked_or_real_identity_always_asks(bw, fake):
+    real = accounts.load_identity(bw)
+    assert real.name == "Prawdziwy Ja" and real.is_real and real.consent == "always"
+    # Marking the real item as a persona with consent none does not lower it.
+    fake.items[0]["fields"] += [
+        {"name": "hermes_kind", "value": "persona", "type": 0},
+        {"name": "hermes_consent", "value": "none", "type": 0},
+    ]
+    real = accounts.load_identity(bw)
+    assert real.is_real and accounts.needs_consent(real, "share")
+    assert "custom:hermes_kind" not in real.coverage()["known"]
+
+
+def test_persona_is_generated_and_never_copies_real_data(bw, fake):
+    import random
+
+    from hidentity import personas
+
+    res = personas.create(
+        bw,
+        name="Tor 1",
+        kind="persona",
+        purpose="przeglądanie przez Tor",
+        created_by="Claude",
+        email_plus="f@example.com",
+        rng=random.Random(1),
+    )
+    assert res["kind"] == "persona" and res["consent"] == "account" and res["copied_from_real"] == []
+    assert res["values"]["email"] == "f+tor-1@example.com"
+    stored = next(i for i in fake.items if i["name"] == "Tor 1")
+    assert stored["identity"]["firstName"] != "Filip" and stored["identity"]["lastName"] != "K."
+    ident = accounts.load_identity(bw, "Tor 1")
+    assert ident.kind == "persona" and not accounts.needs_consent(ident, "share")
+    assert accounts.needs_consent(ident, "account") and accounts.needs_consent(ident, "login")
+    with pytest.raises(ValueError):
+        personas.create(bw, name="Tor 2", kind="persona", purpose="x", created_by="Claude", copy_fields=["last_name"])
+
+
+def test_self_variant_copies_without_returning_real_values(bw, fake):
+    from hidentity import personas
+
+    res = personas.create(
+        bw,
+        name="Filip formalny",
+        kind="self-variant",
+        purpose="urzędy i praca",
+        created_by="Claude",
+        email="filip.formalny@example.com",
+        copy_fields=["first_name", "last_name", "city"],
+    )
+    assert res["copied_from_real"] == ["city", "first_name", "last_name"]
+    assert "Filip" not in json.dumps(res["values"]) and "Kraków" not in json.dumps(res)
+    stored = next(i for i in fake.items if i["name"] == "Filip formalny")
+    assert stored["identity"]["firstName"] == "Filip" and stored["identity"]["email"] == "filip.formalny@example.com"
+    assert "passportNumber" not in stored["identity"]
+    ident = accounts.load_identity(bw, "Filip formalny")
+    assert ident.kind == "self-variant" and ident.consent == "always"
+    names = [r["name"] for r in personas.list_identities(bw)]
+    assert names[0] == "Prawdziwy Ja" and "Filip formalny" in names
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"name": "Prawdziwy Ja", "kind": "persona"},
+        {"name": "X", "kind": "real"},
+        {"name": "X", "kind": "persona", "consent": "none"},
+        {"name": "X", "kind": "self-variant"},  # no e-mail of its own
+        {"name": "X", "kind": "persona", "values": {"passport_number": "1"}},
+        {"name": "X", "kind": "persona", "values": {"custom:hermes_consent": "none"}},
+    ],
+)
+def test_persona_create_refuses(bw, kw):
+    from hidentity import personas
+
+    with pytest.raises((ValueError, BwError)):
+        personas.create(bw, purpose="p", created_by="Claude", **kw)
+
+
+def test_plugin_persona_consent(monkeypatch, bw):
+    import identity_vault as plug
+
+    plug._grants.clear()
+    plug._cfg.clear()
+    asked: list[tuple] = []
+    monkeypatch.setattr(plug, "_ask", lambda *a, **k: asked.append(a) or True)
+    monkeypatch.setattr(plug, "_bw", lambda: (bw, accounts, accountmap))
+    monkeypatch.setattr(accountmap, "Notion", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no notion")))
+
+    assert json.loads(plug.identity_create_persona("Zakupy", "persona", "rejestracje", email="z@example.org"))[
+        "success"
+    ]
+    assert asked == []
+    share = json.loads(plug.identity_share("shop.example.com", "formularz", ["first_name"], identity="Zakupy"))
+    assert share["success"] and asked == []
+    acc = json.loads(
+        plug.identity_create_account("https://shop.example.com", "z@example.org", "lampa", identity="Zakupy")
+    )
+    assert acc["success"] and len(asked) == 1 and "Zakupy" in asked[0][1]
+    real = json.loads(plug.identity_share("shop.example.com", "formularz", ["first_name"]))
+    assert real["success"] and "PRAWDZIWE" in asked[1][1]
+    monkeypatch.setattr(plug, "_ask", lambda *a, **k: False)
+    v = json.loads(
+        plug.identity_create_persona("Filip prywatny", "self-variant", "znajomi", email_plus="f@example.com")
+    )
+    assert v["error_type"] == "consent_refused"
+    assert plug._on_pre_tool_call("terminal", {"command": "hidentity persona --kind self-variant"})["action"] == "block"

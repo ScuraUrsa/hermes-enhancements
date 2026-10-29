@@ -11,7 +11,7 @@ import argparse
 import json
 import sys
 
-from . import accountmap, accounts
+from . import accountmap, accounts, personas
 from .bw import Bw, BwError
 
 
@@ -33,6 +33,23 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("share", help="Print identity field VALUES for a sign-up form (ask Filip first!)")
     s.add_argument("fields", nargs="+", help="e.g. first_name last_name email phone city custom:birth_date")
     s.add_argument("--identity")
+
+    sub.add_parser("identities", help="Identities in the vault: name, kind, consent, field names (no values)")
+
+    pe = sub.add_parser(
+        "persona",
+        help="Create a new identity: a version of Filip (self-variant, ask Filip first!) or a generated persona",
+    )
+    pe.add_argument("--name", required=True, help="Bitwarden item name, e.g. 'Filip formalny' or 'Tor 1'")
+    pe.add_argument("--kind", required=True, choices=["self-variant", "persona"])
+    pe.add_argument("--purpose", required=True, help="What the identity is for")
+    em = pe.add_mutually_exclusive_group()
+    em.add_argument("--email")
+    em.add_argument("--email-plus", metavar="BASE", help="Make BASE+<name>@domain from an inbox Filip reads")
+    pe.add_argument("--copy", default="", help="self-variant: comma list of fields copied from the real identity")
+    pe.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE", help="Set or override a field")
+    pe.add_argument("--consent", choices=list(personas.AGENT_CONSENT), default="")
+    pe.add_argument("--created-by", default="Claude", choices=["Claude", "Hermes", "Filip"])
 
     f = sub.add_parser("find", help="Existing logins for a site")
     f.add_argument("url")
@@ -114,10 +131,33 @@ def main(argv: list[str] | None = None, bw: Bw | None = None, notion: accountmap
             _out(bw.status())
         elif args.cmd == "coverage":
             ident = accounts.load_identity(bw, args.identity)
-            _out({"identity": ident.name, **ident.coverage()})
+            _out({"identity": ident.name, "kind": ident.kind, "consent": ident.consent, **ident.coverage()})
         elif args.cmd == "share":
             ident = accounts.load_identity(bw, args.identity)
             _out(ident.pick(args.fields))
+        elif args.cmd == "identities":
+            _out(personas.list_identities(bw))
+        elif args.cmd == "persona":
+            values = {}
+            for kv in args.set:
+                k, sep, v = kv.partition("=")
+                if not sep:
+                    raise ValueError(f"--set wants FIELD=VALUE, got {kv!r}")
+                values[k.strip()] = v.strip()
+            _out(
+                personas.create(
+                    bw,
+                    name=args.name,
+                    kind=args.kind,
+                    purpose=args.purpose,
+                    created_by=args.created_by,
+                    email=args.email or "",
+                    email_plus=args.email_plus or "",
+                    copy_fields=[x.strip() for x in args.copy.split(",") if x.strip()],
+                    values=values,
+                    consent=args.consent,
+                )
+            )
         elif args.cmd == "find":
             _out(accounts.find_existing(bw, args.url, args.username))
         elif args.cmd == "create":
