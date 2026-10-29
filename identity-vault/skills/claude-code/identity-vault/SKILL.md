@@ -1,20 +1,28 @@
 ---
 name: identity-vault
-description: Create accounts and sign in as Filip with Bitwarden from Claude Code (on his PC or a Hermes VM), asking him first every time. Use when a task needs a new web/app account, Filip's personal data on a form, or a login to a site, and when maintaining the Notion account map.
+description: Create accounts and sign in as Filip or as identities created for him, with Bitwarden, from Claude Code (on his PC or a Hermes VM). Use when a task needs a new web/app account, personal data on a form, a login to a site, a new identity (a formal/private version of Filip or a generated persona), and when maintaining the Notion account map.
 ---
 
 # Identity vault for Claude Code
 
-Bitwarden is the source of truth: folder `Identity` (Filip's personal data as a Bitwarden Identity
-item), folder `Accounts` (logins created by agents). The `hidentity` CLI (repo
+Bitwarden is the source of truth: folder `Agentowy` (Identity items: `Prawdziwy Ja` with Filip's real
+data, his formal/private versions, generated personas), folder `Agentowy/Konta` (logins created by
+agents). The `hidentity` CLI (repo
 `hermes-enhancements/identity-vault`) wraps `bw` so secrets never reach the model or the logs.
 The account map is the Notion database **Konta i połączenia**.
 
-## Consent, every time
+## Consent
 
-Before `hidentity create` or `hidentity share`, and before any login, ask Filip in chat in Polish with
-three things: **where** (origin), **why** (the task), **what data** (fields or the vault item). Wait
-for his yes. One yes covers one account or one login. Then run the command: Claude Code's permission
+`hidentity identities` shows each identity's `kind` and `consent`. Ask Filip in chat in Polish, with
+**where** (origin), **why** (the task) and **what data / which identity**, and wait for his yes:
+
+- anything with `Prawdziwy Ja` (share, account, login): always, and name it as his real data;
+- a `self-variant` (his formal/private version): before creating it and before every use;
+- a `persona` with consent `account`: before an account or a login with it; sharing its data and
+  creating a new persona need no question (Filip 2026-10-27);
+- consent `none` (only Filip sets it in Bitwarden): no question.
+
+One yes covers one account or one login. Then run the command: Claude Code's permission
 prompt shows it to him again. Never answer for him, never batch several accounts into one question.
 
 ## Setup check
@@ -24,6 +32,18 @@ bw status                 # must be "unlocked"; else Filip runs `bw unlock` and 
 hidentity status
 hidentity coverage        # what the vault knows about Filip (field names, never values)
 ```
+
+## Create an identity
+
+```
+hidentity identities
+hidentity persona --kind persona --name "Tor 1" --purpose "przeglądanie przez Tor" --email-plus <inbox>
+hidentity persona --kind self-variant --name "Filip formalny" --purpose "urzędy, praca" \
+  --email <his formal address> --copy first_name,last_name,city      # ask first: copies his real data
+```
+A persona gets made-up Polish data (name, username, city, birth date). Pass `--set
+field=value` to adjust. Copied real values never appear in the output. Use `--identity "<name>"` on
+`share` and `create` to act as that identity.
 
 ## Create an account
 

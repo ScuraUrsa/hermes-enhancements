@@ -5,8 +5,13 @@ What it adds to Hermes (which already fills Bitwarden passwords model-blind thro
 
 Tools
   identity_coverage()                      what the vault knows about Filip (field names only)
-  identity_share(site, purpose, fields)    ASKS FILIP, then returns identity values for a form
-  identity_create_account(...)             ASKS FILIP, then Bitwarden generates + stores the password,
+  identity_list()                          identities in the vault: name, kind, consent (no values)
+  identity_create_persona(...)             a generated persona (no consent) or a formal/private
+                                           version of Filip (ASKS FILIP, copies his data model-blind)
+  identity_share(site, purpose, fields)    returns identity values for a form; ASKS FILIP for
+                                           "Prawdziwy Ja" and his versions, not for personas
+  identity_create_account(...)             ASKS FILIP (unless the identity's consent is "none", which
+                                           only Filip sets), then Bitwarden generates + stores the password,
                                            adds the account to the Notion map, tells Filip to rotate
   identity_request_login(handle, site, purpose)
                                            ASKS FILIP ("Hermes wants to log in to X because Y"), then
@@ -51,7 +56,7 @@ _grants: dict[str, float] = {}  # vault handle -> expiry (epoch seconds)
 
 _BLOCKED_TERMINAL = re.compile(
     r"(^|[;&|]\s*)(?:\S*/)?(?:bw\s+(?:get\s+(?:password|totp|item|username|notes)|list\s+items|export)"
-    r"|hidentity\s+(?:create|share)|bws\s+secret\s+get)\b"
+    r"|hidentity\s+(?:create|share|persona)|bws\s+secret\s+get)\b"
 )
 
 
@@ -88,6 +93,14 @@ def _hidentity():
     from hidentity.bw import Bw
 
     return accounts, accountmap, Bw
+
+
+def _whose(ident) -> str:
+    if ident.is_real:
+        return f"Twoje PRAWDZIWE dane (tożsamość „{ident.name}”)"
+    if ident.kind == "self-variant":
+        return f"Twoje dane z wersji „{ident.name}”"
+    return f"dane persony „{ident.name}”"
 
 
 def _bw_session() -> str | None:
@@ -131,13 +144,14 @@ def identity_share(site: str, purpose: str, fields: list[str], identity: str = "
         values = ident.pick(fields)
     except Exception as exc:
         return json.dumps({"success": False, "error": str(exc)})
-    ok = _ask(
-        "Udostępnić dane osobowe?",
-        f"Hermes chce wpisać na {site} Twoje dane: {', '.join(sorted(values))}.",
-        f"Po co: {purpose}\nŹródło: Bitwarden → tożsamość „{ident.name}”. Wartości nie trafią do logów.",
-    )
-    if not ok:
-        return _refused(f"sharing {', '.join(sorted(values))} with {site}")
+    if accounts.needs_consent(ident, "share"):
+        ok = _ask(
+            "Udostępnić dane osobowe?",
+            f"Hermes chce wpisać na {site} {_whose(ident)}: {', '.join(sorted(values))}.",
+            f"Po co: {purpose}\nŹródło: Bitwarden → „{ident.name}”. Wartości nie trafią do logów.",
+        )
+        if not ok:
+            return _refused(f"sharing {', '.join(sorted(values))} with {site}")
     return json.dumps(
         {
             "success": True,
@@ -161,6 +175,8 @@ def identity_create_account(
     try:
         bw, accounts, accountmap = _bw()
         origin = accounts.origin_of(site_url)
+        ident = accounts.load_identity(bw, identity or None)
+        identity = ident.name
         existing = accounts.find_existing(bw, origin, username)
     except Exception as exc:
         return json.dumps({"success": False, "error": str(exc)})
@@ -173,14 +189,16 @@ def identity_create_account(
                 "items": [{"handle": f"bw:{e['id']}", "name": e["name"]} for e in existing],
             }
         )
-    ok = _ask(
-        "Założyć nowe konto?",
-        f"Hermes chce założyć konto na {origin} (login: {username}).",
-        f"Po co: {purpose}\nDane z tożsamości, które wpisze: {', '.join(shared_fields) or 'tylko login'}.\n"
-        f"Hasło wygeneruje Bitwarden i zapisze w folderze „Accounts”; poproszę Cię o jego zmianę.",
-    )
-    if not ok:
-        return _refused(f"creating an account on {origin}")
+    if accounts.needs_consent(ident, "account"):
+        ok = _ask(
+            "Założyć nowe konto?",
+            f"Hermes chce założyć konto na {origin} (login: {username}) jako „{ident.name}”.",
+            f"Po co: {purpose}\nWpisze {_whose(ident)}: {', '.join(shared_fields) or 'tylko login'}.\n"
+            f"Hasło wygeneruje Bitwarden i zapisze w folderze „{accounts.ACCOUNTS_FOLDER}”; "
+            "poproszę Cię o jego zmianę.",
+        )
+        if not ok:
+            return _refused(f"creating an account on {origin}")
     try:
         meta = accounts.create_login(
             bw,
@@ -220,6 +238,57 @@ def identity_create_account(
             ),
         }
     )
+
+
+def identity_list() -> str:
+    try:
+        bw, _, _ = _bw()
+        from hidentity import personas
+
+        return json.dumps({"success": True, "identities": personas.list_identities(bw)}, ensure_ascii=False)
+    except Exception as exc:
+        return json.dumps({"success": False, "error": str(exc)})
+
+
+def identity_create_persona(
+    name: str,
+    kind: str,
+    purpose: str,
+    email: str = "",
+    email_plus: str = "",
+    copy_fields: list[str] | None = None,
+    values: dict | None = None,
+) -> str:
+    try:
+        bw, accounts, _ = _bw()
+        from hidentity import personas
+    except Exception as exc:
+        return json.dumps({"success": False, "error": str(exc)})
+    if kind == "self-variant":
+        fields = copy_fields or ["first_name", "last_name", "country"]
+        ok = _ask(
+            "Utworzyć nową wersję Ciebie?",
+            f"Hermes chce utworzyć tożsamość „{name}” z Twoimi prawdziwymi danymi: {', '.join(fields)}.",
+            f"Po co: {purpose}\nE-mail: {email or email_plus or '(brak)'}. "
+            "Dane skopiuje Bitwarden, model ich nie zobaczy.",
+        )
+        if not ok:
+            return _refused(f"creating the identity {name!r} from your real data")
+    try:
+        res = personas.create(
+            bw,
+            name=name,
+            kind=kind,
+            purpose=purpose,
+            created_by=str(_cfg.get("created_by") or "Hermes"),
+            email=email,
+            email_plus=email_plus,
+            copy_fields=copy_fields or [],
+            values={str(k): str(v) for k, v in (values or {}).items()},
+        )
+    except Exception as exc:
+        return json.dumps({"success": False, "error": str(exc)})
+    return json.dumps({"success": True, "identity": res}, ensure_ascii=False)
 
 
 def identity_request_login(handle: str, site: str, purpose: str) -> str:
@@ -325,12 +394,46 @@ def register(ctx) -> None:
         handler=lambda args, **kw: identity_coverage(**args),
     )
     ctx.register_tool(
+        "identity_list",
+        ts,
+        _tool(
+            "identity_list",
+            "Identities in Filip's vault folder: 'Prawdziwy Ja' (his real data, always asks), his formal/private "
+            "versions and generated personas, with how much consent each needs. No values.",
+            {},
+            [],
+        ),
+        handler=lambda args, **kw: identity_list(),
+    )
+    ctx.register_tool(
+        "identity_create_persona",
+        ts,
+        _tool(
+            "identity_create_persona",
+            "Create a new identity in Bitwarden. kind=persona: generated, made-up data (for sign-ups where Filip "
+            "does not want to give his real data, or browsing over Tor); no consent needed, but accounts and logins "
+            "with it still ask. kind=self-variant: a formal or private version of Filip with its own e-mail; ASKS "
+            "FILIP, copies chosen fields from his real identity without showing them to you.",
+            {
+                "name": {"type": "string", "description": "Item name, e.g. 'Filip formalny' or 'Tor 1'"},
+                "kind": {"type": "string", "enum": ["persona", "self-variant"]},
+                "purpose": {"type": "string"},
+                "email": {"type": "string"},
+                "email_plus": {"type": "string", "description": "Inbox to derive base+<name>@domain from"},
+                "copy_fields": {"type": "array", "items": {"type": "string"}},
+                "values": {"type": "object", "description": "Fields to set or override, e.g. {city: Gdańsk}"},
+            },
+            ["name", "kind", "purpose"],
+        ),
+        handler=lambda args, **kw: identity_create_persona(**args),
+    )
+    ctx.register_tool(
         "identity_share",
         ts,
         _tool(
             "identity_share",
-            "ASKS FILIP, then returns identity values (name, email, phone, address...) to type into a form "
-            "on `site`. Always give the real reason in `purpose`.",
+            "Returns identity values (name, email, phone, address...) to type into a form on `site`. ASKS FILIP "
+            "for his real identity and his versions; a persona's data is free. Always give the real reason.",
             {
                 "site": {"type": "string"},
                 "purpose": {"type": "string"},

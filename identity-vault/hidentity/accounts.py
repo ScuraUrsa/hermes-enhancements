@@ -2,12 +2,15 @@
 
 Vault layout (folder names are configurable through env, defaults below):
 
-- ``Identity``  Bitwarden *Identity* items with Filip's personal data. The first one (or the one
-                named with ``--identity``) is what agents may share on sign-up forms, field by field,
-                after Filip agrees.
-- ``Accounts``  one *Login* item per account an agent created. Text custom fields prefixed
-                ``hermes_`` record who created it, why, what personal data was shared and when the
-                password must be rotated.
+- ``Agentowy``        Bitwarden *Identity* items agents may use. ``Prawdziwy Ja`` holds Filip's real
+                      data; every use of it needs his explicit yes. Other items are identities agents
+                      created (``personas.py``): formal or private versions of Filip with other
+                      e-mails, and generated personas loosely or not at all tied to him. The text field
+                      ``hermes_kind`` says which (``real``, ``self-variant``, ``persona``) and
+                      ``hermes_consent`` how much asking it needs (see ``CONSENT``).
+- ``Agentowy/Konta``  one *Login* item per account an agent created. Text custom fields prefixed
+                      ``hermes_`` record who created it, why, what personal data was shared and when
+                      the password must be rotated.
 
 Nothing here returns a password, a TOTP seed or a hidden field.
 """
@@ -22,8 +25,17 @@ from urllib.parse import urlparse
 
 from .bw import FIELD_HIDDEN, IDENTITY, LOGIN, Bw, BwError, field_value, item_metadata, set_field
 
-IDENTITY_FOLDER = os.environ.get("HIDENTITY_IDENTITY_FOLDER", "Identity")
-ACCOUNTS_FOLDER = os.environ.get("HIDENTITY_ACCOUNTS_FOLDER", "Accounts")
+IDENTITY_FOLDER = os.environ.get("HIDENTITY_IDENTITY_FOLDER", "Agentowy")
+ACCOUNTS_FOLDER = os.environ.get("HIDENTITY_ACCOUNTS_FOLDER", "Agentowy/Konta")
+# Filip's real identity (Filip 2026-10-27): using it always needs his explicit, confirmed yes.
+REAL_IDENTITY = os.environ.get("HIDENTITY_REAL_IDENTITY", "Prawdziwy Ja")
+
+KINDS = ("real", "self-variant", "persona")
+# How much asking an identity needs before an agent uses it:
+#   always   share, account creation and login each ask Filip (forced for the real identity)
+#   account  sharing its data is free; creating an account or logging in with it asks
+#   none     nothing asks; only Filip can set this, by editing the item in Bitwarden
+CONSENT = ("always", "account", "none")
 DEFAULT_ROTATE_DAYS = int(os.environ.get("HIDENTITY_ROTATE_DAYS", "3"))
 
 # Bitwarden identity fields an agent may put on a sign-up form (after consent).
@@ -56,6 +68,8 @@ META = {
     "login_via": "hermes_login_via",
     "rotate_by": "hermes_rotate_by",
     "rotated": "hermes_rotated",
+    "kind": "hermes_kind",
+    "consent": "hermes_consent",
 }
 
 
@@ -81,6 +95,12 @@ class Identity:
     values: dict[str, str]  # shareable key -> value (only non-empty)
     custom: dict[str, str]  # visible custom fields on the identity item (e.g. birth_date)
     stored_private: list[str]  # NEVER_SHARED keys that are filled (names only)
+    kind: str = "real"
+    consent: str = "always"
+
+    @property
+    def is_real(self) -> bool:
+        return self.kind == "real"
 
     def coverage(self) -> dict[str, list[str]]:
         """What the vault knows about Filip and what not (field names only)."""
@@ -113,18 +133,50 @@ def load_identity(bw: Bw, name: str | None = None) -> Identity:
         items = [i for i in items if i.get("name") == name]
     if not items:
         raise BwError(f"No Identity item{' named ' + repr(name) if name else ''} in folder {IDENTITY_FOLDER!r}.")
-    item = min(items, key=lambda i: i.get("name") or "")
+    # No name given: the real identity, as before; else the first by name.
+    item = next((i for i in items if i.get("name") == REAL_IDENTITY), None) or min(
+        items, key=lambda i: i.get("name") or ""
+    )
     ident = item.get("identity") or {}
     values = {k: str(ident[bwk]).strip() for k, bwk in SHAREABLE.items() if ident.get(bwk)}
     custom = {
         f["name"]: str(f.get("value") or "")
         for f in item.get("fields") or []
-        if f.get("name") and f.get("type") != FIELD_HIDDEN and f.get("value")
+        if f.get("name") and f.get("type") != FIELD_HIDDEN and f.get("value") and not f["name"].startswith("hermes_")
     }
     private = [k for k, bwk in NEVER_SHARED.items() if ident.get(bwk)]
+    kind, consent = classify(item)
     return Identity(
-        item_id=item["id"], name=item.get("name") or "", values=values, custom=custom, stored_private=private
+        item_id=item["id"],
+        name=item.get("name") or "",
+        values=values,
+        custom=custom,
+        stored_private=private,
+        kind=kind,
+        consent=consent,
     )
+
+
+def classify(item: dict) -> tuple[str, str]:
+    """(kind, consent) of an identity item. Fails safe: an unmarked item counts as Filip's real data."""
+    kind = field_value(item, META["kind"]) or ""
+    if item.get("name") == REAL_IDENTITY or kind not in KINDS:
+        kind = "real"
+    if kind == "real":
+        return kind, "always"
+    consent = field_value(item, META["consent"]) or ""
+    if consent not in CONSENT:
+        consent = "always" if kind == "self-variant" else "account"
+    return kind, consent
+
+
+def needs_consent(ident: Identity, action: str) -> bool:
+    """``action`` is ``share``, ``account`` (create one) or ``login``."""
+    if ident.consent == "always":
+        return True
+    if ident.consent == "account":
+        return action in ("account", "login")
+    return False
 
 
 # -- accounts --------------------------------------------------------------------------------
