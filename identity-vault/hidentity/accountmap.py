@@ -28,7 +28,18 @@ STATUS = ["active", "to-rotate", "to-verify", "closed"]
 KINDS = ["real", "self-variant", "persona"]
 # Filip 2026-10-30: map what each account knows about which identity, then migrate towards anonymity.
 # Identity fields (accounts.SHAREABLE) plus what sites learn without a form field.
-DATA_EXTRA = ["birth_date", "payment", "id_document", "photo", "voice", "location", "ip", "device", "contacts"]
+DATA_EXTRA = [
+    "username",
+    "birth_date",
+    "payment_card",
+    "id_document",
+    "photo",
+    "voice",
+    "location",
+    "ip",
+    "device",
+    "contacts",
+]
 PLAN = ["keep", "move-to-persona", "reduce-data", "close", "done"]
 # A login through one of these hands the provider's identity to the site (see exposure()).
 FEDERATED = {"google", "apple", "microsoft", "github", "facebook"}

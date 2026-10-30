@@ -25,6 +25,14 @@ The account map is the Notion database **Konta i połączenia**.
 One yes covers one account or one login. Then run the command: Claude Code's permission
 prompt shows it to him again. Never answer for him, never batch several accounts into one question.
 
+## Before any browser task (Filip, 2026-10-30)
+
+Whenever you use a web browser (Claude in Chrome: Filip's default profile "Osoba 1"), first check
+that the Bitwarden extension is there and logged in to the EU server (bitwarden.eu). If the task
+needs a login or identity data and Bitwarden is missing, logged out or locked, stop and ask Filip,
+and make it easy for him: say in one line what is needed, open the extension's login/unlock screen
+(or the page) for him and wait for his "ok". He types his master password and 2FA himself, never you.
+
 ## Setup check
 
 ```
@@ -79,7 +87,7 @@ hidentity rotation-due                                                          
 hidentity map add --name "Forum X" --identity "Rejestracje 1" --shared email,username --plan keep
 hidentity map exposure                                                            # who knows what, leaks, backlog
 ```
-Every account row names its identity and what the site got (`--shared`, plus payment, photo,
+Every account row names its identity and what the site got (`--shared`, plus payment_card, photo,
 id_document, location, ip, device, contacts when they apply). Filip is moving towards anonymity:
 before setting up a persona's account, run `exposure` and avoid what links it back (a login through
 his Google, the same username or e-mail as another identity).
