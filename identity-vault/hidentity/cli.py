@@ -83,7 +83,11 @@ def build_parser() -> argparse.ArgumentParser:
     ma.add_argument("--name", required=True)
     ma.add_argument("--url")
     ma.add_argument("--username")
-    ma.add_argument("--identity", default="Filip")
+    ma.add_argument("--identity", default=None, help=f"Identity name (default {accounts.REAL_IDENTITY!r})")
+    ma.add_argument("--kind", choices=accountmap.KINDS, help="Identity kind (default: looked up in Bitwarden)")
+    ma.add_argument("--exposes-real", choices=["yes", "no"], help="Does the account hold data of the real Filip?")
+    ma.add_argument("--plan", choices=accountmap.PLAN, help="Anonymity plan for this account")
+    ma.add_argument("--migrate-to", help="Identity the account should move to")
     ma.add_argument("--login-via", choices=accountmap.LOGIN_VIA)
     ma.add_argument("--status", choices=accountmap.STATUS)
     ma.add_argument("--created-by", choices=["Filip", "Hermes", "Claude"])
@@ -101,22 +105,44 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--connected", action="store_true", help="FROM is connected to TO (integration/OAuth)")
     msub.add_parser("sync", help="Push agent-created Bitwarden accounts into the map")
     msub.add_parser("mermaid", help="Print the map as a Mermaid graph")
+    msub.add_parser("upgrade", help="Add the identity/exposure columns to an existing map (never removes any)")
+    msub.add_parser("exposure", help="What the accounts know about each identity, leaks between identities")
     return p
 
 
-def _map_row_from_meta(meta: dict) -> dict:
+def _kinds(bw: Bw) -> dict[str, str]:
+    """Identity name -> kind, from the Bitwarden identity folder (names only)."""
+    try:
+        return {i["name"]: i["kind"] for i in personas.list_identities(bw)}
+    except (BwError, RuntimeError):
+        return {}
+
+
+def _exposes_real(kind: str | None, shared: list[str]) -> bool:
+    # A self-variant carries copied real fields, so anything shared from it is real data too.
+    return kind == "real" or (kind == "self-variant" and bool(shared))
+
+
+def _map_row_from_meta(meta: dict, kinds: dict[str, str] | None = None) -> dict:
     f = meta.get("fields") or {}
     M = accounts.META
+    identity = f.get(M["identity"]) or accounts.REAL_IDENTITY
+    if identity == "Filip":  # the old default name of the real identity
+        identity = accounts.REAL_IDENTITY
+    kind = (kinds or {}).get(identity) or ("real" if identity == accounts.REAL_IDENTITY else None)
+    shared = [x for x in (f.get(M["shared"]) or "").split(",") if x]
     return {
         "Name": meta["name"],
         "URL": (meta.get("uris") or [None])[0],
         "Username": meta.get("username"),
-        "Identity": f.get(M["identity"]) or "Filip",
+        "Identity": identity,
+        "Identity kind": kind,
+        "Exposes real me": _exposes_real(kind, shared),
         "Login via": f.get(M["login_via"]) or "password",
         "Status": "active" if f.get(M["rotated"]) == "yes" else "to-rotate",
         "Created by": f.get(M["created_by"]),
         "Purpose": f.get(M["purpose"]),
-        "Data shared": [x for x in (f.get(M["shared"]) or "").split(",") if x],
+        "Data shared": shared,
         "Bitwarden item": meta["id"],
         "Rotate by": f.get(M["rotate_by"]),
         "Has 2FA": bool(meta.get("has_totp")),
@@ -188,7 +214,7 @@ def main(argv: list[str] | None = None, bw: Bw | None = None, notion: accountmap
                 try:
                     n = notion or accountmap.Notion()
                     ds = n.ensure_database(None)
-                    page = n.upsert(ds["id"], _map_row_from_meta(meta))
+                    page = n.upsert(ds["id"], _map_row_from_meta(meta, _kinds(bw)))
                     result["map"] = page.get("url")
                 except Exception as exc:  # the account exists; the map is best effort
                     result["map"] = f"not added: {exc}"
@@ -211,16 +237,24 @@ def main(argv: list[str] | None = None, bw: Bw | None = None, notion: accountmap
             if args.mapcmd == "list":
                 _out(n.rows(ds["id"]))
             elif args.mapcmd == "add":
+                identity = args.identity or accounts.REAL_IDENTITY
+                kind = args.kind or _kinds(bw).get(identity) or ("real" if identity == accounts.REAL_IDENTITY else None)
+                shared = [x.strip() for x in (args.shared or "").split(",") if x.strip()]
+                exposes = {"yes": True, "no": False}.get(args.exposes_real, _exposes_real(kind, shared))
                 row = {
                     "Name": args.name,
                     "URL": args.url,
                     "Username": args.username,
-                    "Identity": args.identity,
+                    "Identity": identity,
+                    "Identity kind": kind,
+                    "Exposes real me": exposes,
+                    "Anonymity plan": args.plan,
+                    "Migrate to": args.migrate_to,
                     "Login via": args.login_via,
                     "Status": args.status,
                     "Created by": args.created_by,
                     "Purpose": args.purpose,
-                    "Data shared": args.shared,
+                    "Data shared": shared,
                     "Bitwarden item": args.bitwarden_item,
                     "Rotate by": args.rotate_by,
                     "Has 2FA": args.has_2fa,
@@ -232,10 +266,15 @@ def main(argv: list[str] | None = None, bw: Bw | None = None, notion: accountmap
                 n.link(ds["id"], args.from_name, "Logs in via" if args.via else "Connected to", args.to_name)
                 _out({"linked": [args.from_name, "via" if args.via else "connected", args.to_name]})
             elif args.mapcmd == "sync":
-                urls = [n.upsert(ds["id"], _map_row_from_meta(m)).get("url") for m in accounts.accounts(bw)]
+                kinds = _kinds(bw)
+                urls = [n.upsert(ds["id"], _map_row_from_meta(m, kinds)).get("url") for m in accounts.accounts(bw)]
                 _out({"synced": len(urls)})
             elif args.mapcmd == "mermaid":
                 print(accountmap.mermaid(n.rows(ds["id"])))
+            elif args.mapcmd == "upgrade":
+                _out(n.upgrade(ds, accounts.REAL_IDENTITY))
+            elif args.mapcmd == "exposure":
+                _out(accountmap.exposure(n.rows(ds["id"]), accounts.REAL_IDENTITY))
         return 0
     except (BwError, RuntimeError, ValueError) as exc:
         _out({"error": str(exc)})

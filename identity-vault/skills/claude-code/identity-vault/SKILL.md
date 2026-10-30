@@ -76,5 +76,11 @@ hidentity map link "Claude (fjkazmierczak)" "Google (fjkazmierczak)" --via      
 hidentity map link "Claude Code" "Notion (Hermes workspace)" --connected          # integration
 hidentity map sync                                                                # Bitwarden → Notion
 hidentity rotation-due                                                            # passwords Filip still has to rotate
+hidentity map add --name "Forum X" --identity "Rejestracje 1" --shared email,username --plan keep
+hidentity map exposure                                                            # who knows what, leaks, backlog
 ```
+Every account row names its identity and what the site got (`--shared`, plus payment, photo,
+id_document, location, ip, device, contacts when they apply). Filip is moving towards anonymity:
+before setting up a persona's account, run `exposure` and avoid what links it back (a login through
+his Google, the same username or e-mail as another identity).
 Record a new connection whenever you set one up (an OAuth grant, an MCP connector, "Login with ...").

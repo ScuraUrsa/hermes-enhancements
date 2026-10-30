@@ -275,6 +275,54 @@ def test_map_init_upsert_link_mermaid():
         n.link("ds-1", "nope", "Connected to", "Claude renamed")
 
 
+def test_map_upgrade_adds_columns_and_moves_old_default_identity():
+    fake = FakeNotion()
+    fake.ds = {"id": "ds-1", "title": [{"plain_text": accountmap.DB_TITLE}], "properties": {"Name": {}, "Identity": {}}}
+    n = accountmap.Notion(token="t", opener=fake)
+    n.upsert("ds-1", {"Name": "Google (fjk)", "Identity": "Filip"})
+    n.upsert("ds-1", {"Name": "Forum", "Identity": "Rejestracje 1", "Identity kind": "persona"})
+    out = n.upgrade(fake.ds, "Prawdziwy Ja")
+    assert {"Identity kind", "Exposes real me", "Anonymity plan", "Migrate to"} <= set(out["added_columns"])
+    assert "Name" not in out["added_columns"] and out["rows_moved_to_real"] == 1
+    rows = {r["Name"]: r for r in n.rows("ds-1")}
+    assert rows["Google (fjk)"]["Identity"] == "Prawdziwy Ja" and rows["Google (fjk)"]["Exposes real me"] is True
+    assert rows["Forum"]["Identity"] == "Rejestracje 1"
+
+
+def test_exposure_lists_backlog_and_leaks_between_identities():
+    rows = [
+        {
+            "id": "g",
+            "Name": "Google",
+            "Identity": "Prawdziwy Ja",
+            "Identity kind": "real",
+            "Data shared": ["email", "phone"],
+        },
+        {
+            "id": "f",
+            "Name": "Forum",
+            "Identity": "Rejestracje 1",
+            "Identity kind": "persona",
+            "Data shared": ["email"],
+            "Logs in via": ["g"],
+            "Username": "Kot99",
+        },
+        {"id": "s", "Name": "Shop", "Identity": "Rejestracje 1", "Identity kind": "persona", "Login via": "google"},
+        {"id": "b", "Name": "Bank", "Identity": "Prawdziwy Ja", "Username": "kot99", "Anonymity plan": "keep"},
+        {"id": "o", "Name": "Old", "Identity": "Prawdziwy Ja", "Status": "closed"},
+    ]
+    out = accountmap.exposure(rows, "Prawdziwy Ja")
+    assert out["identities"]["Rejestracje 1"]["accounts"] == ["Forum", "Shop"]
+    assert out["identities"]["Prawdziwy Ja"]["data"] == ["email", "phone"]
+    hows = {(link.get("account"), link["how"]) for link in out["links"]}
+    assert ("Forum", "logs in via") in hows and (
+        "Shop",
+        "federated login, provider account not linked in the map",
+    ) in hows
+    assert any(link["how"] == "same username" for link in out["links"])
+    assert {b["account"] for b in out["real_data_backlog"]} == {"Google", "Bank"}  # closed and personas left out
+
+
 # -- CLI ---------------------------------------------------------------------------------------
 
 
@@ -304,6 +352,9 @@ def test_cli_create_adds_to_map(bw, capsys):
         row["Status"] == "to-rotate"
         and row["Created by"] == "Claude"
         and row["Data shared"] == ["first_name", "last_name"]
+        and row["Identity"] == "Prawdziwy Ja"
+        and row["Identity kind"] == "real"
+        and row["Exposes real me"] is True
     )
     rc = cli.main(["share", "email", "city"], bw=bw)
     assert rc == 0 and json.loads(capsys.readouterr().out) == {"email": "f@example.com", "city": "Kraków"}

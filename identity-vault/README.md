@@ -83,6 +83,18 @@ hidentity status | coverage | share <fields> | find <url> | create --url --usern
 hidentity identities | persona --kind persona|self-variant --name N --purpose P [--email E | --email-plus B] [--copy f,..] [--set f=v]
 hidentity accounts | rotation-due | mark-rotated <id>
 hidentity map init --parent <page> | list | add ... | link A B --via|--connected | sync | mermaid
+hidentity map upgrade | exposure
 ```
+
+Exposure map (2026-10-30): every row says which identity the account belongs to (`Identity`,
+`Identity kind`), what it knows (`Data shared`: identity fields plus payment, id_document, photo,
+voice, location, ip, device, contacts), whether that is data of the real Filip (`Exposes real me`)
+and where it should go (`Anonymity plan`: keep / move-to-persona / reduce-data / close / done,
+`Migrate to`). `create`, `sync` and `map add` fill identity, kind and exposure themselves.
+`hidentity map upgrade` adds these columns to an existing map (never removes one) and moves rows of
+the old default identity "Filip" to `Prawdziwy Ja`. `hidentity map exposure` prints, per identity,
+its accounts and the data they hold, the links that tie identities together (a login through
+another identity's account, a federated login with no provider row, the same username) and the
+backlog of accounts still holding real data.
 
 Tests: `pytest` (offline fakes for `bw` and Notion). Lint: `ruff check .`.
