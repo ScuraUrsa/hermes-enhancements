@@ -25,6 +25,14 @@ The account map is the Notion database **Konta i połączenia**.
 One yes covers one account or one login. Then run the command: Claude Code's permission
 prompt shows it to him again. Never answer for him, never batch several accounts into one question.
 
+## Browser check (Filip, 2026-10-30)
+
+At the start of every browser task (Claude in Chrome: his Chrome profile "Osoba 1"), before anything else:
+is the Bitwarden extension there, logged in to bitwarden.eu and unlocked? If the task will need a login,
+a password fill or identity data and Bitwarden is missing, logged out or locked, ask Filip in Polish
+before you start, and make it easy: open the extension popup (or https://vault.bitwarden.eu) for him and
+say exactly what to click/type. Never type his master password. Tasks that need no login go on.
+
 ## Setup check
 
 ```

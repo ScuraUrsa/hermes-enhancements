@@ -33,6 +33,12 @@ asks. Pass `identity="<name>"` to `identity_share` / `identity_create_account`.
    the generated password in Bitwarden by the date in the result (`hermes_rotate_by`).
 6. Prefer an existing login over a new account. Check with `browser_vault_list` first.
 7. Nothing of this works in cron or `-q` runs (consent fails closed). Do not try to work around it.
+8. Browser check (Filip, 2026-10-30): at the start of every browser task check that Bitwarden is
+   available and unlocked (`browser_vault_list` answers; on Filip's Chrome the extension is logged in
+   to bitwarden.eu). If the task will need a login, a password fill or identity data and it is not,
+   ask Filip in Polish before you start and make it easy for him: say exactly where to click or what
+   to run (`bw unlock` on the VM, the extension popup on his Chrome). Never ask for his master
+   password in chat. Tasks that need no login go on.
 
 ## Create an account
 
