@@ -25,17 +25,28 @@ DB_TITLE = "Konta i połączenia"
 
 LOGIN_VIA = ["password", "google", "apple", "microsoft", "github", "facebook", "passkey", "magic-link", "other"]
 STATUS = ["active", "to-rotate", "to-verify", "closed"]
+KINDS = ["real", "self-variant", "persona"]
+# Filip 2026-10-30: map what each account knows about which identity, then migrate towards anonymity.
+# Identity fields (accounts.SHAREABLE) plus what sites learn without a form field.
+DATA_EXTRA = ["birth_date", "payment", "id_document", "photo", "voice", "location", "ip", "device", "contacts"]
+PLAN = ["keep", "move-to-persona", "reduce-data", "close", "done"]
+# A login through one of these hands the provider's identity to the site (see exposure()).
+FEDERATED = {"google", "apple", "microsoft", "github", "facebook"}
 
 SCHEMA: dict[str, dict] = {
     "Name": {"title": {}},
     "URL": {"url": {}},
     "Username": {"rich_text": {}},
-    "Identity": {"select": {"options": [{"name": "Filip"}]}},
+    "Identity": {"select": {"options": []}},
+    "Identity kind": {"select": {"options": [{"name": n} for n in KINDS]}},
     "Login via": {"select": {"options": [{"name": n} for n in LOGIN_VIA]}},
     "Status": {"select": {"options": [{"name": n} for n in STATUS]}},
     "Created by": {"select": {"options": [{"name": n} for n in ("Filip", "Hermes", "Claude")]}},
     "Purpose": {"rich_text": {}},
-    "Data shared": {"multi_select": {"options": []}},
+    "Data shared": {"multi_select": {"options": [{"name": n} for n in DATA_EXTRA]}},
+    "Exposes real me": {"checkbox": {}},
+    "Anonymity plan": {"select": {"options": [{"name": n} for n in PLAN]}},
+    "Migrate to": {"rich_text": {}},
     "Bitwarden item": {"rich_text": {}},
     "Rotate by": {"date": {}},
     "Has 2FA": {"checkbox": {}},
@@ -118,6 +129,21 @@ class Notion:
                 },
             )
         return self._req("GET", f"/data_sources/{ds_id}")
+
+    def upgrade(self, ds: dict, real_identity: str, legacy: str = "Filip") -> dict:
+        """Add the columns this version knows and the database lacks; move rows of the old default
+        identity ("Filip") to ``real_identity``. Never removes or renames a column."""
+        have = set((ds.get("properties") or {}).keys())
+        missing = {k: v for k, v in SCHEMA.items() if k not in have}
+        if missing:
+            self._req("PATCH", f"/data_sources/{ds['id']}", {"properties": missing})
+        moved = 0
+        for r in self.rows(ds["id"]):
+            if r.get("Identity") in (None, "", legacy):
+                props = dict_to_props({"Identity": real_identity, "Identity kind": "real", "Exposes real me": True})
+                self._req("PATCH", f"/pages/{r['id']}", {"properties": props})
+                moved += 1
+        return {"added_columns": sorted(missing), "rows_moved_to_real": moved}
 
     def ensure_database(self, parent_page_id: str | None) -> dict:
         found = self.find_database()
@@ -243,3 +269,76 @@ def mermaid(rows: list[dict]) -> str:
 
 def _mid(page_id: str) -> str:
     return "n" + page_id.replace("-", "")[:8]
+
+
+def exposure(rows: list[dict], real_identity: str) -> dict:
+    """What the accounts know about each identity, and where identities leak into each other.
+
+    ``links`` lists what ties a non-real identity back to another one: a shared username or a login
+    through an account of a different identity (a Google login gives the site that Google account).
+    Rows marked ``Exposes real me`` (or under the real identity) are the migration backlog.
+    """
+    by_id = {r["id"]: r for r in rows if r.get("id")}
+    ident: dict[str, dict] = {}
+    for r in rows:
+        if r.get("Status") == "closed":
+            continue
+        name = r.get("Identity") or real_identity
+        e = ident.setdefault(name, {"kind": r.get("Identity kind"), "accounts": [], "data": set()})
+        e["kind"] = e["kind"] or r.get("Identity kind")
+        e["accounts"].append(r.get("Name"))
+        e["data"].update(r.get("Data shared") or [])
+    links = []
+    users: dict[str, set[str]] = {}
+    for r in rows:
+        if r.get("Status") == "closed":
+            continue
+        name = r.get("Identity") or real_identity
+        if r.get("Username"):
+            users.setdefault(r["Username"].strip().lower(), set()).add(name)
+        if r.get("Login via") in FEDERATED and not r.get("Logs in via"):
+            links.append(
+                {
+                    "account": r.get("Name"),
+                    "identity": name,
+                    "via": r.get("Login via"),
+                    "leaks_to": "unknown",
+                    "how": "federated login, provider account not linked in the map",
+                }
+            )
+        for tid in r.get("Logs in via") or []:
+            t = by_id.get(tid)
+            if t and (t.get("Identity") or real_identity) != name:
+                links.append(
+                    {
+                        "account": r.get("Name"),
+                        "identity": name,
+                        "via": t.get("Name"),
+                        "leaks_to": t.get("Identity") or real_identity,
+                        "how": "logs in via",
+                    }
+                )
+    for u, names in sorted(users.items()):
+        if len(names) > 1:
+            links.append({"username": u, "identities": sorted(names), "how": "same username"})
+    backlog = [
+        {
+            "account": r.get("Name"),
+            "identity": r.get("Identity") or real_identity,
+            "data": r.get("Data shared") or [],
+            "plan": r.get("Anonymity plan"),
+            "migrate_to": r.get("Migrate to"),
+        }
+        for r in rows
+        if r.get("Status") != "closed"
+        and r.get("Anonymity plan") != "done"
+        and (r.get("Exposes real me") or (r.get("Identity") or real_identity) == real_identity)
+    ]
+    return {
+        "identities": {
+            k: {**v, "data": sorted(v["data"]), "accounts": sorted(filter(None, v["accounts"]))}
+            for k, v in sorted(ident.items())
+        },
+        "links": links,
+        "real_data_backlog": backlog,
+    }

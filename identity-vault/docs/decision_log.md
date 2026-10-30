@@ -54,6 +54,12 @@ and their connections.
    without his approval. E-mail via `--email` or plus addressing; truly unlinked personas need a
    forwarding-alias service (follow-up).
 
+8. **Exposure map in the same Notion database** (2026-10-30, Filip: map which identity each account
+   knows about and what, then migrate to stay as anonymous as possible). New columns rather than a
+   second database: one row per account already exists and Notion views can group by `Identity`;
+   `Identity` stays a select filled from the Bitwarden names so no relation has to be kept in sync.
+   `hidentity map exposure` computes the leaks; `map upgrade` migrates the existing map in place.
+
 ## Follow-ups
 
 - E-mail aliases for personas that must not link back to Filip: a forwarding service (SimpleLogin,

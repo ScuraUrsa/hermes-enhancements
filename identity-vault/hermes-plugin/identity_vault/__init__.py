@@ -217,11 +217,11 @@ def identity_create_account(
     _grants[handle] = time.time() + 60 * float(_cfg.get("grant_minutes") or 10)
     map_url = None
     try:
-        from hidentity.cli import _map_row_from_meta
+        from hidentity.cli import _kinds, _map_row_from_meta
 
         n = accountmap.Notion()
         ds = n.ensure_database(None)
-        map_url = n.upsert(ds["id"], _map_row_from_meta(meta)).get("url")
+        map_url = n.upsert(ds["id"], _map_row_from_meta(meta, _kinds(bw))).get("url")
     except Exception as exc:
         map_url = f"not added: {exc}"
     rotate_by = meta["fields"].get(accounts.META["rotate_by"])
