@@ -87,7 +87,7 @@ hidentity rotation-due                                                          
 hidentity map add --name "Forum X" --identity "Rejestracje 1" --shared email,username --plan keep
 hidentity map exposure                                                            # who knows what, leaks, backlog
 ```
-Every account row names its identity and what the site got (`--shared`, plus payment, photo,
+Every account row names its identity and what the site got (`--shared`, plus payment_card, photo,
 id_document, location, ip, device, contacts when they apply). Filip is moving towards anonymity:
 before setting up a persona's account, run `exposure` and avoid what links it back (a login through
 his Google, the same username or e-mail as another identity).

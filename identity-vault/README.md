@@ -87,7 +87,7 @@ hidentity map upgrade | exposure
 ```
 
 Exposure map (2026-10-30): every row says which identity the account belongs to (`Identity`,
-`Identity kind`), what it knows (`Data shared`: identity fields plus payment, id_document, photo,
+`Identity kind`), what it knows (`Data shared`: identity fields plus username, payment_card, id_document, photo,
 voice, location, ip, device, contacts), whether that is data of the real Filip (`Exposes real me`)
 and where it should go (`Anonymity plan`: keep / move-to-persona / reduce-data / close / done,
 `Migrate to`). `create`, `sync` and `map add` fill identity, kind and exposure themselves.
