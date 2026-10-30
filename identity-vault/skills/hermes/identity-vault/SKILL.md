@@ -49,6 +49,14 @@ browser_vault_fill("<handle from identity_create_account>")   # password (+ conf
 
 If `identity_create_account` returns `exists`, log in instead.
 
+## Before any browser task (Filip, 2026-10-30)
+
+Whenever you use a web browser, first check that Bitwarden is ready: `identity_list()` /
+`browser_vault_list()` answer (vault unlocked, EU server bitwarden.eu). If the task needs a login or
+identity data and the vault is missing, logged out or locked, stop and ask Filip, and make it easy
+for him: one message saying what is needed and the exact step (e.g. "unlock Bitwarden on the VM: run
+`bw unlock` in ..."), then wait for his "ok". He types his master password and 2FA himself.
+
 ## Log in as Filip
 
 ```
