@@ -85,7 +85,14 @@ def analyse(client, model: str, bundle: dict, cfg: dict, fps: float, transcript_
         if not cands:
             raise LLMError(f"gemini returned no candidates: {str(data.get('promptFeedback'))[:200]}")
         text = "".join(p.get("text", "") for p in cands[0].get("content", {}).get("parts", []))
-        out = parse_json(text)
+        # parse_json raises ValueError on malformed JSON, but every caller of analyse() handles
+        # only LLMError: without this wrap one bad answer escapes the pipeline's error handling.
+        try:
+            out = parse_json(text)
+        except LLMError:
+            raise
+        except ValueError as exc:
+            raise LLMError(f"gemini:{model} returned unparseable JSON: {str(exc)[:200]}") from exc
         vtype = out.get("video_type") if out.get("video_type") in VIDEO_TYPES else "other"
         frames = [f for f in out.get("frames_described") or [] if isinstance(f, dict) and "t" in f]
         if out.get("is_artistic") or vtype == "music_artistic":

@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from ytdigest import fetch, gemini, llm, notion, pipeline, transcript
+from ytdigest import fetch, gemini, llm, notion, pipeline, transcript, youtube
 
 INFO = {
     "id": "abcdefghijk", "title": "Jak działa inflacja", "channel": "Ekonomia", "duration": 40,
@@ -87,12 +87,21 @@ def test_falls_back_to_frames_when_gemini_fails(cfg, faked, monkeypatch, synthet
 
     monkeypatch.setattr(gemini, "analyse", boom)
     monkeypatch.setattr(fetch, "download_video", lambda url, out, h, cookies=None: synthetic_video)
-    res = pipeline.process("abcdefghijk", cfg, log=lambda m: None)
+    # tag "search": the default tag "manual" routes vision/report onto
+    # topic_routes["manual"] (claude-code:sonnet); this test targets the
+    # generic default route (vision = gemma4:31b fallback chain).
+    res = pipeline.process("abcdefghijk", cfg, tag="search", log=lambda m: None)
     assert res["status"] == "done"
     bundle, rep, run = faked["notion"][-1]
     assert bundle["frames"] and all(f["caption"] for f in bundle["frames"])
     assert any("gemma4:31b" in r for r in faked["llm"])  # vision model used
     assert run["visual"] and not run.get("degraded")
+
+
+def _no_download(monkeypatch):
+    """yt-dlp is never executed here: the media step fails fast and the run degrades."""
+    monkeypatch.setattr(fetch, "download_video",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("HTTP Error 403: Forbidden")))
 
 
 def _frames_path(monkeypatch, synthetic_video):
@@ -110,7 +119,7 @@ def test_retired_vision_model_falls_back(cfg, faked, monkeypatch, synthetic_vide
         return real(self, ref, system, user, images=images, max_tokens=max_tokens)
 
     monkeypatch.setattr(llm.Client, "json", json_410_for_main)
-    res = pipeline.process("abcdefghijk", cfg, log=lambda m: None)
+    res = pipeline.process("abcdefghijk", cfg, tag="search", log=lambda m: None)
     _, _, run = faked["notion"][-1]
     assert res["status"] == "done" and run["visual"] and run["vision_model"].endswith("glm-5.3-flash")
     assert not res["degraded"]
@@ -161,3 +170,33 @@ def test_refused_download_marks_run_degraded(cfg, faked, monkeypatch):
     monkeypatch.setattr(fetch, "download_video", refused)
     res = pipeline.process("abcdefghijk", cfg, log=lambda m: None)
     assert res["status"] == "done" and res["degraded"] == "vision"
+
+
+def test_processed_playlist_step_runs_through_the_fake(cfg, faked, monkeypatch):
+    """The playlist step is real when enabled — but reached through a fake, not Google.
+
+    `cfg` keeps `processed_playlist` off so no test spends Filip's YouTube token; this
+    test turns it back on and pins the contract: pipeline hands the account, the title
+    and the video id to youtube.add_to_playlist and logs the result.
+    """
+    cfg["processed_playlist"] = {"enabled": True, "account": "fjkazmierczak",
+                                 "title": "Przetworzone przez Hermesa"}
+    _no_download(monkeypatch)
+    calls = []
+    monkeypatch.setattr(youtube, "add_to_playlist", lambda cfg, account, title, vid: calls.append((account, title, vid)) or True)
+    logs = []
+    res = pipeline.process("abcdefghijk", cfg, log=logs.append)
+    assert res["status"] == "done"
+    assert calls == [("fjkazmierczak", "Przetworzone przez Hermesa", "abcdefghijk")]
+    assert any("added to YouTube playlist" in m for m in logs)
+
+
+def test_processed_playlist_failure_does_not_fail_the_run(cfg, faked, monkeypatch):
+    """A playlist hiccup is logged and swallowed: the report is already written."""
+    cfg["processed_playlist"] = {"enabled": True, "account": "fjkazmierczak", "title": "Przetworzone"}
+    _no_download(monkeypatch)
+    monkeypatch.setattr(youtube, "add_to_playlist", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("quota exceeded")))
+    logs = []
+    res = pipeline.process("abcdefghijk", cfg, log=logs.append)
+    assert res["status"] == "done"
+    assert any("YouTube playlist skipped: quota exceeded" in m for m in logs)
