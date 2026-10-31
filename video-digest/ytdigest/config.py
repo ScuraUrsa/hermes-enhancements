@@ -1,6 +1,7 @@
 """Configuration: defaults, overridden by a YAML/JSON file, then by environment.
 
-Lookup order for the file: $YTDIGEST_CONFIG, ~/.hermes/ytdigest/config.yaml,
+Lookup order for the file: $YTDIGEST_CONFIG, $YTDIGEST_HOME/config.yaml,
+~/.hermes/ytdigest/config.yaml,
 ./config.yaml. Secrets never live in the file; they come from env (Hermes loads
 them from Bitwarden into ~/.hermes/.env).
 """
@@ -130,20 +131,39 @@ def _read_file(path: Path) -> dict:
 
 
 def config_path() -> Path | None:
+    """Config file location, resolved at call time so late env changes are seen.
+
+    Order: $YTDIGEST_CONFIG, then $YTDIGEST_HOME/config.yaml, then
+    $HERMES_REAL_HOME (default ~)/.hermes/ytdigest/config.yaml, then
+    ./config.yaml. An env var that is set but points nowhere wins over the
+    later candidates and yields None -- a missing file must never silently
+    pull in an unrelated config (that broke test isolation once).
+    """
     env = os.environ.get("YTDIGEST_CONFIG")
-    candidates = [Path(env)] if env else []
-    candidates += [HERMES_HOME / "ytdigest" / "config.yaml", Path("config.yaml")]
-    for p in candidates:
+    if env:
+        p = Path(env)
+        return p if p.is_file() else None
+    yh = os.environ.get("YTDIGEST_HOME")
+    if yh:
+        p = Path(yh) / "config.yaml"
+        return p if p.is_file() else None
+    base = Path(os.environ.get("HERMES_REAL_HOME") or HOME) / ".hermes"
+    for p in (base / "ytdigest" / "config.yaml", Path("config.yaml")):
         if p.is_file():
             return p
     return None
 
 
-def load(path: str | Path | None = None) -> dict:
+def load(path: str | Path | None = None, overrides: dict | None = None) -> dict:
+    """Defaults < file < overrides. `path` (explicit) beats the env lookup;
+    without it the file is resolved at call time from $YTDIGEST_CONFIG,
+    then $YTDIGEST_HOME/config.yaml, then ~/.hermes/ytdigest/config.yaml."""
     cfg = copy.deepcopy(DEFAULTS)
     p = Path(path) if path else config_path()
     if p:
         cfg = _deep_merge(cfg, _read_file(p))
+    if overrides:
+        cfg = _deep_merge(cfg, overrides)
     if os.environ.get("YTDIGEST_DATA_DIR"):
         cfg["data_dir"] = os.environ["YTDIGEST_DATA_DIR"]
     if os.environ.get("YTDIGEST_NOTION_DATA_SOURCE"):
