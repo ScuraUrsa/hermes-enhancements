@@ -28,6 +28,7 @@ except ImportError:  # Windows (benches on the laptop)
     pwd = None
 import re
 import shlex
+import shutil
 import sqlite3
 import sys
 import unicodedata
@@ -65,6 +66,11 @@ CREATE TABLE IF NOT EXISTS stock (
   note TEXT NOT NULL DEFAULT '',
   added TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'jest'
+);
+CREATE TABLE IF NOT EXISTS photos (
+  place_id INTEGER PRIMARY KEY REFERENCES places(id),
+  file TEXT NOT NULL,
+  boxes TEXT NOT NULL DEFAULT '{}'
 );
 CREATE TABLE IF NOT EXISTS events (
   id INTEGER PRIMARY KEY,
@@ -437,8 +443,22 @@ def seg_match(places: dict, row, seg: str) -> float:
     return sc
 
 
+PCODE = re.compile(r"\[?\bP(\d+)\]?(?!\w)")
+
+
+def place_code(text: str, places: dict) -> int | None:
+    """A scanned label carries "[P12]": that is place 12, whatever the rest of the text says."""
+    m = PCODE.search(text or "")
+    if m and int(m.group(1)) in places:
+        return int(m.group(1))
+    return None
+
+
 def resolve_place(con, path: str, places: dict | None = None) -> int:
     places = places or place_rows(con)
+    code = place_code(path, places)
+    if code is not None:
+        return code
     segs = split_path(path)
     if not segs:
         raise DomError("Puste miejsce.", 5)
@@ -807,6 +827,9 @@ def cmd_add(con, a) -> tuple[str, object]:
 
 def cmd_where(con, a) -> tuple[str, object]:
     places = place_rows(con)
+    if place_code(a.query, places) is not None:  # a scanned label: what is in this box / on this shelf
+        a.where, a.cat = a.query, None
+        return cmd_list(con, a)
     rows = search_stock(con, a.query)
     if not rows:
         try:  # "co jest na półce 2 w lodówce": the query names a place, not a thing
@@ -1104,6 +1127,291 @@ def cmd_batch(con, a) -> tuple[str, object]:
     return "\n".join(out), results
 
 
+# ---------------------------------------------------------------- photos, "show me where", labels with QR
+
+def media_dir(con) -> str:
+    row = con.execute("PRAGMA database_list").fetchone()
+    base = os.path.dirname(os.path.abspath(row["file"])) if row and row["file"] else os.getcwd()
+    d = os.path.join(base, "photos")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def parse_box(text: str) -> list[float]:
+    """"10,20,60,45" (percent of the photo: left, top, right, bottom) -> fractions."""
+    try:
+        v = [float(x) for x in re.split(r"[ ,;]+", text.strip()) if x]
+    except ValueError:
+        v = []
+    if len(v) != 4 or not (0 <= v[0] < v[2] <= 100 and 0 <= v[1] < v[3] <= 100):
+        raise DomError("--box: lewo,góra,prawo,dół w procentach zdjęcia, np. 5,10,95,40.", 2)
+    return [x / 100 for x in v]
+
+
+def photo_of(con, pid: int):
+    return con.execute("SELECT * FROM photos WHERE place_id=?", (pid,)).fetchone()
+
+
+def auto_box(places: dict, child) -> list[float] | None:
+    """Shelves/drawers without a marked box: equal horizontal bands, 1 = top."""
+    if child["kind"] not in ORDERED_KINDS or child["pos"] is None:
+        return None
+    sib = siblings(places, child)
+    if not sib:
+        return None
+    i = [r["id"] for r in sib].index(child["id"])
+    n = len(sib)
+    return [0.03, i / n, 0.97, (i + 1) / n]
+
+
+def locate_on_photo(con, places: dict, pid: int, side: str | None):
+    """Deepest ancestor of `pid` with a photo, and the box (fractions) to circle on it."""
+    chain = ancestry(places, pid)
+    for depth in range(len(chain) - 1, -1, -1):
+        ph = photo_of(con, chain[depth]["id"])
+        if ph is None:
+            continue
+        boxes = json.loads(ph["boxes"] or "{}")
+        box = [0.03, 0.03, 0.97, 0.97]
+        if depth + 1 < len(chain):
+            child = chain[depth + 1]
+            box = boxes.get(str(child["id"])) or auto_box(places, child) or box
+            # a deeper marked box (a container on that shelf) wins
+            for deeper in chain[depth + 2:]:
+                if str(deeper["id"]) in boxes:
+                    box = boxes[str(deeper["id"])]
+        if side in ("lewo", "środek", "prawo"):
+            third = (box[2] - box[0]) / 3
+            k = ("lewo", "środek", "prawo").index(side)
+            box = [box[0] + k * third, box[1], box[0] + (k + 1) * third, box[3]]
+        return ph, chain[depth], box
+    return None, None, None
+
+
+def route_steps(places: dict, r) -> list[str]:
+    chain = ancestry(places, r["place_id"])
+    if chain and chain[0]["parent_id"] is None and chain[0]["kind"] == "mieszkanie" and len(chain) > 1:
+        chain = chain[1:]
+    steps = []
+    for i, row in enumerate(chain):
+        label = place_label(places, row)
+        if i == 0:
+            steps.append(f"Idź do: {label}.")
+        elif row["kind"] in ("półka", "szuflada"):
+            steps.append(f"{'Otwórz' if row['kind'] == 'szuflada' else 'Spójrz na'}: {label}.")
+        else:
+            steps.append(f"{'Podejdź do' if i == 1 else 'Znajdź'}: {label}.")
+    sector = ", ".join(x for x in (SIDE_TXT.get(r["side"] or ""), DEPTH_TXT.get(r["depth"] or "")) if x)
+    steps.append(f"{r['name']}" + (f" leży {sector}." if sector else " tam leży."))
+    return steps
+
+
+def draw_circle(src: str, box: list[float], out: str, caption: str) -> None:
+    try:
+        from PIL import Image, ImageDraw, ImageFont, ImageOps
+    except ImportError as e:
+        raise DomError("Do zdjęć z kółkiem potrzebny jest Pillow (python3 -m pip install pillow).", 1) from e
+    img = ImageOps.exif_transpose(Image.open(src)).convert("RGB")
+    img.thumbnail((1600, 1600))
+    w, h = img.size
+    x0, y0, x1, y1 = box[0] * w, box[1] * h, box[2] * w, box[3] * h
+    pad = 0.08 * max(x1 - x0, y1 - y0)
+    x0, y0, x1, y1 = max(0, x0 - pad), max(0, y0 - pad), min(w, x1 + pad), min(h, y1 + pad)
+    shade = Image.new("L", img.size, 110)
+    ImageDraw.Draw(shade).ellipse((x0, y0, x1, y1), fill=0)
+    img = Image.composite(Image.new("RGB", img.size, (0, 0, 0)), img, shade.point(lambda v: v))
+    d = ImageDraw.Draw(img)
+    lw = max(4, w // 150)
+    d.ellipse((x0, y0, x1, y1), outline=(230, 30, 30), width=lw)
+    bar = max(28, h // 22)
+    d.rectangle((0, h - bar, w, h), fill=(0, 0, 0))
+    font = None
+    for f in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+              "C:/Windows/Fonts/arial.ttf"):
+        if os.path.exists(f):
+            font = ImageFont.truetype(f, int(bar * 0.55))
+            break
+    if font is None:
+        try:
+            font = ImageFont.load_default(size=int(bar * 0.55))
+        except TypeError:  # Pillow < 10.1
+            font = ImageFont.load_default()
+    d.text((lw * 2, h - bar + bar // 5), caption.replace("→", ">"), fill=(255, 255, 255), font=font)
+    img.save(out, "JPEG", quality=85)
+
+
+def cmd_photo(con, a) -> tuple[str, object]:
+    places = place_rows(con)
+    pid = resolve_place(con, a.path, places)
+    if a.photo_cmd == "add":
+        if not os.path.isfile(a.file):
+            raise DomError(f"Nie ma pliku {a.file}.", 2)
+        ext = os.path.splitext(a.file)[1].lower() or ".jpg"
+        dest = os.path.join(media_dir(con), f"p{pid}{ext}")
+        if os.path.abspath(a.file) != os.path.abspath(dest):
+            shutil.copyfile(a.file, dest)
+        old = photo_of(con, pid)
+        con.execute("INSERT INTO photos(place_id, file, boxes) VALUES (?,?,?) ON CONFLICT(place_id) DO UPDATE SET file=?",
+                    (pid, dest, old["boxes"] if old else "{}", dest))
+        kids = [r for r in places.values() if r["parent_id"] == pid]
+        hint = (f" Półki/szuflady ({len(kids)}) zaznaczę automatycznie pasami od góry; popraw przez photo mark."
+                if kids else "")
+        return f"Zdjęcie zapisane dla: {place_path(places, pid)}.{hint}", {"place_id": pid, "file": dest}
+    # mark: the box of `path` on the nearest ancestor's photo
+    chain = ancestry(places, pid)
+    owner = next((r for r in reversed(chain[:-1]) if photo_of(con, r["id"])), None)
+    if owner is None:
+        raise DomError(f"Żaden mebel nad „{place_path(places, pid)}” nie ma zdjęcia. Najpierw photo add.", 3)
+    ph = photo_of(con, owner["id"])
+    boxes = json.loads(ph["boxes"] or "{}")
+    boxes[str(pid)] = parse_box(a.box)
+    con.execute("UPDATE photos SET boxes=? WHERE place_id=?", (json.dumps(boxes), owner["id"]))
+    return f"Zaznaczone: {place_path(places, pid)} na zdjęciu {place_path(places, owner['id'])}.", \
+        {"place_id": pid, "photo_of": owner["id"], "box": boxes[str(pid)]}
+
+
+def cmd_show(con, a) -> tuple[str, object]:
+    """Where is it, as a photo with a red circle plus step-by-step directions (for voice)."""
+    places = place_rows(con)
+    if place_code(a.query, places) is not None:
+        pid = place_code(a.query, places)
+        r = {"name": places[pid]["name"], "place_id": pid, "side": None, "depth": None, "id": f"p{pid}"}
+    else:
+        rows = search_stock(con, a.query)
+        if not rows:
+            raise DomError(f"Nie mam w spisie niczego pasującego do „{a.query}”.", 3)
+        names = sorted({x["name"] for x in rows})
+        if len(names) > 1:
+            raise DomError("Kilka rzeczy pasuje: " + ", ".join(names) + ". Powiedz, o którą chodzi.", 4, names)
+        r = rows[0]
+    steps = route_steps(places, r)
+    data = {"item": r["name"], "place": place_path(places, r["place_id"]), "steps": steps, "image": None}
+    ph, owner, box = locate_on_photo(con, places, r["place_id"], r["side"])
+    if ph is None:
+        return " ".join(steps) + "\n(Brak zdjęcia tego mebla: zrób zdjęcie i dodaj je przez photo add.)", data
+    out = os.path.abspath(a.out or os.path.join(media_dir(con), "pokaz.jpg"))
+    short = " > ".join(place_path(places, r["place_id"], pretty=False).split(" > ")[-2:])
+    draw_circle(ph["file"], box, out, f"{r['name']}: {short}")
+    data["image"] = out
+    return " ".join(steps) + f"\nMEDIA:{out}", data
+
+
+LABEL_SIZES = {"pojemnik": (60, 30), "wizytowka": (85, 55)}  # mm
+
+
+def short_path(places: dict, pid: int | None) -> str:
+    """"Kuchnia > Szafka pod zlewem > Pojemnik 3" (no flat root, no shelf-position notes)."""
+    chain = ancestry(places, pid)
+    if len(chain) > 1 and chain[0]["parent_id"] is None and chain[0]["kind"] == "mieszkanie":
+        chain = chain[1:]
+    return " > ".join(r["name"] for r in chain)
+
+
+def label_payload(places: dict, pid: int) -> str:
+    tpl = os.environ.get("DOM_QR_TEMPLATE", "Hermes, co jest w: {path} [P{id}]")
+    return tpl.format(id=pid, path=short_path(places, pid), name=places[pid]["name"])
+
+
+def svg_escape(t: str) -> str:
+    return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+
+def fit(text: str, width_mm: float, font_mm: float) -> list[str]:
+    """Wrap into at most 2 lines that fit (average sans-serif glyph ≈ 0.55 em), ellipsis if longer."""
+    per_line = max(4, int(width_mm / (font_mm * 0.55)))
+    words, lines, cur = text.split(), [], ""
+    for w in words:
+        if len(cur) + len(w) + (1 if cur else 0) <= per_line:
+            cur = f"{cur} {w}".strip()
+        else:
+            lines.append(cur)
+            cur = w
+    lines.append(cur)
+    lines = [ln for ln in lines if ln]
+    if len(lines) > 2:
+        lines = [lines[0], lines[1][:per_line - 1] + "…"]
+    return [ln if len(ln) <= per_line else ln[:per_line - 1] + "…" for ln in lines]
+
+
+def clip_text(text: str, width_mm: float, font_mm: float) -> str:
+    n = max(4, int(width_mm / (font_mm * 0.55)))
+    return text if len(text) <= n else text[:n - 1] + "…"
+
+
+def label_svg(con, places: dict, pids: list[int], fmt: str) -> list[str]:
+    import dom_qr
+    lw, lh = LABEL_SIZES[fmt]
+    gap = 4
+    cols, rows_per = max(1, int((190 + gap) // (lw + gap))), max(1, int((277 + gap) // (lh + gap)))
+    per_page = cols * rows_per
+    stock = list(con.execute(STOCK_SQL))
+    pages = []
+    for start in range(0, len(pids), per_page):
+        parts = []
+        for k, pid in enumerate(pids[start:start + per_page]):
+            x, y = 10 + (k % cols) * (lw + gap), 10 + (k // cols) * (lh + gap)
+            q = dom_qr.encode(label_payload(places, pid), "M")
+            qsize = (lh - 6) if fmt == "pojemnik" else 34
+            cell = qsize / len(q)
+            tx = x + 5 + qsize
+            tw = x + lw - 2 - tx
+            parts.append(f'<g clip-path="url(#c{start + k})"><clipPath id="c{start + k}"><rect x="{x}" y="{y}" '
+                         f'width="{lw}" height="{lh}"/></clipPath>')
+            parts.append(f'<rect x="{x}" y="{y}" width="{lw}" height="{lh}" fill="none" stroke="#999" '
+                         'stroke-width="0.3" stroke-dasharray="1,1"/>')
+            parts.append(dom_qr.svg_path(q, x + 3, y + 3, cell))
+            fs = 3.6 if fmt == "pojemnik" else 4.6
+            ty = y + 3 + fs
+            for line in fit(places[pid]["name"], tw, fs):
+                parts.append(f'<text x="{tx}" y="{ty}" font-family="sans-serif" font-size="{fs}" '
+                             f'font-weight="bold">{svg_escape(line)}</text>')
+                ty += fs * 1.15
+            parent = short_path(places, places[pid]["parent_id"]) if places[pid]["parent_id"] else ""
+            for line in fit(parent, tw, fs * 0.62):
+                parts.append(f'<text x="{tx}" y="{ty + 0.5}" font-family="sans-serif" font-size="{fs * 0.62}" '
+                             f'fill="#444">{svg_escape(line)}</text>')
+                ty += fs * 0.75
+            if fmt == "wizytowka":
+                ids = subtree_ids(places, pid)
+                things = sorted({r["name"] for r in stock if r["place_id"] in ids})
+                ty += 2
+                for t in things[:max(0, int((y + lh - 7 - ty) // 3.6))]:
+                    parts.append(f'<text x="{tx}" y="{ty}" font-family="sans-serif" font-size="2.9">'
+                                 f'• {svg_escape(clip_text(t, tw - 3, 2.9))}</text>')
+                    ty += 3.6
+            parts.append(f'<text x="{tx}" y="{y + lh - 3}" font-family="monospace" font-size="2.8" '
+                         f'fill="#666">P{pid}</text></g>')
+        pages.append('<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 210 297">'
+                     '<rect width="210" height="297" fill="#fff"/>' + "".join(parts) + "</svg>")
+    return pages
+
+
+def cmd_label(con, a) -> tuple[str, object]:
+    places = place_rows(con)
+    if a.paths:
+        pids = []
+        for p in a.paths:
+            pid = resolve_place(con, p, places)
+            pids += sorted(subtree_ids(places, pid), key=lambda i: place_path(places, i, pretty=False)) \
+                if a.with_children else [pid]
+    else:
+        pids = sorted((pid for pid, r in places.items() if r["kind"] == "pojemnik"),
+                      key=lambda i: place_path(places, i, pretty=False))
+    if not pids:
+        raise DomError("Nie ma czego drukować: podaj miejsca albo dodaj pojemniki (map add … --kind pojemnik).", 3)
+    pages = label_svg(con, places, pids, a.format)
+    out = os.path.abspath(a.out or os.path.join(media_dir(con), f"etykiety-{a.format}.html"))
+    if out.endswith(".svg"):
+        content = pages[0]
+    else:
+        content = ("<!doctype html><meta charset='utf-8'><title>Etykiety</title><style>@page{size:A4;margin:0}"
+                   "body{margin:0}svg{display:block;page-break-after:always}</style>" + "".join(pages))
+    with open(out, "w", encoding="utf-8") as fh:
+        fh.write(content)
+    return (f"Etykiety ({len(pids)}, format {a.format}, stron: {len(pages)}) zapisane: {out}. "
+            f"Wydrukuj w skali 100%.\nMEDIA:{out}"), {"file": out, "places": pids}
+
+
 # ---------------------------------------------------------------- CLI
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1131,6 +1439,23 @@ def build_parser() -> argparse.ArgumentParser:
     x = ms.add_parser("rename", help="zmień nazwę miejsca")
     x.add_argument("path")
     x.add_argument("new_name")
+
+    ph = sub.add_parser("photo", help="zdjęcia mebli/pokoi do pokazywania, gdzie co leży")
+    ps = ph.add_subparsers(dest="photo_cmd", required=True)
+    x = ps.add_parser("add", help="dodaj/zmień zdjęcie miejsca")
+    x.add_argument("path", nargs="+")
+    x.add_argument("--file", required=True, help="ścieżka do zdjęcia (jpg/png)")
+    x = ps.add_parser("mark", help="zaznacz półkę/szufladę/pojemnik na zdjęciu mebla")
+    x.add_argument("path", nargs="+")
+    x.add_argument("--box", required=True, help="lewo,góra,prawo,dół w %% zdjęcia, np. 5,10,95,40")
+    x = sub.add_parser("show", help="pokaż na zdjęciu z kółkiem, gdzie leży rzecz, i jak tam dojść")
+    x.add_argument("query", nargs="+")
+    x.add_argument("--out", help="plik wyjściowy .jpg")
+    x = sub.add_parser("label", help="etykiety z kodem QR do druku (pojemniki, wizytówki mebli)")
+    x.add_argument("paths", nargs="*", help="miejsca; bez tego: wszystkie pojemniki")
+    x.add_argument("--format", choices=tuple(LABEL_SIZES), default="pojemnik")
+    x.add_argument("--with-children", action="store_true", help="też półki/szuflady/pojemniki w środku")
+    x.add_argument("--out", help=".html (domyślnie, kilka stron A4) albo .svg")
 
     x = sub.add_parser("add", help="dodaj rzecz (np. po zakupach)")
     x.add_argument("name", nargs="+")
@@ -1191,7 +1516,7 @@ HANDLERS = {
     "map": cmd_map, "add": cmd_add, "where": cmd_where, "list": cmd_list,
     "use": lambda c, a: consume(c, a, "zużyte"), "throw": lambda c, a: consume(c, a, "wyrzucone"),
     "move": cmd_move, "set": cmd_set, "expiring": cmd_expiring, "plan": cmd_plan, "remind": cmd_remind,
-    "history": cmd_history, "batch": cmd_batch,
+    "history": cmd_history, "batch": cmd_batch, "photo": cmd_photo, "show": cmd_show, "label": cmd_label,
 }
 
 

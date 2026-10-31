@@ -246,3 +246,70 @@ def test_clothes_attributes_in_note_and_tag(run):
     assert {"item", "place", "note"} <= d.keys()
     assert d["note"] == "typ:płaszcz ciepło:4 kto:filip stan:pranie kolor:granat"
     assert run("set", "płaszcz wełniany", "--tag", "zle")[0] == 2
+
+
+def test_photo_show_circles_the_right_shelf(run, tmp_path):
+    PIL = pytest.importorskip("PIL.Image")
+    src = tmp_path / "szafa.jpg"
+    PIL.new("RGB", (600, 900), (200, 200, 200)).save(src)
+    run("add", "body Teosia", "--cat", "ubrania", "--where", "pokój Teosia > szafa 1 > półka 2",
+        "--side", "lewo", "--depth", "przód")
+    code, out = run("photo", "add", "pokój Teosia > szafa 1", "--file", str(src))
+    assert code == 0 and "automatycznie" in out, out
+    code, out = run("--json", "show", "body Teosia", "--out", str(tmp_path / "out.jpg"))
+    assert code == 0, out
+    data = json.loads(out)["data"]
+    assert data["steps"][0].startswith("Idź do: Pokój Teosia") and "po lewej, z przodu" in data["steps"][-1]
+    img = PIL.open(data["image"])
+    # shelf 2 of 3 = middle band, left third: the red ring is there, the top-right corner is dimmed
+    px = img.load()
+    w, h = img.size
+    reds = [(x, y) for x in range(0, w, 4) for y in range(0, h, 4) if px[x, y][0] > 180 and px[x, y][1] < 80]
+    assert reds and all(y > h * 0.25 and y < h * 0.75 for _, y in reds) and max(x for x, _ in reds) < w * 0.5
+    assert px[w - 5, 5][0] < 150
+    # a manual box wins over the automatic band
+    run("photo", "mark", "pokój Teosia > szafa 1 > półka 2", "--box", "0,0,30,10")
+    code, out = run("--json", "show", "body Teosia", "--out", str(tmp_path / "out2.jpg"))
+    img = PIL.open(json.loads(out)["data"]["image"])
+    px = img.load()
+    reds = [(x, y) for x in range(0, w, 4) for y in range(0, h, 4) if px[x, y][0] > 180 and px[x, y][1] < 80]
+    assert reds and max(y for _, y in reds) < h * 0.2
+
+
+def test_show_without_photo_still_gives_directions(run):
+    run("add", "masło", "--where", "lodówka > półka 3")
+    code, out = run("show", "masło")
+    assert code == 0 and "Idź do: Kuchnia" in out and "Brak zdjęcia" in out
+
+
+def test_labels_carry_a_working_qr_and_resolve_back(run, tmp_path):
+    run("map", "add", "Kuchnia > Szafka pod zlewem > Pojemnik na baterie", "--kind", "pojemnik")
+    run("add", "baterie AA", "--qty", "8", "--where", "pojemnik na baterie")
+    out_file = tmp_path / "etykiety.svg"
+    code, out = run("label", "--out", str(out_file))
+    assert code == 0 and "Etykiety (1" in out, out
+    svg = out_file.read_text(encoding="utf-8")
+    assert "Pojemnik na" in svg and "baterie" in svg and "<path" in svg
+    payload = dom.label_payload(dom.place_rows(dom.connect()), json.loads(run("--json", "label", "--out",
+                                str(out_file))[1])["data"]["places"][0])
+    assert payload.endswith("]") and "[P" in payload
+    code, out = run("where", payload)  # what the phone camera reads from the label
+    assert code == 0 and "baterie AA" in out
+    code, out = run("label", "pokój Teosia", "--format", "wizytowka", "--with-children",
+                    "--out", str(tmp_path / "w.html"))
+    assert code == 0 and "wizytowka" in out
+
+
+def test_qr_encoder_decodes():
+    cv2 = pytest.importorskip("cv2")
+    np = pytest.importorskip("numpy")
+    import dom_qr
+    for text in ("P1", "Hermes, co jest w: Mieszkanie > Kuchnia > Szafka pod zlewem > Pojemnik 3 [P12]"):
+        m = dom_qr.encode(text)
+        n, s = len(m), 8
+        img = np.full(((n + 8) * s, (n + 8) * s), 255, np.uint8)
+        for y, row in enumerate(m):
+            for x, v in enumerate(row):
+                if v:
+                    img[(y + 4) * s:(y + 5) * s, (x + 4) * s:(x + 5) * s] = 0
+        assert cv2.QRCodeDetector().detectAndDecode(img)[0] == text

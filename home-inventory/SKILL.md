@@ -1,13 +1,13 @@
 ---
 name: home-inventory
 description: "Spis rzeczy w domu i mapa mieszkania: co mamy (spożywka, chemia, ubrania), gdzie leży (pokój, szafa, półka, sektor), do kiedy ważne. Użyj ~/.hermes/scripts/dom.py zamiast pamięci."
-version: 0.3.3
+version: 0.4.0
 author: Claude Code (for Filip), 2026-10-16
 license: MIT
 platforms: [linux]
 metadata:
   hermes:
-    tags: [spiżarnia, lodówka, zakupy, przywiozłem, termin ważności, przydatność, przeterminowane, gdzie jest, gdzie mam, szafa, szafka, półka, mapa mieszkania, posiłek, obiad, chemia, inventory, pantry, expiry]
+    tags: [spiżarnia, pokaż gdzie, zdjęcie szafy, etykiety, kod QR, pojemnik, lodówka, zakupy, przywiozłem, termin ważności, przydatność, przeterminowane, gdzie jest, gdzie mam, szafa, szafka, półka, mapa mieszkania, posiłek, obiad, chemia, inventory, pantry, expiry]
     related_skills: [hermes-timeplane, weather]
 ---
 
@@ -43,6 +43,11 @@ What is at home, where it lies, until when it is good. Use the terminal tool; ev
 | „wyrzuciłem przeterminowany ser” | `python3 ~/.hermes/scripts/dom.py throw ser --expired-only --all` |
 | „przełożyłem body do komody, 2. szuflada” | `python3 ~/.hermes/scripts/dom.py move body --where "pokój Teosia > komoda > szuflada 2"` |
 | „gdzie jest X?” | `python3 ~/.hermes/scripts/dom.py where "X"` |
+| „pokaż, gdzie jest X” / „gdzie dokładnie…” | `python3 ~/.hermes/scripts/dom.py show "X"`: copy its `MEDIA:/…` line unchanged into your reply (sends the photo with a circle); say the directions in 1–2 sentences |
+| Filip sends a photo: „to szafa w pokoju Teosia” | `python3 ~/.hermes/scripts/dom.py photo add "pokój Teosia > szafa 1" --file /path/to/the/photo.jpg` (shelves are marked automatically, top to bottom) |
+| „na zdjęciu półka 2 jest wyżej / tylko lewa połowa” | `python3 ~/.hermes/scripts/dom.py photo mark "pokój Teosia > szafa 1 > półka 2" --box 0,20,50,45` (left,top,right,bottom in % of the photo) |
+| „wydrukuj etykiety na pojemniki” / „wizytówki szafy” | `python3 ~/.hermes/scripts/dom.py label` (all containers) / `python3 ~/.hermes/scripts/dom.py label "pokój Teosia > szafa 1" --format wizytowka --with-children`; send the `MEDIA:` file |
+| a message with `[P12]` (scanned label) | `python3 ~/.hermes/scripts/dom.py where "<the whole message>"` (lists what is in that box/shelf) |
 | „co jest w lodówce?” | `python3 ~/.hermes/scripts/dom.py list --where lodówka` |
 | „co się kończy w tym tygodniu?” | `python3 ~/.hermes/scripts/dom.py expiring --days 7` |
 | „co na obiad?” (any meal planning) | `python3 ~/.hermes/scripts/dom.py plan --days 5` (always 5), then meals using that food + where it lies |
