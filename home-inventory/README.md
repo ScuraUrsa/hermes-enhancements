@@ -9,6 +9,9 @@ API), Hermes runs `dom.py` through the skill.
 |---|---|
 | `dom.py` | `~/.hermes/scripts/dom.py` (mode 755) |
 | `SKILL.md` | `~/.hermes/skills/productivity/home-inventory/SKILL.md` |
+| `dom_labels.py` | `~/.hermes/scripts/dom_labels.py` (mode 755) |
+| `dom_qr.py` | `~/.hermes/scripts/dom_qr.py` (QR encoder for labels and cards, standard library) |
+| `dom_web.py` | `~/.hermes/scripts/dom_web.py` (mode 755), user service on 127.0.0.1:8795 + `tailscale serve` at `/dom` |
 | `mapa-przyklad.txt` | example outline for `dom map import` (not deployed) |
 
 - Standard library only (Python 3.10+). State: SQLite `~/.hermes/autonomy/home-inventory/dom.db` (inside `~/.hermes`,
@@ -48,6 +51,24 @@ dom show "body Teosia"                                photo with a red circle + 
 
 Exit codes: 0 ok, 1 error, 2 bad date/sector, 3 not found, 4 ambiguous, 5 unknown place, 6 batch partly failed. `--json` everywhere.
 
+## QR labels and business cards (idea from Homebox's label maker, 2026-10-31)
+
+```
+dom code "Pokój Teosia > Szafa 1" --sub      codes D001, D002, ... for the wardrobe and every shelf in it
+dom code --list                              all codes;  "#D007" (or "D7", "d-007") works wherever a place is expected
+dom_labels.py labels --where "Pokój Teosia" [--assign] [--size 70x37 --cols 3 --rows 8] [--outline] --out n.html
+dom_labels.py labels D001 D004 --copies 2 --out n.html
+dom_labels.py card --name "..." --phone ... --email ... [--title ...] [--org ...] [--url ...] --out wizytowki.html
+dom_web.py [--port 8795]                     the page a label opens: what lies there, what is inside (read-only)
+```
+
+- A label = QR (URL `$DOM_LABEL_URL/<code>`, default `https://hermes-vm-1.tail5c846a.ts.net/dom/<code>`, tailnet only),
+  the code in big letters (works by voice without a phone: „co jest w D007”) and the path.
+- Output is HTML with exact millimetre sizes for A4 sticker sheets (default 3×8 of 70×37 mm); print at 100%.
+- Business cards: 85×55 mm, 10 per A4, with a vCard QR (a phone camera saves the contact, no app needed).
+- Codes live in `places.code` (added to an existing DB automatically). They never change when a place is renamed or
+  moved, so printed labels stay valid; a removed place's code is not reused.
+
 ## Integration
 
 - **Shopping list** stays in timeplane (🛒 Zakupy). After „przywiozłem X z listy”, the skill adds X here and ticks it
@@ -68,4 +89,5 @@ scp dom.py dom_qr.py SKILL.md ubuntu@<vm>:/tmp/ && ssh ubuntu@<vm> 'install -m 7
 
 ```bash
 python3 -m pytest -q home-inventory/test_dom.py      # offline, fixed date via DOM_TODAY
+python3 -m pytest -q home-inventory/test_labels_web.py
 ```

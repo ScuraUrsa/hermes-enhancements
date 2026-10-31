@@ -370,6 +370,9 @@ def connect(path: str | None = None) -> sqlite3.Connection:
     con = sqlite3.connect(path)
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
+    if "code" not in [r["name"] for r in con.execute("PRAGMA table_info(places)")]:  # QR label codes (2026-10-31)
+        con.execute("ALTER TABLE places ADD COLUMN code TEXT")
+    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS places_code ON places(code) WHERE code IS NOT NULL")
     return con
 
 
@@ -443,8 +446,22 @@ def seg_match(places: dict, row, seg: str) -> float:
     return sc
 
 
+CODE_RE = re.compile(r"^#?\s*d\s*-?\s*(\d{1,4})$", re.I)  # "D007", "#D007", "d 7", "D-007"
+
+
+def code_of(text: str) -> str | None:
+    m = CODE_RE.match(text.strip())
+    return f"D{int(m.group(1)):03d}" if m else None
+
+
 def resolve_place(con, path: str, places: dict | None = None) -> int:
     places = places or place_rows(con)
+    code = code_of(path)
+    if code:
+        row = con.execute("SELECT id FROM places WHERE code=?", (code,)).fetchone()
+        if row is None:
+            raise DomError(f"Nie ma miejsca z kodem {code} (sprawdź naklejkę albo dom code --list).", 5)
+        return row["id"]
     segs = split_path(path)
     if not segs:
         raise DomError("Puste miejsce.", 5)
@@ -740,6 +757,8 @@ def cmd_map(con, a) -> tuple[str, object]:
             sub = [p for p in places.values() if p["parent_id"] == pid]
             sub.sort(key=lambda p: (p["pos"] if p["pos"] is not None else 10**6, p["name"]))
             extra = []
+            if row["code"]:
+                extra.append("kod " + row["code"])
             if row["aliases"]:
                 extra.append("aka " + row["aliases"])
             if counts.get(pid):
@@ -749,7 +768,7 @@ def cmd_map(con, a) -> tuple[str, object]:
             label = place_label(places, row) if row["kind"] in ORDERED_KINDS else row["name"]
             lines.append("  " * depth + label + (f"  ({'; '.join(extra)})" if extra else ""))
             data.append({"id": pid, "depth": depth, "name": row["name"], "kind": row["kind"], "pos": row["pos"],
-                         "items": counts.get(pid, 0)})
+                         "items": counts.get(pid, 0), "code": row["code"]})
             for s in sub:
                 walk(s["id"], depth + 1)
 
@@ -776,6 +795,37 @@ def cmd_map(con, a) -> tuple[str, object]:
         con.execute("UPDATE places SET name=? WHERE id=?", (a.new_name, pid))
         return f"Zmieniłem nazwę na: {place_path(place_rows(con), pid)}", {"id": pid}
     raise DomError("Nieznane polecenie map.")
+
+
+def cmd_code(con, a) -> tuple[str, object]:
+    """Short codes (D001, D002, ...) for places, printed as QR labels on boxes, furniture and shelves."""
+    places = place_rows(con)
+    if a.list or not a.path:
+        rows = sorted((r for r in places.values() if r["code"]), key=lambda r: r["code"])
+        if not rows:
+            return "Żadne miejsce nie ma jeszcze kodu. Nadaj: dom code \"Pokój Teosia > Szafa 1\" [--sub].", []
+        data = [{"code": r["code"], "id": r["id"], "path": place_path(places, r["id"]),
+                 "full_path": place_path(places, r["id"], pretty=False)} for r in rows]
+        return "\n".join(f"{d['code']}  {d['path']}" for d in data), data
+    pid = resolve_place(con, a.path, places)
+    ids = sorted(subtree_ids(places, pid), key=lambda i: place_path(places, i, pretty=False)) if a.sub else [pid]
+    # every code ever given is in the event log, so a removed place's code is never reused on a new label
+    nums = [int(r["code"][1:]) for r in places.values() if r["code"]] + \
+           [int(r["detail"][1:]) for r in con.execute("SELECT detail FROM events WHERE kind='kod'")]
+    nxt = max(nums, default=0) + 1
+    data, new = [], 0
+    for i in ids:
+        code = places[i]["code"]
+        if code is None:
+            code = f"D{nxt:03d}"
+            nxt += 1
+            new += 1
+            con.execute("UPDATE places SET code=? WHERE id=?", (code, i))
+            log(con, "kod", detail=code)
+        data.append({"code": code, "id": i, "path": place_path(places, i),
+                     "full_path": place_path(places, i, pretty=False)})
+    head = f"Nowe kody: {new}." if new else "Kody już były."
+    return head + "\n" + "\n".join(f"{d['code']}  {d['path']}" for d in data), data
 
 
 def cmd_add(con, a) -> tuple[str, object]:
@@ -1321,6 +1371,10 @@ def build_parser() -> argparse.ArgumentParser:
     x = sub.add_parser("show", help="pokaż na zdjęciu z kółkiem, gdzie leży rzecz, i jak tam dojść")
     x.add_argument("query", nargs="+")
     x.add_argument("--out", help="plik wyjściowy .jpg")
+    x = sub.add_parser("code", help="kody miejsc na naklejki QR (D001...); #D007 działa wszędzie zamiast ścieżki")
+    x.add_argument("path", nargs="*", help="miejsce, które dostaje kod (bez: lista kodów)")
+    x.add_argument("--sub", action="store_true", help="także wszystkie półki/szuflady/pojemniki w środku")
+    x.add_argument("--list", action="store_true", help="pokaż wszystkie kody")
 
     x = sub.add_parser("add", help="dodaj rzecz (np. po zakupach)")
     x.add_argument("name", nargs="+")
@@ -1381,7 +1435,7 @@ HANDLERS = {
     "map": cmd_map, "add": cmd_add, "where": cmd_where, "list": cmd_list,
     "use": lambda c, a: consume(c, a, "zużyte"), "throw": lambda c, a: consume(c, a, "wyrzucone"),
     "move": cmd_move, "set": cmd_set, "expiring": cmd_expiring, "plan": cmd_plan, "remind": cmd_remind,
-    "history": cmd_history, "batch": cmd_batch, "photo": cmd_photo, "show": cmd_show,
+    "history": cmd_history, "batch": cmd_batch, "photo": cmd_photo, "show": cmd_show, "code": cmd_code,
 }
 
 
