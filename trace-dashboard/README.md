@@ -49,6 +49,10 @@ etykiety: [`pricing.json`](pricing.json).
   uruchomiony zdalnie, gdy dev odpowiada);
 - `~/.hermes/kanban-dev.db` (kopia tablicy z dev, odświeżana co minutę);
 - `~/.hermes/autonomy/claude_runs.jsonl` z prod i dev;
+- `~/.hermes/autonomy/llm_usage.jsonl` z prod i dev: wywołania modelu ze skryptów Hermesa poza sesjami agenta
+  (timeplane, link_inbox, youtube_history, agent_run...), zapisywane przez `scripts/llm_usage.py` (rola WOBI
+  `hermes_backup`). Bez tego logu te wywołania nie trafiają ani tu, ani do limitu `budget.py`. Każdy skrypt to
+  osobna ścieżka "Skrypt …: wywołania LLM poza sesjami" na miesiąc;
 - GitHub: PR-y i commity repozytoriów ScuraUrsa (token `GITHUB_TOKEN` z Bitwardena, tylko w pamięci procesu),
   z cache ETag w `~/.hermes/trace-dashboard/github-cache.json`;
 - `claude_threads.json`: wątki projektu Claude z użyciem tokenów, eksportowane przez wątek dashboardu w projekcie
@@ -61,4 +65,5 @@ etykiety: [`pricing.json`](pricing.json).
 bash run.sh                       # jeden przebieg na prod (to samo robi trace-dashboard-collect.timer)
 python3 collect.py --help         # wszystkie wejścia jako opcje
 python3 -m pytest -q tests        # testy powiązań i cen na syntetycznych danych
+python3 ollama_usage.py --since 2026-10-01   # na VM: zużycie Ollamy wg profilu, modelu, źródła, dnia, zadania i sesji
 ```

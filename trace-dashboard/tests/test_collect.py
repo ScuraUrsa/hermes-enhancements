@@ -65,8 +65,16 @@ def test_build(tmp_path):
                                                                       "output_tokens": 7}}}],
         "coordinators": [{"id": "session_coord", "usage": {"cost_usd": 1.0}}]}))
     out = tmp_path / "trace.json"
+    usage = tmp_path / "llm_usage.jsonl"
+    usage.write_text("\n".join(json.dumps(r) for r in [
+        {"ts": "2026-10-31T10:00:00+00:00", "caller": "timeplane/tp_state", "provider": "ollama",
+         "model": "deepseek-v4.1-flash", "input_tokens": 1_000_000, "cache_read_tokens": 400_000, "output_tokens": 0},
+        {"ts": "2026-10-31T10:10:00+00:00", "caller": "timeplane/tp_state", "provider": "ollama",
+         "model": "deepseek-v4.1-flash", "input_tokens": 0, "cache_read_tokens": 0, "output_tokens": 100_000},
+    ]) + "\nnot json\n")
     rc = collect.main(["--hermes-home", f"prod={home}", "--kanban", f"dev={home / 'kanban-dev.db'}",
                        "--claude-runs", f"prod={home / 'autonomy' / 'claude_runs.jsonl'}",
+                       "--llm-usage", f"prod={usage}",
                        "--claude-threads", str(threads), "--budget", "/nonexistent", "--no-github",
                        "--days", "100000", "--github-cache", str(tmp_path / "c.json"), "--out", str(out)])
     assert rc == 0
@@ -89,6 +97,13 @@ def test_build(tmp_path):
     thread = tr["ct:cmsg_0123456789abcdefghijABCD"]
     assert thread["cost_usd"] == 3.25 and thread["status"] == "done"
     assert tr["coordinator"]["cost_usd"] == 1.0
+
+    # direct calls: one step per script/day/model, input minus its cached part:
+    # 0.6M * 0.3 + 0.4M * 0.006 + 0.1M * 1.2 = 0.18 + 0.0024 + 0.12
+    direct = tr["direct:timeplane/tp_state:2026-10"]
+    assert direct["origin"] == "hermes_autonomy" and set(direct["by_provider"]) == {"ollama"}
+    assert abs(direct["cost_usd"] - 0.3024) < 1e-9
+    assert d["steps"][direct["steps"][0]]["meta"]["calls"] == 2
 
 
 def test_provider_of():

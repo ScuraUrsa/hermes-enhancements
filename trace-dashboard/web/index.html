@@ -100,7 +100,7 @@ tr.sel { background: color-mix(in srgb, var(--accent) 10%, transparent); }
       <option value="hermes_chat">Rozmowy z Hermesem</option>
       <option value="kanban">Zadania kanban</option>
       <option value="hermes_cron">Cron Hermesa</option>
-      <option value="hermes_autonomy">Autonomia (sondy, cc_run)</option>
+      <option value="hermes_autonomy">Autonomia (sondy, cc_run, skrypty)</option>
     </select>
     <select id="period">
       <option value="7">7 dni</option>
@@ -123,7 +123,7 @@ tr.sel { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 const ORIGIN = {claude_project: "Wątek Claude", hermes_chat: "Hermes", kanban: "Kanban", hermes_cron: "Cron", hermes_autonomy: "Autonomia"};
 const STATUS = {done: "zakończone", in_progress: "w toku", waiting: "czeka na Ciebie", review: "do przeglądu", recurring: "cykliczne"};
 const KIND = {claude_thread: "Wątek Claude", claude_coordinator: "Koordynator Claude", hermes_session: "Sesja Hermesa",
-  claude_code_run: "Claude Code", kanban_task: "Zadanie kanban"};
+  claude_code_run: "Claude Code", kanban_task: "Zadanie kanban", direct_llm: "Skrypt (bez sesji)"};
 const PROVIDERS = ["anthropic", "ollama", "gemini", "local", "other"];
 let D = null, sortK = "at", sortDir = -1, selected = null;
 const $ = id => document.getElementById(id);
@@ -244,7 +244,7 @@ async function load() {
   D = await r.json();
   const s = D.sources;
   $("gen").innerHTML = `Zaktualizowano ${day(D.generated_at)} · ${s.hermes_sessions} sesji Hermesa, ${s.claude_threads} wątków Claude` +
-    `${s.claude_threads_exported_at ? ` (eksport ${day(s.claude_threads_exported_at)})` : ""}, ${s.kanban_tasks} zadań kanban, ${s.claude_code_runs} uruchomień Claude Code, ${s.pull_requests} PR`;
+    `${s.claude_threads_exported_at ? ` (eksport ${day(s.claude_threads_exported_at)})` : ""}, ${s.kanban_tasks} zadań kanban, ${s.claude_code_runs} uruchomień Claude Code, ${s.direct_llm_calls || 0} wywołań LLM ze skryptów, ${s.pull_requests} PR`;
   $("note").innerHTML = Object.values(D.pricing).filter(p => p.note).map(p => `<div><b>${esc(p.label)}:</b> ${esc(p.note)}</div>`).join("");
   render();
   const h = decodeURIComponent(location.hash.slice(1)); if (h) openDetail(h);
