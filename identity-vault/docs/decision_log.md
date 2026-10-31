@@ -59,6 +59,11 @@ and their connections.
    second database: one row per account already exists and Notion views can group by `Identity`;
    `Identity` stays a select filled from the Bitwarden names so no relation has to be kept in sync.
    `hidentity map exposure` computes the leaks; `map upgrade` migrates the existing map in place.
+9. **Identity, e-mail and platform maps as four sibling databases** (2026-10-31, Filip: a map per
+   identity and per e-mail of accounts and traces, e-mails need not belong to an identity, and the
+   reverse map of what each platform knows). Relations plus Notion rollups give all three views
+   without a sync job; `Ślady` covers what is not an account. Selects on the account map stay as a
+   fallback for rows not linked yet. Values of personal data never go into Notion, only field names.
 
 ## Follow-ups
 
