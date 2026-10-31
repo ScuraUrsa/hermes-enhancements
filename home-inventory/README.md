@@ -35,19 +35,16 @@ dom batch 'add …' 'add …'                             several writes, each v
 dom photo add "pokój Teosia > szafa 1" --file szafa.jpg   photo of a piece of furniture or a room
 dom photo mark "… > półka 2" --box 0,20,50,45         correct a shelf's area (% of the photo)
 dom show "body Teosia"                                photo with a red circle + directions, prints MEDIA:/path.jpg
-dom label [places…] [--format pojemnik|wizytowka] [--with-children]   printable A4 sheet with QR labels
 ```
 
-### Photos, "show me", QR labels
+### Photos and "show me"
 
 - Photos live in `photos/` next to `dom.db` (`~/.hermes/autonomy/home-inventory/photos`, so the nightly backup has
   them). Shelves and drawers without a marked box are equal bands, 1 = top; `--side` picks the left/middle/right third.
   Drawing needs Pillow (on prod already); everything else stays standard library.
 - `show` prints `MEDIA:/abs/path.jpg`; Hermes turns that line into an image attachment (Matrix).
-- Labels: container 60×30 mm, business-card size 85×55 mm (furniture/shelves with their contents listed). The QR
-  holds a sentence like `Hermes, co jest w: Kuchnia > Szafka pod zlewem > Pojemnik 3 [P12]`: scan it with the phone
-  camera, share it to Hermes, and `[P12]` resolves to that place. `DOM_QR_TEMPLATE` changes the text (e.g. a URL).
-- `dom_qr.py` is a small standard-library QR encoder (byte mode, versions 1–40), checked against OpenCV's decoder.
+- `dom_qr.py` is a small standard-library QR encoder (byte mode, versions 1–40), checked against OpenCV's decoder;
+  `dom_labels.py` uses it, so labels need no extra package.
 
 Exit codes: 0 ok, 1 error, 2 bad date/sector, 3 not found, 4 ambiguous, 5 unknown place, 6 batch partly failed. `--json` everywhere.
 

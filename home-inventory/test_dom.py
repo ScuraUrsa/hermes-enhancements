@@ -282,24 +282,6 @@ def test_show_without_photo_still_gives_directions(run):
     assert code == 0 and "Idź do: Kuchnia" in out and "Brak zdjęcia" in out
 
 
-def test_labels_carry_a_working_qr_and_resolve_back(run, tmp_path):
-    run("map", "add", "Kuchnia > Szafka pod zlewem > Pojemnik na baterie", "--kind", "pojemnik")
-    run("add", "baterie AA", "--qty", "8", "--where", "pojemnik na baterie")
-    out_file = tmp_path / "etykiety.svg"
-    code, out = run("label", "--out", str(out_file))
-    assert code == 0 and "Etykiety (1" in out, out
-    svg = out_file.read_text(encoding="utf-8")
-    assert "Pojemnik na" in svg and "baterie" in svg and "<path" in svg
-    payload = dom.label_payload(dom.place_rows(dom.connect()), json.loads(run("--json", "label", "--out",
-                                str(out_file))[1])["data"]["places"][0])
-    assert payload.endswith("]") and "[P" in payload
-    code, out = run("where", payload)  # what the phone camera reads from the label
-    assert code == 0 and "baterie AA" in out
-    code, out = run("label", "pokój Teosia", "--format", "wizytowka", "--with-children",
-                    "--out", str(tmp_path / "w.html"))
-    assert code == 0 and "wizytowka" in out
-
-
 def test_qr_encoder_decodes():
     cv2 = pytest.importorskip("cv2")
     np = pytest.importorskip("numpy")

@@ -46,8 +46,6 @@ What is at home, where it lies, until when it is good. Use the terminal tool; ev
 | „pokaż, gdzie jest X” / „gdzie dokładnie…” | `python3 ~/.hermes/scripts/dom.py show "X"`: copy its `MEDIA:/…` line unchanged into your reply (sends the photo with a circle); say the directions in 1–2 sentences |
 | Filip sends a photo: „to szafa w pokoju Teosia” | `python3 ~/.hermes/scripts/dom.py photo add "pokój Teosia > szafa 1" --file /path/to/the/photo.jpg` (shelves are marked automatically, top to bottom) |
 | „na zdjęciu półka 2 jest wyżej / tylko lewa połowa” | `python3 ~/.hermes/scripts/dom.py photo mark "pokój Teosia > szafa 1 > półka 2" --box 0,20,50,45` (left,top,right,bottom in % of the photo) |
-| „wydrukuj etykiety na pojemniki” / „wizytówki szafy” | `python3 ~/.hermes/scripts/dom.py label` (all containers) / `python3 ~/.hermes/scripts/dom.py label "pokój Teosia > szafa 1" --format wizytowka --with-children`; send the `MEDIA:` file |
-| a message with `[P12]` (scanned label) | `python3 ~/.hermes/scripts/dom.py where "<the whole message>"` (lists what is in that box/shelf) |
 | „co jest w lodówce?” | `python3 ~/.hermes/scripts/dom.py list --where lodówka` |
 | „co się kończy w tym tygodniu?” | `python3 ~/.hermes/scripts/dom.py expiring --days 7` |
 | „co na obiad?” (any meal planning) | `python3 ~/.hermes/scripts/dom.py plan --days 5` (always 5), then meals using that food + where it lies |

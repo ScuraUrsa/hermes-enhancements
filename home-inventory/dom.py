@@ -443,22 +443,8 @@ def seg_match(places: dict, row, seg: str) -> float:
     return sc
 
 
-PCODE = re.compile(r"\[?\bP(\d+)\]?(?!\w)")
-
-
-def place_code(text: str, places: dict) -> int | None:
-    """A scanned label carries "[P12]": that is place 12, whatever the rest of the text says."""
-    m = PCODE.search(text or "")
-    if m and int(m.group(1)) in places:
-        return int(m.group(1))
-    return None
-
-
 def resolve_place(con, path: str, places: dict | None = None) -> int:
     places = places or place_rows(con)
-    code = place_code(path, places)
-    if code is not None:
-        return code
     segs = split_path(path)
     if not segs:
         raise DomError("Puste miejsce.", 5)
@@ -827,9 +813,6 @@ def cmd_add(con, a) -> tuple[str, object]:
 
 def cmd_where(con, a) -> tuple[str, object]:
     places = place_rows(con)
-    if place_code(a.query, places) is not None:  # a scanned label: what is in this box / on this shelf
-        a.where, a.cat = a.query, None
-        return cmd_list(con, a)
     rows = search_stock(con, a.query)
     if not rows:
         try:  # "co jest na półce 2 w lodówce": the query names a place, not a thing
@@ -1273,17 +1256,20 @@ def cmd_photo(con, a) -> tuple[str, object]:
 def cmd_show(con, a) -> tuple[str, object]:
     """Where is it, as a photo with a red circle plus step-by-step directions (for voice)."""
     places = place_rows(con)
-    if place_code(a.query, places) is not None:
-        pid = place_code(a.query, places)
-        r = {"name": places[pid]["name"], "place_id": pid, "side": None, "depth": None, "id": f"p{pid}"}
-    else:
-        rows = search_stock(con, a.query)
-        if not rows:
-            raise DomError(f"Nie mam w spisie niczego pasującego do „{a.query}”.", 3)
-        names = sorted({x["name"] for x in rows})
-        if len(names) > 1:
-            raise DomError("Kilka rzeczy pasuje: " + ", ".join(names) + ". Powiedz, o którą chodzi.", 4, names)
-        r = rows[0]
+    rows = search_stock(con, a.query)
+    if not rows:  # "pokaż D007" / "pokaż szafę w pokoju Teosia": a place, not a thing
+        try:
+            pid = resolve_place(con, a.query, places)
+        except DomError:
+            pid = None
+        if pid is not None:
+            rows = [{"name": places[pid]["name"], "place_id": pid, "side": None, "depth": None}]
+    if not rows:
+        raise DomError(f"Nie mam w spisie niczego pasującego do „{a.query}”.", 3)
+    names = sorted({x["name"] for x in rows})
+    if len(names) > 1:
+        raise DomError("Kilka rzeczy pasuje: " + ", ".join(names) + ". Powiedz, o którą chodzi.", 4, names)
+    r = rows[0]
     steps = route_steps(places, r)
     data = {"item": r["name"], "place": place_path(places, r["place_id"]), "steps": steps, "image": None}
     ph, owner, box = locate_on_photo(con, places, r["place_id"], r["side"])
@@ -1294,122 +1280,6 @@ def cmd_show(con, a) -> tuple[str, object]:
     draw_circle(ph["file"], box, out, f"{r['name']}: {short}")
     data["image"] = out
     return " ".join(steps) + f"\nMEDIA:{out}", data
-
-
-LABEL_SIZES = {"pojemnik": (60, 30), "wizytowka": (85, 55)}  # mm
-
-
-def short_path(places: dict, pid: int | None) -> str:
-    """"Kuchnia > Szafka pod zlewem > Pojemnik 3" (no flat root, no shelf-position notes)."""
-    chain = ancestry(places, pid)
-    if len(chain) > 1 and chain[0]["parent_id"] is None and chain[0]["kind"] == "mieszkanie":
-        chain = chain[1:]
-    return " > ".join(r["name"] for r in chain)
-
-
-def label_payload(places: dict, pid: int) -> str:
-    tpl = os.environ.get("DOM_QR_TEMPLATE", "Hermes, co jest w: {path} [P{id}]")
-    return tpl.format(id=pid, path=short_path(places, pid), name=places[pid]["name"])
-
-
-def svg_escape(t: str) -> str:
-    return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
-
-
-def fit(text: str, width_mm: float, font_mm: float) -> list[str]:
-    """Wrap into at most 2 lines that fit (average sans-serif glyph ≈ 0.55 em), ellipsis if longer."""
-    per_line = max(4, int(width_mm / (font_mm * 0.55)))
-    words, lines, cur = text.split(), [], ""
-    for w in words:
-        if len(cur) + len(w) + (1 if cur else 0) <= per_line:
-            cur = f"{cur} {w}".strip()
-        else:
-            lines.append(cur)
-            cur = w
-    lines.append(cur)
-    lines = [ln for ln in lines if ln]
-    if len(lines) > 2:
-        lines = [lines[0], lines[1][:per_line - 1] + "…"]
-    return [ln if len(ln) <= per_line else ln[:per_line - 1] + "…" for ln in lines]
-
-
-def clip_text(text: str, width_mm: float, font_mm: float) -> str:
-    n = max(4, int(width_mm / (font_mm * 0.55)))
-    return text if len(text) <= n else text[:n - 1] + "…"
-
-
-def label_svg(con, places: dict, pids: list[int], fmt: str) -> list[str]:
-    import dom_qr
-    lw, lh = LABEL_SIZES[fmt]
-    gap = 4
-    cols, rows_per = max(1, int((190 + gap) // (lw + gap))), max(1, int((277 + gap) // (lh + gap)))
-    per_page = cols * rows_per
-    stock = list(con.execute(STOCK_SQL))
-    pages = []
-    for start in range(0, len(pids), per_page):
-        parts = []
-        for k, pid in enumerate(pids[start:start + per_page]):
-            x, y = 10 + (k % cols) * (lw + gap), 10 + (k // cols) * (lh + gap)
-            q = dom_qr.encode(label_payload(places, pid), "M")
-            qsize = (lh - 6) if fmt == "pojemnik" else 34
-            cell = qsize / len(q)
-            tx = x + 5 + qsize
-            tw = x + lw - 2 - tx
-            parts.append(f'<g clip-path="url(#c{start + k})"><clipPath id="c{start + k}"><rect x="{x}" y="{y}" '
-                         f'width="{lw}" height="{lh}"/></clipPath>')
-            parts.append(f'<rect x="{x}" y="{y}" width="{lw}" height="{lh}" fill="none" stroke="#999" '
-                         'stroke-width="0.3" stroke-dasharray="1,1"/>')
-            parts.append(dom_qr.svg_path(q, x + 3, y + 3, cell))
-            fs = 3.6 if fmt == "pojemnik" else 4.6
-            ty = y + 3 + fs
-            for line in fit(places[pid]["name"], tw, fs):
-                parts.append(f'<text x="{tx}" y="{ty}" font-family="sans-serif" font-size="{fs}" '
-                             f'font-weight="bold">{svg_escape(line)}</text>')
-                ty += fs * 1.15
-            parent = short_path(places, places[pid]["parent_id"]) if places[pid]["parent_id"] else ""
-            for line in fit(parent, tw, fs * 0.62):
-                parts.append(f'<text x="{tx}" y="{ty + 0.5}" font-family="sans-serif" font-size="{fs * 0.62}" '
-                             f'fill="#444">{svg_escape(line)}</text>')
-                ty += fs * 0.75
-            if fmt == "wizytowka":
-                ids = subtree_ids(places, pid)
-                things = sorted({r["name"] for r in stock if r["place_id"] in ids})
-                ty += 2
-                for t in things[:max(0, int((y + lh - 7 - ty) // 3.6))]:
-                    parts.append(f'<text x="{tx}" y="{ty}" font-family="sans-serif" font-size="2.9">'
-                                 f'• {svg_escape(clip_text(t, tw - 3, 2.9))}</text>')
-                    ty += 3.6
-            parts.append(f'<text x="{tx}" y="{y + lh - 3}" font-family="monospace" font-size="2.8" '
-                         f'fill="#666">P{pid}</text></g>')
-        pages.append('<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 210 297">'
-                     '<rect width="210" height="297" fill="#fff"/>' + "".join(parts) + "</svg>")
-    return pages
-
-
-def cmd_label(con, a) -> tuple[str, object]:
-    places = place_rows(con)
-    if a.paths:
-        pids = []
-        for p in a.paths:
-            pid = resolve_place(con, p, places)
-            pids += sorted(subtree_ids(places, pid), key=lambda i: place_path(places, i, pretty=False)) \
-                if a.with_children else [pid]
-    else:
-        pids = sorted((pid for pid, r in places.items() if r["kind"] == "pojemnik"),
-                      key=lambda i: place_path(places, i, pretty=False))
-    if not pids:
-        raise DomError("Nie ma czego drukować: podaj miejsca albo dodaj pojemniki (map add … --kind pojemnik).", 3)
-    pages = label_svg(con, places, pids, a.format)
-    out = os.path.abspath(a.out or os.path.join(media_dir(con), f"etykiety-{a.format}.html"))
-    if out.endswith(".svg"):
-        content = pages[0]
-    else:
-        content = ("<!doctype html><meta charset='utf-8'><title>Etykiety</title><style>@page{size:A4;margin:0}"
-                   "body{margin:0}svg{display:block;page-break-after:always}</style>" + "".join(pages))
-    with open(out, "w", encoding="utf-8") as fh:
-        fh.write(content)
-    return (f"Etykiety ({len(pids)}, format {a.format}, stron: {len(pages)}) zapisane: {out}. "
-            f"Wydrukuj w skali 100%.\nMEDIA:{out}"), {"file": out, "places": pids}
 
 
 # ---------------------------------------------------------------- CLI
@@ -1451,11 +1321,6 @@ def build_parser() -> argparse.ArgumentParser:
     x = sub.add_parser("show", help="pokaż na zdjęciu z kółkiem, gdzie leży rzecz, i jak tam dojść")
     x.add_argument("query", nargs="+")
     x.add_argument("--out", help="plik wyjściowy .jpg")
-    x = sub.add_parser("label", help="etykiety z kodem QR do druku (pojemniki, wizytówki mebli)")
-    x.add_argument("paths", nargs="*", help="miejsca; bez tego: wszystkie pojemniki")
-    x.add_argument("--format", choices=tuple(LABEL_SIZES), default="pojemnik")
-    x.add_argument("--with-children", action="store_true", help="też półki/szuflady/pojemniki w środku")
-    x.add_argument("--out", help=".html (domyślnie, kilka stron A4) albo .svg")
 
     x = sub.add_parser("add", help="dodaj rzecz (np. po zakupach)")
     x.add_argument("name", nargs="+")
@@ -1516,7 +1381,7 @@ HANDLERS = {
     "map": cmd_map, "add": cmd_add, "where": cmd_where, "list": cmd_list,
     "use": lambda c, a: consume(c, a, "zużyte"), "throw": lambda c, a: consume(c, a, "wyrzucone"),
     "move": cmd_move, "set": cmd_set, "expiring": cmd_expiring, "plan": cmd_plan, "remind": cmd_remind,
-    "history": cmd_history, "batch": cmd_batch, "photo": cmd_photo, "show": cmd_show, "label": cmd_label,
+    "history": cmd_history, "batch": cmd_batch, "photo": cmd_photo, "show": cmd_show,
 }
 
 
