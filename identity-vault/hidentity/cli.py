@@ -50,6 +50,7 @@ def build_parser() -> argparse.ArgumentParser:
     pe.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE", help="Set or override a field")
     pe.add_argument("--consent", choices=list(personas.AGENT_CONSENT), default="")
     pe.add_argument("--created-by", default="Claude", choices=["Claude", "Hermes", "Filip"])
+    pe.add_argument("--no-map", action="store_true", help="Do not add the identity to the Notion maps")
 
     f = sub.add_parser("find", help="Existing logins for a site")
     f.add_argument("url")
@@ -97,6 +98,8 @@ def build_parser() -> argparse.ArgumentParser:
     ma.add_argument("--rotate-by")
     ma.add_argument("--has-2fa", action="store_true")
     ma.add_argument("--notes")
+    ma.add_argument("--email", help="E-mail the account uses (linked in E-maile, created if new)")
+    ma.add_argument("--platform", help="Platform/site name (linked in Platformy, matched by URL first)")
     ml = msub.add_parser("link", help="Draw an edge: FROM --via TO (login) or FROM --connected TO")
     ml.add_argument("from_name")
     ml.add_argument("to_name")
@@ -107,6 +110,10 @@ def build_parser() -> argparse.ArgumentParser:
     msub.add_parser("mermaid", help="Print the map as a Mermaid graph")
     msub.add_parser("upgrade", help="Add the identity/exposure columns to an existing map (never removes any)")
     msub.add_parser("exposure", help="What the accounts know about each identity, leaks between identities")
+    msub.add_parser(
+        "maps",
+        help="Per identity and per e-mail: accounts, platforms, data, traces; and per platform what it knows",
+    )
     return p
 
 
@@ -149,6 +156,43 @@ def _map_row_from_meta(meta: dict, kinds: dict[str, str] | None = None) -> dict:
     }
 
 
+def _attach(n: accountmap.Notion, page: dict, row: dict, email: str | None, platform: str | None) -> dict | str:
+    """Best effort: link an account row to the identity / e-mail / platform maps."""
+    try:
+        return n.attach(
+            page["id"],
+            identity=row.get("Identity"),
+            email=email,
+            platform=platform,
+            platform_url=row.get("URL"),
+        )
+    except Exception as exc:  # the account row exists; the maps are best effort
+        return f"not linked: {exc}"
+
+
+def _record_identity(n: accountmap.Notion, made: dict, purpose: str, email: str | None) -> dict | str:
+    """Best effort: add a new identity (and its e-mail) to the Tożsamości / E-maile maps."""
+    try:
+        src = n.map_sources()
+        if "identities" not in src:
+            return "not recorded: no Tożsamości database"
+        extra = {
+            "Kind": {"select": {"name": made["kind"]}},
+            "Purpose": accountmap._text(purpose),
+            "Bitwarden item": accountmap._text(made.get("id") or ""),
+        }
+        if made.get("consent"):
+            extra["Consent"] = {"select": {"name": made["consent"]}}
+        iid = n.find_or_create(src["identities"], accountmap.MAP_TITLE["identities"], made["name"], extra)
+        out = {"identity": iid}
+        if email and "emails" in src:
+            rel = {accountmap.EMAIL_IDENTITY: {"relation": [{"id": iid}]}}
+            out["email"] = n.find_or_create(src["emails"], accountmap.MAP_TITLE["emails"], email, rel)
+        return out
+    except Exception as exc:
+        return f"not recorded: {exc}"
+
+
 def main(argv: list[str] | None = None, bw: Bw | None = None, notion: accountmap.Notion | None = None) -> int:
     args = build_parser().parse_args(argv)
     bw = bw or Bw()
@@ -170,20 +214,23 @@ def main(argv: list[str] | None = None, bw: Bw | None = None, notion: accountmap
                 if not sep:
                     raise ValueError(f"--set wants FIELD=VALUE, got {kv!r}")
                 values[k.strip()] = v.strip()
-            _out(
-                personas.create(
-                    bw,
-                    name=args.name,
-                    kind=args.kind,
-                    purpose=args.purpose,
-                    created_by=args.created_by,
-                    email=args.email or "",
-                    email_plus=args.email_plus or "",
-                    copy_fields=[x.strip() for x in args.copy.split(",") if x.strip()],
-                    values=values,
-                    consent=args.consent,
-                )
+            made = personas.create(
+                bw,
+                name=args.name,
+                kind=args.kind,
+                purpose=args.purpose,
+                created_by=args.created_by,
+                email=args.email or "",
+                email_plus=args.email_plus or "",
+                copy_fields=[x.strip() for x in args.copy.split(",") if x.strip()],
+                values=values,
+                consent=args.consent,
             )
+            # A self-variant's copied e-mail is real data and already in the map; record only new ones.
+            new_email = (made.get("values") or {}).get("email") or args.email
+            if not args.no_map:
+                made["map"] = _record_identity(notion or accountmap.Notion(), made, args.purpose, new_email)
+            _out(made)
         elif args.cmd == "find":
             _out(accounts.find_existing(bw, args.url, args.username))
         elif args.cmd == "create":
@@ -214,8 +261,11 @@ def main(argv: list[str] | None = None, bw: Bw | None = None, notion: accountmap
                 try:
                     n = notion or accountmap.Notion()
                     ds = n.ensure_database(None)
-                    page = n.upsert(ds["id"], _map_row_from_meta(meta, _kinds(bw)))
+                    row = _map_row_from_meta(meta, _kinds(bw))
+                    page = n.upsert(ds["id"], row)
                     result["map"] = page.get("url")
+                    email = args.username if "@" in args.username else None
+                    result["map_links"] = _attach(n, page, row, email, name)
                 except Exception as exc:  # the account exists; the map is best effort
                     result["map"] = f"not added: {exc}"
             _out(result)
@@ -261,7 +311,8 @@ def main(argv: list[str] | None = None, bw: Bw | None = None, notion: accountmap
                     "Notes": args.notes,
                 }
                 page = n.upsert(ds["id"], row, by="Bitwarden item" if args.bitwarden_item else "Name")
-                _out({"url": page.get("url")})
+                email = args.email or (args.username if args.username and "@" in args.username else None)
+                _out({"url": page.get("url"), "links": _attach(n, page, row, email, args.platform)})
             elif args.mapcmd == "link":
                 n.link(ds["id"], args.from_name, "Logs in via" if args.via else "Connected to", args.to_name)
                 _out({"linked": [args.from_name, "via" if args.via else "connected", args.to_name]})
@@ -275,6 +326,8 @@ def main(argv: list[str] | None = None, bw: Bw | None = None, notion: accountmap
                 _out(n.upgrade(ds, accounts.REAL_IDENTITY))
             elif args.mapcmd == "exposure":
                 _out(accountmap.exposure(n.rows(ds["id"]), accounts.REAL_IDENTITY))
+            elif args.mapcmd == "maps":
+                _out(n.maps())
         return 0
     except (BwError, RuntimeError, ValueError) as exc:
         _out({"error": str(exc)})

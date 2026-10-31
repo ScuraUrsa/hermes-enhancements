@@ -83,7 +83,8 @@ hidentity status | coverage | share <fields> | find <url> | create --url --usern
 hidentity identities | persona --kind persona|self-variant --name N --purpose P [--email E | --email-plus B] [--copy f,..] [--set f=v]
 hidentity accounts | rotation-due | mark-rotated <id>
 hidentity map init --parent <page> | list | add ... | link A B --via|--connected | sync | mermaid
-hidentity map upgrade | exposure
+hidentity map upgrade | exposure | maps
+hidentity map add --name N [--email E] [--platform P] ...
 ```
 
 Exposure map (2026-10-30): every row says which identity the account belongs to (`Identity`,
@@ -96,5 +97,16 @@ the old default identity "Filip" to `Prawdziwy Ja`. `hidentity map exposure` pri
 its accounts and the data they hold, the links that tie identities together (a login through
 another identity's account, a federated login with no provider row, the same username) and the
 backlog of accounts still holding real data.
+
+Identity, e-mail and platform maps (2026-10-31): four Notion databases next to the account map,
+under Hermes Organized. `Tożsamości` (one row per identity), `E-maile` (every address, with an
+optional identity), `Platformy` (one row per site or company) and `Ślady` (traces outside accounts:
+public profiles, comments, mentions, leaks, public registries, commits; each with what it reveals and
+links to identity, e-mail and platform). Accounts point at them through `Tożsamość (mapa)`,
+`E-mail (mapa)` and `Platforma`. Rollups in Notion show, per identity and per e-mail, the accounts,
+platforms, data and traces, and per platform (view "Co wie platforma") which identities, e-mails and
+data it knows. `create`, `map add --email/--platform` and `persona` fill these links themselves
+(best effort; a platform is matched by site first). `hidentity map maps` prints the same three maps
+as JSON: `by_identity`, `by_email`, `by_platform`.
 
 Tests: `pytest` (offline fakes for `bw` and Notion). Lint: `ruff check .`.

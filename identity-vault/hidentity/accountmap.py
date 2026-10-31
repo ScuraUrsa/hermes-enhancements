@@ -66,6 +66,17 @@ SCHEMA: dict[str, dict] = {
 # Self-relations are added after the database exists (they need the data source id).
 RELATIONS = {"Logs in via": "Used to log in to", "Connected to": "Connected from"}
 
+# Filip 2026-10-31: a map per identity and per e-mail (an e-mail need not belong to an identity),
+# plus the reverse map: what each platform knows about each identity and e-mail. Four sibling
+# databases hold it; accounts point at them through these relations. Title column per database.
+MAP_DBS = {"identities": "Tożsamości", "emails": "E-maile", "platforms": "Platformy", "traces": "Ślady"}
+MAP_TITLE = {"identities": "Name", "emails": "Adres", "platforms": "Nazwa", "traces": "Nazwa"}
+ACCOUNT_REL = {"identities": "Tożsamość (mapa)", "emails": "E-mail (mapa)", "platforms": "Platforma"}
+# Columns of a trace row (a public profile, comment, leak, registry entry, commit...).
+TRACE_REL = {"identities": "Tożsamość", "emails": "E-mail", "platforms": "Platforma"}
+TRACE_DATA = "Ujawnione dane"
+EMAIL_IDENTITY = "Tożsamość"
+
 
 def notion_token() -> str:
     tok = os.environ.get("NOTION_API_KEY") or os.environ.get("NOTION_TOKEN")
@@ -192,6 +203,79 @@ class Notion:
             "POST", "/pages", {"parent": {"type": "data_source_id", "data_source_id": ds_id}, "properties": props}
         )
 
+    # -- identity / e-mail / platform maps ---------------------------------------------------
+
+    def map_sources(self) -> dict[str, str]:
+        """Data source ids of the map databases that exist (missing ones are left out)."""
+        out = {}
+        for key, title in MAP_DBS.items():
+            found = self.find_database(title)
+            if found:
+                out[key] = found["id"]
+        return out
+
+    def find_or_create(self, ds_id: str, title_prop: str, name: str, extra: dict | None = None) -> str:
+        """Page id of the row titled ``name`` (case-insensitive); created with ``extra`` if absent."""
+        for r in self.rows(ds_id):
+            if (r.get(title_prop) or "").strip().lower() == name.strip().lower():
+                return r["id"]
+        props = {title_prop: {"title": [{"type": "text", "text": {"content": name}}]}, **(extra or {})}
+        page = self._req(
+            "POST", "/pages", {"parent": {"type": "data_source_id", "data_source_id": ds_id}, "properties": props}
+        )
+        return page["id"]
+
+    def attach(
+        self,
+        account_page_id: str,
+        *,
+        identity: str | None = None,
+        email: str | None = None,
+        platform: str | None = None,
+        platform_url: str | None = None,
+        sources: dict[str, str] | None = None,
+    ) -> dict:
+        """Point an account row at its identity, e-mail and platform rows, creating those rows when
+        needed. Skips any map database that does not exist. Returns what was linked."""
+        src = self.map_sources() if sources is None else sources
+        ids: dict[str, str] = {}
+        if identity and "identities" in src:
+            ids["identities"] = self.find_or_create(src["identities"], MAP_TITLE["identities"], identity)
+        if email and "emails" in src:
+            extra = {EMAIL_IDENTITY: {"relation": [{"id": ids["identities"]}]}} if "identities" in ids else {}
+            ids["emails"] = self.find_or_create(src["emails"], MAP_TITLE["emails"], email, extra)
+        if platform and "platforms" in src:
+            pid = self.platform_for(src["platforms"], platform_url)
+            if not pid:
+                extra = {"URL": {"url": platform_url}} if platform_url else {}
+                pid = self.find_or_create(src["platforms"], MAP_TITLE["platforms"], platform, extra)
+            ids["platforms"] = pid
+        if ids:
+            self._req(
+                "PATCH",
+                f"/pages/{account_page_id}",
+                {"properties": {ACCOUNT_REL[k]: {"relation": [{"id": v}]} for k, v in ids.items()}},
+            )
+        return {ACCOUNT_REL[k]: v for k, v in ids.items()}
+
+    def platform_for(self, ds_id: str, url: str | None) -> str | None:
+        """Existing platform row whose URL has the same site (last two host labels) as ``url``."""
+        site = _site(url)
+        if not site:
+            return None
+        for r in self.rows(ds_id):
+            if _site(r.get("URL")) == site:
+                return r["id"]
+        return None
+
+    def maps(self) -> dict:
+        src = self.map_sources()
+        acc = self.find_database()
+        return maps(
+            self.rows(acc["id"]) if acc else [],
+            {k: self.rows(v) for k, v in src.items()},
+        )
+
     def link(self, ds_id: str, from_name: str, relation: str, to_name: str) -> None:
         rows = {r["Name"]: r for r in self.rows(ds_id)}
         if from_name not in rows or to_name not in rows:
@@ -276,6 +360,100 @@ def mermaid(rows: list[dict]) -> str:
                 if tid in by_id:
                     lines.append(f"  {_mid(r['id'])} {arrow}|{text}| {_mid(tid)}")
     return "\n".join(lines)
+
+
+def _site(url: str | None) -> str | None:
+    from urllib.parse import urlparse
+
+    if not url:
+        return None
+    host = urlparse(url if "//" in url else f"//{url}").hostname or ""
+    if not host or host.replace(".", "").isdigit():
+        return host or None
+    return ".".join(host.split(".")[-2:])
+
+
+def maps(accounts: list[dict], tables: dict[str, list[dict]]) -> dict:
+    """The three maps Filip asked for, from account rows and the map databases' rows.
+
+    * ``by_identity``: for each identity its e-mails, accounts, platforms, data and traces.
+    * ``by_email``: the same per e-mail, with the identity it belongs to (if any).
+    * ``by_platform``: the reverse map, what each platform knows: which identities and e-mails,
+      and which data, from accounts and from traces.
+
+    Accounts not yet linked through the relations fall back to their ``Identity`` select, so the map
+    is useful before every row is linked.
+    """
+    names = {
+        key: {r["id"]: r.get(MAP_TITLE[key]) or r["id"] for r in rows if r.get("id")} for key, rows in tables.items()
+    }
+
+    def new() -> dict:
+        return {
+            "accounts": set(),
+            "platforms": set(),
+            "identities": set(),
+            "emails": set(),
+            "data": set(),
+            "traces": set(),
+        }
+
+    by: dict[str, dict[str, dict]] = {"identities": {}, "emails": {}, "platforms": {}}
+
+    def touch(kind: str, name: str) -> dict:
+        return by[kind].setdefault(name, new())
+
+    def refs(row: dict, rel: dict[str, str], key: str) -> list[str]:
+        return [names.get(key, {}).get(i, i) for i in row.get(rel[key]) or []]
+
+    for e in tables.get("emails", []):
+        entry = touch("emails", e.get(MAP_TITLE["emails"]) or e["id"])
+        for i in e.get(EMAIL_IDENTITY) or []:
+            iname = names.get("identities", {}).get(i, i)
+            entry["identities"].add(iname)
+            touch("identities", iname)["emails"].add(e.get(MAP_TITLE["emails"]))
+    for i in tables.get("identities", []):
+        touch("identities", i.get(MAP_TITLE["identities"]) or i["id"])
+
+    for a in accounts:
+        if a.get("Status") == "closed":
+            continue
+        idents = refs(a, ACCOUNT_REL, "identities") or ([a["Identity"]] if a.get("Identity") else [])
+        emails = refs(a, ACCOUNT_REL, "emails")
+        plats = refs(a, ACCOUNT_REL, "platforms") or [a.get("Name")]
+        data = set(a.get("Data shared") or [])
+        for kind, keys in (("identities", idents), ("emails", emails), ("platforms", plats)):
+            for k in filter(None, keys):
+                e = touch(kind, k)
+                e["accounts"].add(a.get("Name"))
+                e["data"] |= data
+                e["identities"].update(idents)
+                e["emails"].update(emails)
+                e["platforms"].update(filter(None, plats))
+
+    for t in tables.get("traces", []):
+        tname = t.get(MAP_TITLE["traces"]) or t["id"]
+        idents = refs(t, TRACE_REL, "identities")
+        emails = refs(t, TRACE_REL, "emails")
+        plats = refs(t, TRACE_REL, "platforms")
+        data = set(t.get(TRACE_DATA) or [])
+        for kind, keys in (("identities", idents), ("emails", emails), ("platforms", plats)):
+            for k in keys:
+                e = touch(kind, k)
+                e["traces"].add(tname)
+                e["data"] |= data
+                e["identities"].update(idents)
+                e["emails"].update(emails)
+                e["platforms"].update(plats)
+
+    def clean(entries: dict[str, dict], drop: str) -> dict:
+        return {k: {f: sorted(filter(None, v)) for f, v in e.items() if f != drop} for k, e in sorted(entries.items())}
+
+    return {
+        "by_identity": clean(by["identities"], "identities"),
+        "by_email": clean(by["emails"], "emails"),
+        "by_platform": clean(by["platforms"], "platforms"),
+    }
 
 
 def _mid(page_id: str) -> str:

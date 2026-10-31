@@ -539,3 +539,108 @@ def test_plugin_persona_consent(monkeypatch, bw):
     )
     assert v["error_type"] == "consent_refused"
     assert plug._on_pre_tool_call("terminal", {"command": "hidentity persona --kind self-variant"})["action"] == "block"
+
+
+# -- identity / e-mail / platform maps ---------------------------------------------------------
+
+
+class MultiNotion:
+    """Fake Notion with several data sources, found by title."""
+
+    def __init__(self, titles):
+        self.ds = {t: f"ds-{i}" for i, t in enumerate(titles)}
+        self.pages: dict[str, dict] = {}
+        self.parent: dict[str, str] = {}
+
+    def __call__(self, req, timeout=30):
+        path = req.full_url.replace(accountmap.API, "")
+        body = json.loads(req.data) if req.data else {}
+        if path == "/search":
+            t = body["query"]
+            res = {"results": [{"id": self.ds[t], "title": [{"plain_text": t}]}] if t in self.ds else []}
+        elif path.endswith("/query"):
+            ds = path.split("/")[2]
+            res = {"results": [p for pid, p in self.pages.items() if self.parent[pid] == ds], "has_more": False}
+        elif path == "/pages":
+            pid = f"p-{len(self.pages) + 1}"
+            self.parent[pid] = body["parent"]["data_source_id"]
+            self.pages[pid] = {
+                "id": pid,
+                "url": f"https://notion.so/{pid}",
+                "properties": _materialize(body["properties"]),
+            }
+            res = self.pages[pid]
+        elif path.startswith("/pages/"):
+            pid = path.split("/")[2]
+            self.pages[pid]["properties"].update(_materialize(body["properties"]))
+            res = self.pages[pid]
+        else:
+            raise AssertionError(path)
+        return io.BytesIO(json.dumps(res).encode())
+
+
+def test_attach_links_account_to_identity_email_platform_and_reuses_rows():
+    fake = MultiNotion([accountmap.DB_TITLE, *accountmap.MAP_DBS.values()])
+    n = accountmap.Notion(token="t", opener=fake)
+    acc = fake.ds[accountmap.DB_TITLE]
+    plat_ds = fake.ds["Platformy"]
+    n.find_or_create(plat_ds, "Nazwa", "Anthropic (Claude)", {"URL": {"url": "https://claude.ai"}})
+    page = n.upsert(acc, {"Name": "Claude", "URL": "https://claude.ai/login", "Identity": "Prawdziwy Ja"})
+    links = n.attach(
+        page["id"], identity="Prawdziwy Ja", email="a@x.eu", platform="Claude", platform_url="https://claude.ai/login"
+    )
+    assert set(links) == {"Tożsamość (mapa)", "E-mail (mapa)", "Platforma"}
+    page2 = n.upsert(acc, {"Name": "Forum", "URL": "https://forum.example.org", "Identity": "Prawdziwy Ja"})
+    n.attach(
+        page2["id"], identity="prawdziwy ja", email="A@x.eu", platform="Forum", platform_url="https://forum.example.org"
+    )
+    by_ds = {}
+    for pid, ds in fake.parent.items():
+        by_ds.setdefault(ds, []).append(pid)
+    assert len(by_ds[fake.ds["Tożsamości"]]) == 1 and len(by_ds[fake.ds["E-maile"]]) == 1  # reused, case-insensitive
+    assert len(by_ds[plat_ds]) == 2  # Claude matched by site, Forum created
+    email = accountmap.row_to_dict(fake.pages[by_ds[fake.ds["E-maile"]][0]])
+    assert email["Tożsamość"] == by_ds[fake.ds["Tożsamości"]]
+
+
+def test_maps_per_identity_email_and_reverse_per_platform():
+    tables = {
+        "identities": [{"id": "i1", "Name": "Prawdziwy Ja"}, {"id": "i2", "Name": "Tor 1"}],
+        "emails": [
+            {"id": "e1", "Adres": "me@gmail.com", "Tożsamość": ["i1"]},
+            {"id": "e2", "Adres": "burner@alias.eu"},  # no identity: allowed
+        ],
+        "platforms": [{"id": "p1", "Nazwa": "Google"}, {"id": "p2", "Nazwa": "Forum"}],
+        "traces": [
+            {
+                "id": "t1",
+                "Nazwa": "Leak 2019",
+                "E-mail": ["e2"],
+                "Platforma": ["p2"],
+                "Ujawnione dane": ["password_hash"],
+            }
+        ],
+    }
+    accounts_rows = [
+        {
+            "Name": "Google",
+            "Tożsamość (mapa)": ["i1"],
+            "E-mail (mapa)": ["e1"],
+            "Platforma": ["p1"],
+            "Data shared": ["email", "phone"],
+        },
+        {"Name": "Forum acc", "E-mail (mapa)": ["e2"], "Platforma": ["p2"], "Data shared": ["username"]},
+        {"Name": "Old", "Identity": "Prawdziwy Ja", "Status": "closed", "Data shared": ["address"]},
+        {"Name": "Unlinked", "Identity": "Tor 1", "Data shared": ["email"]},
+    ]
+    m = accountmap.maps(accounts_rows, tables)
+    real = m["by_identity"]["Prawdziwy Ja"]
+    assert real["emails"] == ["me@gmail.com"] and real["platforms"] == ["Google"] and real["data"] == ["email", "phone"]
+    assert m["by_identity"]["Tor 1"]["accounts"] == ["Unlinked"]  # fallback to the Identity select
+    burner = m["by_email"]["burner@alias.eu"]
+    assert burner["identities"] == [] and burner["traces"] == ["Leak 2019"]
+    assert burner["data"] == ["password_hash", "username"]
+    forum = m["by_platform"]["Forum"]
+    assert forum["emails"] == ["burner@alias.eu"] and forum["identities"] == [] and "password_hash" in forum["data"]
+    assert m["by_platform"]["Google"]["identities"] == ["Prawdziwy Ja"]
+    assert "address" not in json.dumps(m)  # closed accounts left out
