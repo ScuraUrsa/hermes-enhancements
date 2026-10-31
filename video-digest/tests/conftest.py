@@ -9,7 +9,11 @@ from ytdigest import config
 @pytest.fixture
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("YTDIGEST_DATA_DIR", str(tmp_path / "data"))
-    monkeypatch.setenv("YTDIGEST_CONFIG", str(tmp_path / "none.yaml"))
+    # config_path() falls through to $HOME/.hermes/ytdigest/config.yaml unless the
+    # file named by YTDIGEST_CONFIG exists, so pin a real (empty) file, not a path.
+    pinned = tmp_path / "config.yaml"
+    pinned.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setenv("YTDIGEST_CONFIG", str(pinned))
     c = config.load(None)
     c["routing_file"] = str(tmp_path / "no-routing.json")
     c["topic_routes"] = {}  # topic overrides have their own tests
