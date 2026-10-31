@@ -51,6 +51,8 @@ What is at home, where it lies, until when it is good. Use the terminal tool; ev
 | „zmień nazwę szafy na Szafa biała” | `python3 ~/.hermes/scripts/dom.py map rename "pokój Teosia > szafa 1" "Szafa biała"` |
 | „wynieśliśmy komodę” | `python3 ~/.hermes/scripts/dom.py map rm "pokój Teosia > komoda"` |
 | „pokaż mapę (pokoju Teosia)” | `python3 ~/.hermes/scripts/dom.py map show ["pokój Teosia"]` |
+| „co jest w D007?”, „włożyłem baterie do D010” (code from a QR label) | `python3 ~/.hermes/scripts/dom.py where "#D007"` / `python3 ~/.hermes/scripts/dom.py add baterie --where "#D010"` |
+| „zrób naklejki QR na szafę w pokoju Teosia” | `python3 ~/.hermes/scripts/dom_labels.py labels --where "pokój Teosia > szafa 1" --assign --out ~/naklejki.html`, then send Filip the file (print at 100%) |
 
 - Names: plain Polish nominative („mleko”, „ser żółty”). `--exp` takes Filip's words (`20.10`, `10.2026`,
   „20 października”, „za 5 dni”, `jutro`). Fresh food without a date: ask once for it.

@@ -246,3 +246,44 @@ def test_clothes_attributes_in_note_and_tag(run):
     assert {"item", "place", "note"} <= d.keys()
     assert d["note"] == "typ:płaszcz ciepło:4 kto:filip stan:pranie kolor:granat"
     assert run("set", "płaszcz wełniany", "--tag", "zle")[0] == 2
+
+
+def test_codes_for_qr_labels(run, tmp_path):
+    code, out = run("code")
+    assert code == 0 and "Żadne miejsce" in out
+    code, out = run("--json", "code", "pokój Teosia > szafa 1", "--sub")
+    assert code == 0, out
+    data = json.loads(out)["data"]
+    assert [d["code"] for d in data] == ["D001", "D002", "D003", "D004"]  # the wardrobe, then shelves 1-3
+    assert data[0]["full_path"] == "Mieszkanie > Pokój Teosia > Szafa 1"
+    code, out = run("code", "pokój Teosia > szafa 1 > półka 2")  # already has one: unchanged
+    assert code == 0 and "Kody już były" in out and "D003" in out
+    code, out = run("code", "kuchnia > lodówka")
+    assert "D005" in out
+    # #D003 works wherever a place is expected
+    code, out = run("add", "body Teosia", "--where", "#D003", "--qty", "3")
+    assert code == 0 and "Pokój Teosia → Szafa 1 → Półka 2" in out
+    code, out = run("where", "#d003")
+    assert code == 0 and "body Teosia" in out
+    code, out = run("move", "body", "--where", "D-5")
+    assert code == 0 and "Lodówka" in out
+    assert run("add", "x", "--where", "#D099")[0] == 5
+    code, out = run("map", "show", "pokój Teosia")
+    assert "kod D001" in out
+    run("move", "body", "--where", "#D003")
+    assert run("map", "rm", "kuchnia > lodówka")[0] == 0  # D005 is gone ...
+    code, out = run("code", "kuchnia > szafka pod zlewem")
+    assert "D006" in out  # ... and not reused
+
+
+def test_codes_column_added_to_an_old_db(tmp_path, monkeypatch):
+    import sqlite3
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.executescript(dom.SCHEMA)  # the pre-QR schema has no places.code
+    old.execute("INSERT INTO places(parent_id, name, kind) VALUES (NULL, 'Mieszkanie', 'mieszkanie')")
+    old.commit()
+    old.close()
+    monkeypatch.setenv("DOM_DB", str(path))
+    code, out = dom.run(["code", "Mieszkanie"])
+    assert code == 0 and "D001" in out
