@@ -1,13 +1,13 @@
 ---
 name: home-inventory
 description: "Spis rzeczy w domu i mapa mieszkania: co mamy (spożywka, chemia, ubrania), gdzie leży (pokój, szafa, półka, sektor), do kiedy ważne. Użyj ~/.hermes/scripts/dom.py zamiast pamięci."
-version: 0.3.3
+version: 0.4.0
 author: Claude Code (for Filip), 2026-10-16
 license: MIT
 platforms: [linux]
 metadata:
   hermes:
-    tags: [spiżarnia, lodówka, zakupy, przywiozłem, termin ważności, przydatność, przeterminowane, gdzie jest, gdzie mam, szafa, szafka, półka, mapa mieszkania, posiłek, obiad, chemia, inventory, pantry, expiry]
+    tags: [spiżarnia, pokaż gdzie, zdjęcie szafy, etykiety, kod QR, pojemnik, lodówka, zakupy, przywiozłem, termin ważności, przydatność, przeterminowane, gdzie jest, gdzie mam, szafa, szafka, półka, mapa mieszkania, posiłek, obiad, chemia, inventory, pantry, expiry]
     related_skills: [hermes-timeplane, weather]
 ---
 
@@ -43,6 +43,9 @@ What is at home, where it lies, until when it is good. Use the terminal tool; ev
 | „wyrzuciłem przeterminowany ser” | `python3 ~/.hermes/scripts/dom.py throw ser --expired-only --all` |
 | „przełożyłem body do komody, 2. szuflada” | `python3 ~/.hermes/scripts/dom.py move body --where "pokój Teosia > komoda > szuflada 2"` |
 | „gdzie jest X?” | `python3 ~/.hermes/scripts/dom.py where "X"` |
+| „pokaż, gdzie jest X” / „gdzie dokładnie…” | `python3 ~/.hermes/scripts/dom.py show "X"`: copy its `MEDIA:/…` line unchanged into your reply (sends the photo with a circle); say the directions in 1–2 sentences |
+| Filip sends a photo: „to szafa w pokoju Teosia” | `python3 ~/.hermes/scripts/dom.py photo add "pokój Teosia > szafa 1" --file /path/to/the/photo.jpg` (shelves are marked automatically, top to bottom) |
+| „na zdjęciu półka 2 jest wyżej / tylko lewa połowa” | `python3 ~/.hermes/scripts/dom.py photo mark "pokój Teosia > szafa 1 > półka 2" --box 0,20,50,45` (left,top,right,bottom in % of the photo) |
 | „co jest w lodówce?” | `python3 ~/.hermes/scripts/dom.py list --where lodówka` |
 | „co się kończy w tym tygodniu?” | `python3 ~/.hermes/scripts/dom.py expiring --days 7` |
 | „co na obiad?” (any meal planning) | `python3 ~/.hermes/scripts/dom.py plan --days 5` (always 5), then meals using that food + where it lies |
@@ -51,6 +54,8 @@ What is at home, where it lies, until when it is good. Use the terminal tool; ev
 | „zmień nazwę szafy na Szafa biała” | `python3 ~/.hermes/scripts/dom.py map rename "pokój Teosia > szafa 1" "Szafa biała"` |
 | „wynieśliśmy komodę” | `python3 ~/.hermes/scripts/dom.py map rm "pokój Teosia > komoda"` |
 | „pokaż mapę (pokoju Teosia)” | `python3 ~/.hermes/scripts/dom.py map show ["pokój Teosia"]` |
+| „co jest w D007?”, „włożyłem baterie do D010” (code from a QR label) | `python3 ~/.hermes/scripts/dom.py where "#D007"` / `python3 ~/.hermes/scripts/dom.py add baterie --where "#D010"` |
+| „zrób naklejki QR na szafę w pokoju Teosia” | `python3 ~/.hermes/scripts/dom_labels.py labels --where "pokój Teosia > szafa 1" --assign --out ~/naklejki.html`, then send Filip the file (print at 100%) |
 
 - Names: plain Polish nominative („mleko”, „ser żółty”). `--exp` takes Filip's words (`20.10`, `10.2026`,
   „20 października”, „za 5 dni”, `jutro`). Fresh food without a date: ask once for it.
