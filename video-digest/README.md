@@ -93,6 +93,22 @@ Needs in `~/.hermes/.env` (from Bitwarden): `NOTION_API_KEY`, `GEMINI_API_KEY`
 (fallback models), `YTDIGEST_TOKEN` (one-click endpoint). Watch Later needs that
 account's cookies at `~/.hermes/ytdigest/cookies/<account>.txt`.
 
+## ASR backends (transcripts without captions)
+
+`transcript_order` tries: `manual` captions → `groq` → `parakeet` → `local` → `auto`
+captions. The two local backends run offline, no paid API:
+
+```bash
+pip install -e '.[local-asr]'   # faster-whisper (Whisper) + onnx-asr (Parakeet)
+ytdigest --check-asr            # one line per step: `local: available (faster-whisper 1.2.1)`;
+                                # exit 0 iff at least one of groq/parakeet/local is usable
+```
+
+Model weights (GBs) go to the HuggingFace cache: `HF_HOME` defaults to
+`~/.cache/huggingface` in `ytdigest/config.py`, outside `~/.hermes` on purpose —
+the VM backup payload must never carry the blobs. Keep that true if you override
+`HF_HOME`; the medium faster-whisper model alone is ~1.5 GB.
+
 ## Tests
 
 ```bash
