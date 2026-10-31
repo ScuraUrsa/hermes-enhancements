@@ -341,6 +341,30 @@ def read_llm_usage(paths: list[str]) -> dict:
 
 
 # ---------------------------------------------------------------------------------------------- GitHub
+def slim(v):
+    """Keep only the fields read_github / pr_commits use. Raw PR objects carry two full repo objects each
+    (~20 KB), so a cache of raw pages grew past the collector's 768 MiB memory slice."""
+    if isinstance(v, list):
+        return [slim(x) for x in v]
+    if not isinstance(v, dict):
+        return v
+    if "commit" in v and "sha" in v:  # commit
+        c = v.get("commit") or {}
+        return {"sha": v.get("sha"), "html_url": v.get("html_url"),
+                "commit": {"message": c.get("message"), "committer": {"date": (c.get("committer") or {}).get("date")}}}
+    if "number" in v and "head" in v:  # pull request
+        keep = ("number", "title", "state", "draft", "created_at", "merged_at", "closed_at", "html_url", "body")
+        out = {k: v.get(k) for k in keep}
+        out["head"] = {"ref": (v.get("head") or {}).get("ref")}
+        out["base"] = {"ref": (v.get("base") or {}).get("ref")}
+        out["user"] = {"login": (v.get("user") or {}).get("login")}
+        return out
+    if "full_name" in v:  # repository
+        return {"full_name": v.get("full_name"), "pushed_at": v.get("pushed_at"),
+                "owner": {"login": (v.get("owner") or {}).get("login")}}
+    return v
+
+
 class GitHub:
     def __init__(self, token: str | None, cache_path: str):
         self.token = token
@@ -350,6 +374,9 @@ class GitHub:
                 self.cache = json.load(f)
         except (OSError, ValueError):
             self.cache = {}
+        for hit in self.cache.values():  # caches written before slim() held raw pages
+            if isinstance(hit, dict):
+                hit["v"] = slim(hit.get("v"))
         self.calls = 0
 
     def save(self):
@@ -372,7 +399,7 @@ class GitHub:
         self.calls += 1
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
-                v = json.load(resp)
+                v = slim(json.load(resp))
                 self.cache[url] = {"t": time.time(), "v": v, "etag": resp.headers.get("ETag")}
                 return v
         except urllib.error.HTTPError as e:
