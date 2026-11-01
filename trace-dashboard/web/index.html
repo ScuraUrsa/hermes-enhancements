@@ -266,7 +266,7 @@ function subsHTML() {
         <div class="subline"><b>${pct.toFixed(0)}%</b> limitu, czyli ${usd(per.sub_usd)} z ${usd(fee)} abonamentu</div>`;
     } else {
       body = `<div class="v">${usd(per.api_usd)} <span class="t-meta">wg cennika API</span></div>
-        <div class="subline">Abonament ${usd(fee)}/mies. dzielony proporcjonalnie do zużycia. ${per.api_usd > fee ? `Wg API wyszłoby ${(per.api_usd / fee).toFixed(1)}× drożej.` : ""}</div>`;
+        <div class="subline">Abonament ${usd(fee)}/mies.; za dni, które minęły w tym okresie: <b>${usd(per.sub_usd)}</b>, dzielone proporcjonalnie do zużycia. ${per.api_usd > fee ? `Wg API wyszłoby ${(per.api_usd / fee).toFixed(1)}× drożej.` : ""}</div>`;
     }
     return `<div class="sub-card"><div class="n"><span class="sw" style="background:${scolor(s.id)};width:10px;height:10px;border-radius:3px"></span>${esc(s.label)}</div>
       ${body}<div class="subline">Okres ${range}${prev ? ` · poprzedni: ${usd(prev.api_usd)}${prev.used_pct != null ? ` (${prev.used_pct.toFixed(0)}%)` : ""}` : ""}</div>

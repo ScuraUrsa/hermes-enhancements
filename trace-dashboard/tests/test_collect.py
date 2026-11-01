@@ -147,6 +147,16 @@ def test_allocate_subscriptions():
     assert per["b"][0]["api_usd"] == 26.0 and per["b"][0]["start"] == "2026-10-04"
 
 
+def test_elapsed_share():
+    now = collect.dt.datetime(2026, 11, 16, tzinfo=collect.dt.timezone.utc)
+    assert abs(collect.elapsed_share("2026-11-01", now) - 0.5) < 1e-9
+    assert collect.elapsed_share("2026-10-01", now) == 1.0
+    sub = [{"id": "c", "provider": "anthropic", "monthly_price_usd": 100, "included_usd": None, "period_start_day": 1}]
+    alloc, out = collect.allocate_subscriptions(
+        [{"ref": "x", "at": "2026-11-02T00:00:00", "provider": "anthropic", "api_usd": 1.0, "tokens": 1}], sub, now)
+    assert abs(alloc["x"][0]["sub_usd"] - 50.0) < 1e-6 and abs(out[0]["periods"][0]["sub_usd"] - 50.0) < 1e-6
+
+
 def test_period_start():
     assert collect.period_start("2026-11-03T23:00:00", 4) == "2026-10-04"
     assert collect.period_start("2026-11-04T00:00:00", 4) == "2026-11-04"

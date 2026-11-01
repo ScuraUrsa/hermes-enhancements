@@ -538,7 +538,17 @@ def period_end(start: str) -> str:
     return nxt.isoformat()
 
 
-def allocate_subscriptions(spends: list[dict], subs: list[dict]) -> tuple[dict, list[dict]]:
+def elapsed_share(start: str, now: dt.datetime | None) -> float:
+    """Part of the billing period starting at `start` that has passed by `now` (1.0 for past periods)."""
+    if now is None:
+        return 1.0
+    a = dt.datetime.fromisoformat(start).replace(tzinfo=dt.timezone.utc)
+    b = dt.datetime.fromisoformat(period_end(start)).replace(tzinfo=dt.timezone.utc)
+    return min(max((now - a) / (b - a), 1 / 31), 1.0)
+
+
+def allocate_subscriptions(spends: list[dict], subs: list[dict],
+                           now: dt.datetime | None = None) -> tuple[dict, list[dict]]:
     """Which subscription paid for each spend, and how much of its fee that is.
 
     spends: {"ref", "at", "provider", "key", "api_usd", "tokens"}. A spend that names its key (llm_usage.jsonl)
@@ -546,7 +556,9 @@ def allocate_subscriptions(spends: list[dict], subs: list[dict]) -> tuple[dict, 
     (Hermes tries OLLAMA_API_KEY first, then OLLAMA_API_KEY_FJ): each one takes spend until its included usage for
     that billing period is used up, then the next one; what is left after the last one stays on the last one
     (over the limit). A subscription without included_usd (Claude Max: limits are time windows, not dollars) takes
-    everything of its provider and splits its fee by the share of the period's API-equivalent spend.
+    everything of its provider and splits its fee by the share of the period's API-equivalent spend; in a period
+    still running only the part of the fee for the days gone so far is split (else the first prompt of a fresh
+    month would carry the whole fee).
 
     Returns ({ref: [{"sub", "period", "api_usd", "sub_usd", "tokens"}]}, subscriptions with per-period totals).
     """
@@ -593,7 +605,7 @@ def allocate_subscriptions(spends: list[dict], subs: list[dict]) -> tuple[dict, 
         rows = []
         for p in periods:
             rows.append({"start": p, "end": period_end(p), "api_usd": round(tot[p], 4),
-                         "sub_usd": round(fee * (tot[p] / inc if inc else (1.0 if tot[p] > 0 else 0.0)), 4),
+                         "sub_usd": round(fee * (tot[p] / inc if inc else (elapsed_share(p, now) if tot[p] > 0 else 0.0)), 4),
                          "used_pct": round(100 * tot[p] / inc, 1) if inc else None})
         out_subs.append({**{k: v for k, v in sub.items() if k != "keys"}, "keys": sub.get("keys", []),
                          "periods": rows})
@@ -603,7 +615,8 @@ def allocate_subscriptions(spends: list[dict], subs: list[dict]) -> tuple[dict, 
             sub = fee_of[a["sub"]]
             fee, inc = float(sub.get("monthly_price_usd") or 0), sub.get("included_usd")
             total = used[(a["sub"], a["period"])]
-            a["sub_usd"] = round(fee * a["api_usd"] / inc if inc else (fee * a["api_usd"] / total if total else 0.0), 6)
+            a["sub_usd"] = round(fee * a["api_usd"] / inc if inc else (
+                fee * elapsed_share(a["period"], now) * a["api_usd"] / total if total else 0.0), 6)
             a["api_usd"] = round(a["api_usd"], 6)
     return dict(alloc), out_subs
 
@@ -970,7 +983,7 @@ def build(args) -> dict:
                            "provider": part["provider"],
                            "key": (st.get("meta") or {}).get("key"), "api_usd": part["cost_usd"],
                            "tokens": tok_sum(part["tokens"])})
-    alloc, subscriptions = allocate_subscriptions(spends, pricing.subscriptions)
+    alloc, subscriptions = allocate_subscriptions(spends, pricing.subscriptions, now)
     for (sid, _i), lst in alloc.items():
         acc = steps[sid].setdefault("subs", {})
         for a in lst:
