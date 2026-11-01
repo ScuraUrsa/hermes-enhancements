@@ -6,6 +6,8 @@ Reads (all read-only):
     copies fetched from other VMs (--extra-hermes-home, e.g. a dev snapshot);
   * the kanban board (kanban.db or the kanban-dev.db snapshot on prod);
   * ~/.hermes/autonomy/claude_runs.jsonl (Claude Code runs started by cc_run.py);
+  * ~/.hermes/autonomy/llm_usage.jsonl (LLM calls outside agent sessions: timeplane, link_inbox, ...,
+    written by scripts/llm_usage.py);
   * claude_threads.json: the Claude project threads with their usage, exported by the project's
     Claude thread (orphan data branch of the private ScuraUrsa/hermes-default-workspace);
   * GitHub: pull requests and recent commits of the ScuraUrsa repositories.
@@ -311,7 +313,58 @@ def read_claude_runs(paths: list[str]) -> list[dict]:
     return out
 
 
+def read_llm_usage(paths: list[str]) -> dict:
+    """llm_usage.jsonl lines summed per (vm, caller, day, model): calls and tokens."""
+    out = {}
+    for spec in paths:
+        vm, _, path = spec.partition("=") if "=" in spec else ("prod", "", spec)
+        path = os.path.expanduser(path)
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                day = (iso(r.get("ts")) or "")[:10]
+                key = (vm, r.get("caller") or "?", day, r.get("model") or "")
+                g = out.setdefault(key, {"calls": 0, "provider": r.get("provider") or "", "first": iso(r.get("ts")),
+                                         "last": iso(r.get("ts")), "input": 0, "output": 0, "cache_read": 0})
+                g["calls"] += 1
+                cr = num(r.get("cache_read_tokens"))
+                g["input"] += max(num(r.get("input_tokens")) - cr, 0)  # logged input includes the cached part
+                g["output"] += num(r.get("output_tokens"))
+                g["cache_read"] += cr
+                g["last"] = max(g["last"] or "", iso(r.get("ts")) or "")
+    return out
+
+
 # ---------------------------------------------------------------------------------------------- GitHub
+def slim(v):
+    """Keep only the fields read_github / pr_commits use. Raw PR objects carry two full repo objects each
+    (~20 KB), so a cache of raw pages grew past the collector's 768 MiB memory slice."""
+    if isinstance(v, list):
+        return [slim(x) for x in v]
+    if not isinstance(v, dict):
+        return v
+    if "commit" in v and "sha" in v:  # commit
+        c = v.get("commit") or {}
+        return {"sha": v.get("sha"), "html_url": v.get("html_url"),
+                "commit": {"message": c.get("message"), "committer": {"date": (c.get("committer") or {}).get("date")}}}
+    if "number" in v and "head" in v:  # pull request
+        keep = ("number", "title", "state", "draft", "created_at", "merged_at", "closed_at", "html_url", "body")
+        out = {k: v.get(k) for k in keep}
+        out["head"] = {"ref": (v.get("head") or {}).get("ref")}
+        out["base"] = {"ref": (v.get("base") or {}).get("ref")}
+        out["user"] = {"login": (v.get("user") or {}).get("login")}
+        return out
+    if "full_name" in v:  # repository
+        return {"full_name": v.get("full_name"), "pushed_at": v.get("pushed_at"),
+                "owner": {"login": (v.get("owner") or {}).get("login")}}
+    return v
+
+
 class GitHub:
     def __init__(self, token: str | None, cache_path: str):
         self.token = token
@@ -321,6 +374,9 @@ class GitHub:
                 self.cache = json.load(f)
         except (OSError, ValueError):
             self.cache = {}
+        for hit in self.cache.values():  # caches written before slim() held raw pages
+            if isinstance(hit, dict):
+                hit["v"] = slim(hit.get("v"))
         self.calls = 0
 
     def save(self):
@@ -343,7 +399,7 @@ class GitHub:
         self.calls += 1
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
-                v = json.load(resp)
+                v = slim(json.load(resp))
                 self.cache[url] = {"t": time.time(), "v": v, "etag": resp.headers.get("ETag")}
                 return v
         except urllib.error.HTTPError as e:
@@ -487,6 +543,7 @@ def build(args) -> dict:
     sessions = list(have.values())
     tasks, _ = read_kanban(args.kanban) if args.kanban else ({}, {})
     cruns = read_claude_runs(args.claude_runs) if args.claude_runs else []
+    direct = read_llm_usage(args.llm_usage) if args.llm_usage else {}
     threads = {}
     if args.claude_threads and os.path.exists(args.claude_threads):
         threads = json.loads(Path(args.claude_threads).read_text(encoding="utf-8"))
@@ -538,6 +595,14 @@ def build(args) -> dict:
                  reported=float(r.get("cost_usd_equiv") or 0), where=f"Claude Code na {r.get('vm')} · {r.get('cwd')}",
                  meta={"task_id": r.get("task_id"), "cwd": r.get("cwd"), "probe": bool(r.get("probe")),
                        "is_error": r.get("is_error"), "hit_limit": r.get("hit_limit"), "turns": r.get("num_turns")})
+    for (vm, caller, day, model), g in direct.items():
+        if day < since[:10]:
+            continue
+        add_step(f"du:{vm}:{caller}:{day}:{model}", kind="direct_llm", title=f"{caller} · {g['calls']} wywołań",
+                 why="Wywołania modelu poza sesją agenta (skrypt Hermesa), zliczone przez llm_usage.py.",
+                 at=g["first"], end=g["last"], provider=provider_of(model, g["provider"]), model=model,
+                 tokens=tokens(g["input"], g["output"], g["cache_read"], 0), where=f"Hermes {vm} · skrypt {caller}",
+                 meta={"caller": caller, "calls": g["calls"], "vm": vm})
     project = threads.get("project_id", "")
     for th in threads.get("threads", []):
         s = th.get("session") or {}
@@ -732,6 +797,19 @@ def build(args) -> dict:
         t["steps"].append(sid)
         owner_of[sid] = t["id"]
 
+    # Direct LLM calls of Hermes' scripts: one trace per script and month.
+    for (vm, caller, day, model) in direct:
+        sid = f"du:{vm}:{caller}:{day}:{model}"
+        if sid not in steps:
+            continue
+        t = trace(f"direct:{caller}:{day[:7]}", origin="hermes_autonomy",
+                  title=f"Skrypt {caller}: wywołania LLM poza sesjami ({day[:7]})",
+                  prompt="Skrypt Hermesa woła model bezpośrednio (bez sesji agenta i bez prompta od Ciebie); "
+                         "liczone z ~/.hermes/autonomy/llm_usage.jsonl.",
+                  author="Hermes", at=day, link=None, status="recurring", finished=None)
+        t["steps"].append(sid)
+        owner_of[sid] = t["id"]
+
     # Coordinator sessions: shared overhead, its own trace.
     for c in threads.get("coordinators", []):
         sid = f"co:{c.get('id')}"
@@ -828,6 +906,7 @@ def build(args) -> dict:
         "generated_at": now.isoformat(timespec="seconds"),
         "window_days": args.days,
         "sources": {"hermes_sessions": len(sessions), "kanban_tasks": len(tasks), "claude_code_runs": len(cruns),
+                    "direct_llm_calls": sum(g["calls"] for g in direct.values()),
                     "claude_threads": len(threads.get("threads", [])),
                     "claude_threads_exported_at": threads.get("exported_at"), "pull_requests": len(prs),
                     "commits_scanned": len(commits), "github_calls": gh.calls},
@@ -849,6 +928,8 @@ def main(argv=None) -> int:
                     help="print the sessions of --hermes-home as JSON and exit (run this on another VM over SSH)")
     ap.add_argument("--kanban", action="append", default=[], help="kanban db as vm=path (repeatable, later wins)")
     ap.add_argument("--claude-runs", action="append", default=[], help="claude_runs.jsonl as vm=path (repeatable)")
+    ap.add_argument("--llm-usage", action="append", default=[],
+                    help="llm_usage.jsonl (direct LLM calls of Hermes' scripts) as vm=path (repeatable)")
     ap.add_argument("--claude-threads", help="claude_threads.json exported from the Claude project")
     ap.add_argument("--pricing", default=str(Path(__file__).with_name("pricing.json")))
     ap.add_argument("--budget", default="~/.hermes/autonomy/budget.json",

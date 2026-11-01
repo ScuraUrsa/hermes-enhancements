@@ -44,6 +44,8 @@ if ssh -o BatchMode=yes -o ConnectTimeout=5 "$DEV" true 2>/dev/null; then
   fi
   ssh -o BatchMode=yes "$DEV" 'cat ~/.hermes/autonomy/claude_runs.jsonl 2>/dev/null' > "$STATE/in/dev_claude_runs.jsonl.tmp" \
     && mv "$STATE/in/dev_claude_runs.jsonl.tmp" "$STATE/in/dev_claude_runs.jsonl"
+  ssh -o BatchMode=yes "$DEV" 'cat ~/.hermes/autonomy/llm_usage.jsonl 2>/dev/null' > "$STATE/in/dev_llm_usage.jsonl.tmp" \
+    && mv "$STATE/in/dev_llm_usage.jsonl.tmp" "$STATE/in/dev_llm_usage.jsonl"
 else
   log "warn: dev VM $DEV unreachable, using the last copy of its sessions"
 fi
@@ -53,6 +55,7 @@ fi
   --hermes-json "dev=$STATE/in/dev_sessions.json" \
   --kanban "dev=$HERMES/kanban-dev.db" --kanban "prod=$HERMES/kanban.db" \
   --claude-runs "prod=$HERMES/autonomy/claude_runs.jsonl" --claude-runs "dev=$STATE/in/dev_claude_runs.jsonl" \
+  --llm-usage "prod=$HERMES/autonomy/llm_usage.jsonl" --llm-usage "dev=$STATE/in/dev_llm_usage.jsonl" \
   --claude-threads "$STATE/in/claude_threads.json" \
   --budget "$HERMES/autonomy/budget.json" \
   --pricing "${TRACE_PRICING:-$HERE/pricing.json}" \
