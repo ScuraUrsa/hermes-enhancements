@@ -64,5 +64,42 @@
       0.044,
       3.96
     ]
-  }
+  },
+  "_comment_subscriptions": "subscriptions: what you actually pay. Usage goes to the subscription whose key it names (llm_usage.jsonl), otherwise to the provider's subscriptions in this order, each until its included_usd for the billing period is used up (Hermes tries OLLAMA_API_KEY first, then OLLAMA_API_KEY_FJ). Share of the fee = API-equivalent cost x monthly_price_usd / included_usd; without included_usd (limits are time windows) the fee is split by the share of the period's API-equivalent cost. period_start_day: the day of the month the plan renews.",
+  "subscriptions": [
+    {
+      "id": "ollama-main",
+      "label": "Ollama Pro (OLLAMA_API_KEY)",
+      "provider": "ollama",
+      "keys": [
+        "OLLAMA_API_KEY"
+      ],
+      "monthly_price_usd": 20,
+      "included_usd": 60,
+      "period_start_day": 20,
+      "note": "Odnowienie ok. 20. dnia miesiąca (z quota.json: skip_until 2026-10-20)."
+    },
+    {
+      "id": "ollama-fj",
+      "label": "Ollama Pro (OLLAMA_API_KEY_FJ)",
+      "provider": "ollama",
+      "keys": [
+        "OLLAMA_API_KEY_FJ"
+      ],
+      "monthly_price_usd": 20,
+      "included_usd": 60,
+      "period_start_day": 4,
+      "note": "Odnowienie 4. dnia miesiąca (reset_at 2026-11-04 z sondy kluczy)."
+    },
+    {
+      "id": "claude-max",
+      "label": "Claude Max 5x",
+      "provider": "anthropic",
+      "keys": [],
+      "monthly_price_usd": 100,
+      "included_usd": null,
+      "period_start_day": 1,
+      "note": "Limit to okna 5-godzinne i tygodniowe, nie dolary: opłata dzielona proporcjonalnie do równowartości API w okresie. Dzień odnowienia do potwierdzenia."
+    }
+  ]
 }

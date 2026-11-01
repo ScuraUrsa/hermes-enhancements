@@ -83,7 +83,45 @@ tr.sel { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .commits { margin: 6px 0 0; padding-left: 16px; color: var(--text-2); font-size: 12px; }
 .empty { color: var(--text-3); padding: 30px; text-align: center; }
 .note { color: var(--text-3); font-size: 12px; margin-top: 18px; }
-@media (max-width: 720px) { .hide-sm { display: none; } }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
+.seg button { background: var(--surface); color: var(--text-2); border: 0; padding: 6px 11px; font: inherit; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line-strong); }
+.seg button.on { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: var(--text); font-weight: 500; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); border-radius: 99px; padding: 4px 10px; font-size: 13px; color: var(--text-2); cursor: pointer; background: var(--surface); user-select: none; }
+.chip input { margin: 0; }
+.chip.on { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.subs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.sub-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.sub-card .n { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.sub-card .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 4px; }
+.meter { height: 8px; border-radius: 4px; background: var(--line); margin: 8px 0 4px; overflow: hidden; }
+.meter > div { height: 100%; border-radius: 4px; }
+.meter.over > div { background: var(--bad) !important; }
+.subline { color: var(--text-3); font-size: 12px; margin-top: 3px; }
+@media (max-width: 720px) {
+  .hide-sm { display: none; }
+  main { padding: 14px 12px 60px; }
+  h1 { font-size: 17px; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kpi { padding: 10px 11px; } .kpi .v { font-size: 18px; }
+  .filters > * { flex: 1 1 100%; } .filters .seg { display: flex; } .filters .seg button { flex: 1; }
+  .filters select { flex: 1 1 45%; }
+  table, thead, tbody, tr, td { display: block; width: 100%; }
+  thead { display: none; }
+  table { border: 0; background: none; }
+  tbody tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; padding: 10px 12px; }
+  td { border: 0; padding: 0; }
+  td.when { grid-column: 1 / -1; order: -1; }
+  td.prompt-c { grid-column: 1; grid-row: 2 / span 2; min-width: 0; }
+  td.tok-c { grid-column: 2; grid-row: 3; font-size: 12px; color: var(--text-3); }
+  td.cost-c { grid-column: 2; grid-row: 2; }
+  .t-title { overflow-wrap: anywhere; }
+  td.empty { grid-column: 1 / -1; }
+  #detail { padding: 14px 14px 60px; border-left: 0; }
+  .step .h { flex-wrap: wrap; }
+  .pill { white-space: normal; }
+}
 </style>
 </head>
 <body>
@@ -91,6 +129,7 @@ tr.sel { background: color-mix(in srgb, var(--accent) 10%, transparent); }
   <h1>Ścieżka: prompt → wątki i sesje → commity i PR-y → efekt</h1>
   <div class="sub" id="gen">Ładowanie…</div>
   <div class="kpis" id="kpis"></div>
+  <div class="subs" id="subs"></div>
   <div class="split" id="split"></div>
   <div class="filters">
     <input type="search" id="q" placeholder="Szukaj w promptach, tytułach, repo, PR…">
@@ -108,11 +147,15 @@ tr.sel { background: color-mix(in srgb, var(--accent) 10%, transparent); }
       <option value="0">Cały zakres</option>
     </select>
     <label><input type="checkbox" id="withpr"> tylko ze zmianami w repo</label>
+    <div class="seg" role="group" aria-label="Sposób liczenia kosztu">
+      <button type="button" data-mode="api">Cennik API</button><button type="button" data-mode="sub">Część abonamentu</button>
+    </div>
   </div>
+  <div class="chips" id="chips"></div>
   <table>
     <thead><tr>
       <th data-k="at">Kiedy</th><th data-k="title">Prompt</th><th class="hide-sm" data-k="status">Stan</th>
-      <th class="num hide-sm" data-k="prs">PR / commity</th><th class="num" data-k="tokens">Tokeny</th><th class="num" data-k="cost_usd">Koszt</th>
+      <th class="num hide-sm" data-k="prs">PR / commity</th><th class="num" data-k="tokens">Tokeny</th><th class="num" data-k="cost">Koszt</th>
     </tr></thead>
     <tbody id="rows"></tbody>
   </table>
@@ -126,6 +169,11 @@ const KIND = {claude_thread: "Wątek Claude", claude_coordinator: "Koordynator C
   claude_code_run: "Claude Code", kanban_task: "Zadanie kanban", direct_llm: "Skrypt (bez sesji)"};
 const PROVIDERS = ["anthropic", "ollama", "gemini", "local", "other"];
 let D = null, sortK = "at", sortDir = -1, selected = null;
+const store = {get(k, d) { try { const v = localStorage.getItem("td." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+               set(k, v) { try { localStorage.setItem("td." + k, JSON.stringify(v)); } catch {} }};
+let mode = store.get("mode", "api");           // api: API list-price equivalent; sub: share of what you pay
+let picked = new Set(store.get("subs", []));   // subscription ids to show; empty = all
+const NONE = {id: "none", label: "Bez abonamentu (lokalnie, darmowe)", provider: "local"};
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const usd = v => (v >= 100 ? "$" + v.toFixed(0) : v >= 1 ? "$" + v.toFixed(2) : v > 0 ? "$" + v.toFixed(3) : "$0");
@@ -133,6 +181,24 @@ const tok = v => v >= 1e9 ? (v / 1e9).toFixed(1) + " mld" : v >= 1e6 ? (v / 1e6)
 const day = s => s ? new Date(s).toLocaleString("pl-PL", {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"}) : "—";
 const pcolor = p => `var(--p-${PROVIDERS.includes(p) ? p : "other"})`;
 const tsum = t => (t.input || 0) + (t.output || 0) + (t.cache_read || 0) + (t.cache_write || 0);
+const subsAll = () => [...(D.subscriptions || []), NONE];
+const subById = id => subsAll().find(s => s.id === id) || {id, label: id, provider: "other"};
+function scolor(id) {
+  const s = subById(id), same = subsAll().filter(x => x.provider === s.provider);
+  const base = pcolor(s.provider);
+  return same.indexOf(s) > 0 ? `color-mix(in srgb, ${base} 55%, var(--text))` : base;
+}
+const active = id => !picked.size || picked.has(id);
+// Cost of a trace or step in the current mode, limited to the picked subscriptions.
+function costOf(x) {
+  const bs = x.by_subscription || x.subs || {};
+  if (!picked.size && mode === "api") return x.cost_usd || 0;
+  return Object.entries(bs).filter(([id]) => active(id)).reduce((a, [, v]) => a + (mode === "api" ? v.api_usd : v.sub_usd || 0), 0);
+}
+function tokensOf(t) {
+  if (!picked.size) return t.tokens;
+  return Object.entries(t.by_subscription || {}).filter(([id]) => active(id)).reduce((a, [, v]) => a + v.tokens, 0);
+}
 
 function inPeriod(t) {
   const days = +$("period").value;
@@ -142,6 +208,7 @@ function inPeriod(t) {
 function visible() {
   const q = $("q").value.trim().toLowerCase(), o = $("origin").value, w = $("withpr").checked;
   return D.traces.filter(t => inPeriod(t) && (!o || t.origin === o) && (!w || t.changes.length) &&
+    (!picked.size || Object.entries(t.by_subscription || {}).some(([id, v]) => picked.has(id) && (v.api_usd > 0 || v.tokens > 0))) &&
     (!q || [t.title, t.prompt, t.author, ...t.changes.map(c => `${c.repo} #${c.number || c.sha} ${c.title}`)].join(" ").toLowerCase().includes(q)));
 }
 function splitHTML(byP, title) {
@@ -163,26 +230,86 @@ function aggregate(traces) {
   }
   return {byP, cost, tokens, merged, prs};
 }
+function subSplitHTML(byS, title) {
+  const val = v => mode === "api" ? v.api_usd : v.sub_usd || 0;
+  const ents = Object.entries(byS).filter(([id, v]) => active(id) && (v.api_usd > 0 || v.tokens > 0))
+    .sort((x, y) => val(y[1]) - val(x[1]) || y[1].tokens - x[1].tokens);
+  const total = ents.reduce((a, [, v]) => a + val(v), 0);
+  const bar = total > 0 ? ents.filter(([, v]) => val(v) > 0).map(([id, v]) =>
+    `<div style="flex:${val(v)};background:${scolor(id)}" title="${esc(subById(id).label)}: ${usd(val(v))} (${(100 * val(v) / total).toFixed(0)}%)"></div>`).join("") : "";
+  return `${title ? `<div class="t-meta">${title}</div>` : ""}<div class="bar">${bar}</div><div class="legend">` +
+    ents.map(([id, v]) => `<span><span class="sw" style="background:${scolor(id)}"></span>${esc(subById(id).label)}: <b>${usd(val(v))}</b>` +
+      `${mode === "sub" && id !== "none" ? ` (z ${usd(v.api_usd)} wg API)` : ""} · ${tok(v.tokens)} tok.</span>`).join("") + `</div>`;
+}
+function sumSubs(traces) {
+  const byS = {};
+  for (const t of traces) for (const [id, v] of Object.entries(t.by_subscription || {})) {
+    byS[id] ??= {api_usd: 0, sub_usd: 0, tokens: 0};
+    byS[id].api_usd += v.api_usd; byS[id].sub_usd += v.sub_usd || 0; byS[id].tokens += v.tokens;
+  }
+  return byS;
+}
+// One card per subscription: its current billing period, how much of it is used and what that is worth.
+function subsHTML() {
+  return (D.subscriptions || []).filter(s => active(s.id)).map(s => {
+    const per = (s.periods || []).slice(-1)[0];
+    const prev = (s.periods || []).slice(-2, -1)[0];
+    const fee = s.monthly_price_usd || 0;
+    if (!per) return `<div class="sub-card"><div class="n"><span class="sw" style="background:${scolor(s.id)};width:10px;height:10px;border-radius:3px"></span>${esc(s.label)}</div>
+      <div class="subline">Brak zużycia w danych. Abonament ${usd(fee)}/mies.</div></div>`;
+    const range = `${per.start} → ${per.end}`;
+    let body;
+    if (s.included_usd) {
+      const pct = per.used_pct || 0;
+      body = `<div class="v">${usd(per.api_usd)} <span class="t-meta">z ${usd(s.included_usd)} limitu</span></div>
+        <div class="meter ${pct > 100 ? "over" : ""}"><div style="width:${Math.min(pct, 100)}%;background:${scolor(s.id)}"></div></div>
+        <div class="subline"><b>${pct.toFixed(0)}%</b> limitu, czyli ${usd(per.sub_usd)} z ${usd(fee)} abonamentu</div>`;
+    } else {
+      body = `<div class="v">${usd(per.api_usd)} <span class="t-meta">wg cennika API</span></div>
+        <div class="subline">Abonament ${usd(fee)}/mies. dzielony proporcjonalnie do zużycia. ${per.api_usd > fee ? `Wg API wyszłoby ${(per.api_usd / fee).toFixed(1)}× drożej.` : ""}</div>`;
+    }
+    return `<div class="sub-card"><div class="n"><span class="sw" style="background:${scolor(s.id)};width:10px;height:10px;border-radius:3px"></span>${esc(s.label)}</div>
+      ${body}<div class="subline">Okres ${range}${prev ? ` · poprzedni: ${usd(prev.api_usd)}${prev.used_pct != null ? ` (${prev.used_pct.toFixed(0)}%)` : ""}` : ""}</div>
+      ${s.note ? `<div class="subline">${esc(s.note)}</div>` : ""}</div>`;
+  }).join("");
+}
+function chipsHTML() {
+  return `<span class="t-meta" style="align-self:center">Abonamenty:</span>` + subsAll().map(s =>
+    `<label class="chip ${picked.has(s.id) ? "on" : ""}"><input type="checkbox" data-sub="${esc(s.id)}" ${picked.has(s.id) ? "checked" : ""}>` +
+    `<span class="sw" style="background:${scolor(s.id)};width:10px;height:10px;border-radius:3px;display:inline-block"></span>${esc(s.label)}</label>`).join("") +
+    (picked.size ? `<button type="button" class="chip" id="allsubs">Pokaż wszystkie</button>` : "");
+}
 function render() {
   const rows = visible();
   const a = aggregate(rows);
+  const cost = rows.reduce((x, t) => x + costOf(t), 0), tokens = rows.reduce((x, t) => x + tokensOf(t), 0);
+  document.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.mode === mode));
+  $("chips").innerHTML = chipsHTML();
+  $("subs").innerHTML = subsHTML();
   $("kpis").innerHTML = [
-    [usd(a.cost), "koszt w widoku"], [tok(a.tokens), "tokeny"], [rows.length, "prompty / źródła pracy"],
-    [`${a.merged} / ${a.prs}`, "PR-y scalone / wszystkie"],
+    [usd(cost), mode === "sub" ? "część abonamentów w widoku" : "koszt wg cennika API w widoku"], [tok(tokens), "tokeny"],
+    [rows.length, "prompty / źródła pracy"], [`${a.merged} / ${a.prs}`, "PR-y scalone / wszystkie"],
   ].map(([v, l]) => `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
-  $("split").innerHTML = splitHTML(a.byP, "Koszt wg providera (widok po filtrach)");
-  const key = t => sortK === "prs" ? t.result.prs * 1000 + t.result.commits : sortK === "at" ? (t.last_activity || t.at || "") : t[sortK] ?? "";
+  $("split").innerHTML = mode === "sub" || picked.size
+    ? subSplitHTML(sumSubs(rows), mode === "sub" ? "Ile z abonamentów poszło na prompty w widoku" : "Koszt wg cennika API, podział na abonamenty")
+    : splitHTML(a.byP, "Koszt wg providera (widok po filtrach)");
+  const key = t => sortK === "prs" ? t.result.prs * 1000 + t.result.commits : sortK === "at" ? (t.last_activity || t.at || "")
+    : sortK === "cost" ? costOf(t) : sortK === "tokens" ? tokensOf(t) : t[sortK] ?? "";
   rows.sort((x, y) => (key(x) > key(y) ? 1 : key(x) < key(y) ? -1 : 0) * sortDir);
+  const bySub = mode === "sub" || picked.size;
   $("rows").innerHTML = rows.length ? rows.map(t => {
-    const parts = PROVIDERS.filter(p => t.by_provider[p]?.cost_usd > 0);
-    const mini = t.cost_usd > 0 ? `<div class="mini">${parts.map(p => `<div style="flex:${t.by_provider[p].cost_usd};background:${pcolor(p)}"></div>`).join("")}</div>` : "";
+    const c = costOf(t);
+    const segs = bySub
+      ? Object.entries(t.by_subscription || {}).filter(([id]) => active(id)).map(([id, v]) => [mode === "api" ? v.api_usd : v.sub_usd || 0, scolor(id)])
+      : PROVIDERS.filter(p => t.by_provider[p]?.cost_usd > 0).map(p => [t.by_provider[p].cost_usd, pcolor(p)]);
+    const mini = c > 0 ? `<div class="mini">${segs.filter(([v]) => v > 0).map(([v, col]) => `<div style="flex:${v};background:${col}"></div>`).join("")}</div>` : "";
     return `<tr data-id="${esc(t.id)}" class="${t.id === selected ? "sel" : ""}">
-      <td class="t-meta">${day(t.at)}</td>
-      <td><div class="t-title">${esc(t.title || "(bez tytułu)")}</div><div class="t-meta">${ORIGIN[t.origin] || t.origin} · ${esc(t.author || "")} · kroków: ${t.steps.length}</div></td>
+      <td class="t-meta when">${day(t.at)}</td>
+      <td class="prompt-c"><div class="t-title">${esc(t.title || "(bez tytułu)")}</div><div class="t-meta">${ORIGIN[t.origin] || t.origin} · ${esc(t.author || "")} · kroków: ${t.steps.length}</div></td>
       <td class="hide-sm"><span class="tag st-${esc(t.status)}">${STATUS[t.status] || esc(t.status || "—")}</span></td>
       <td class="num hide-sm">${t.result.prs ? `${t.result.merged}/${t.result.prs} PR` : "—"}${t.result.commits ? ` · ${t.result.commits} c.` : ""}</td>
-      <td class="num">${tok(t.tokens)}</td>
-      <td class="num"><b>${usd(t.cost_usd)}</b>${mini}</td></tr>`;
+      <td class="num tok-c">${tok(tokensOf(t))} tok.</td>
+      <td class="num cost-c"><b>${usd(c)}</b>${mini}</td></tr>`;
   }).join("") : `<tr><td colspan="6" class="empty">Brak wyników dla tych filtrów.</td></tr>`;
 }
 function stepHTML(s, child) {
@@ -197,6 +324,7 @@ function stepHTML(s, child) {
     <div class="m">${day(s.at)}${s.end && s.end !== s.at ? " → " + day(s.end) : ""} · ${esc(s.where || "")}</div>
     <div class="m">${prov}${tokens ? " · " + tokens : ""}${s.cost_basis ? " · " + esc(s.cost_basis) : ""}</div>
     ${(s.models || []).length > 1 ? `<div class="m">Modele: ${s.models.map(m => `${esc(m.model)}${m.task ? " (" + esc(m.task) + ")" : ""}: ${tok(tsum(m.tokens))} tok., ${usd(m.cost_usd)}`).join("; ")}</div>` : ""}
+    ${s.subs ? `<div class="m">Abonament: ${Object.entries(s.subs).map(([id, v]) => `<span class="pill"><span class="sw" style="background:${scolor(id)}"></span>${esc(subById(id).label)}: ${usd(v.sub_usd)} (z ${usd(v.api_usd)} wg API)</span>`).join("; ")}</div>` : ""}
     ${s.why ? `<div class="w">Dlaczego: ${esc(s.why)}</div>` : ""}${extra ? `<div class="m">${extra}</div>` : ""}
   </div></li>`;
 }
@@ -224,10 +352,12 @@ function openDetail(id) {
   $("dbody").innerHTML = `
     <h2>${esc(t.title || "(bez tytułu)")}</h2>
     <div class="sub">${ORIGIN[t.origin] || t.origin} · ${esc(t.author)} · ${day(t.at)}${t.link ? ` · <a href="${esc(t.link)}" target="_blank" rel="noopener">otwórz wątek</a>` : ""}</div>
-    <div class="kpis"><div class="kpi"><div class="v">${usd(t.cost_usd)}</div><div class="l">koszt całej ścieżki</div></div>
+    <div class="kpis"><div class="kpi"><div class="v">${usd(t.cost_usd)}</div><div class="l">koszt wg cennika API</div></div>
+      <div class="kpi"><div class="v">${usd(Object.values(t.by_subscription || {}).reduce((a, v) => a + (v.sub_usd || 0), 0))}</div><div class="l">część abonamentów</div></div>
       <div class="kpi"><div class="v">${tok(t.tokens)}</div><div class="l">tokeny</div></div>
       <div class="kpi"><div class="v">${res.merged}/${res.prs}</div><div class="l">PR scalone / wszystkie</div></div></div>
-    <div class="split">${splitHTML(t.by_provider, "Gdzie poszły pieniądze")}${top.length ? `<div class="w" style="margin-top:8px;font-size:13px;color:var(--text-2)">Najdroższe: ${top.map(s => `${esc(s.title || KIND[s.kind])} (${usd(s.cost_usd)}, ${esc(s.provider_label)})`).join("; ")}</div>` : ""}</div>
+    <div class="split">${splitHTML(t.by_provider, "Gdzie poszły pieniądze (cennik API)")}
+      <div style="margin-top:10px">${subSplitHTML(t.by_subscription || {}, mode === "sub" ? "Z których abonamentów" : "Z których abonamentów (cennik API)")}</div>${top.length ? `<div class="w" style="margin-top:8px;font-size:13px;color:var(--text-2)">Najdroższe: ${top.map(s => `${esc(s.title || KIND[s.kind])} (${usd(s.cost_usd)}, ${esc(s.provider_label)})`).join("; ")}</div>` : ""}</div>
     <div class="sec">1. Prompt</div><div class="prompt">${esc(t.prompt || "(brak treści)")}</div>
     <div class="sec">2. Gdzie wykonano pracę (${steps.length})</div>
     <ul class="path">${steps.map(s => stepHTML(s, !!s.parent_step)).join("") || '<li><div class="step">Brak zapisanych kroków.</div></li>'}</ul>
@@ -255,6 +385,14 @@ document.querySelectorAll("th[data-k]").forEach(th => th.addEventListener("click
 }));
 ["q", "origin", "period", "withpr"].forEach(id => $(id).addEventListener("input", render));
 $("close").addEventListener("click", closeDetail);
+document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => {
+  mode = b.dataset.mode; store.set("mode", mode); render(); if (selected) openDetail(selected);
+}));
+$("chips").addEventListener("change", e => {
+  const id = e.target.dataset?.sub; if (!id) return;
+  e.target.checked ? picked.add(id) : picked.delete(id); store.set("subs", [...picked]); render();
+});
+$("chips").addEventListener("click", e => { if (e.target.id === "allsubs") { picked.clear(); store.set("subs", []); render(); } });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeDetail(); });
 load().catch(e => { $("gen").textContent = "Nie udało się wczytać trace.json: " + e; });
 setInterval(() => load().catch(() => {}), 5 * 60 * 1000);

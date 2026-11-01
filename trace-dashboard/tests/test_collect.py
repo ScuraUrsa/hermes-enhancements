@@ -89,6 +89,10 @@ def test_build(tmp_path):
     assert abs(d["steps"]["hs:chat1"]["cost_usd"] - 0.315) < 1e-9
     assert set(chat["by_provider"]) == {"ollama", "anthropic", "local"}
     assert chat["by_provider"]["anthropic"]["cost_usd"] == 0.5
+    # subscriptions (pricing.json): Ollama goes to the first key's plan, Claude to Max, llama.cpp to none
+    assert set(chat["by_subscription"]) == {"ollama-main", "claude-max", "none"}
+    assert abs(chat["by_subscription"]["ollama-main"]["sub_usd"] - chat["by_provider"]["ollama"]["cost_usd"] * 20 / 60) < 1e-4
+    assert {s["id"] for s in d["subscriptions"]} >= {"ollama-main", "ollama-fj", "claude-max"}
 
     planner = tr["kb:t_bbbbbbbb"]  # planner task, worker matched by profile + run window
     assert planner["origin"] == "hermes_autonomy"
@@ -116,3 +120,34 @@ def test_provider_of():
 def test_redact():
     assert "ghp_" not in collect.redact("token ghp_abcdefghijklmnop123 here")
     assert "user:pass" not in collect.redact("https://user:pass@github.com/x")
+
+
+def test_allocate_subscriptions():
+    subs = [{"id": "a", "provider": "ollama", "keys": ["K1"], "monthly_price_usd": 20, "included_usd": 60, "period_start_day": 20},
+            {"id": "b", "provider": "ollama", "keys": ["K2"], "monthly_price_usd": 20, "included_usd": 60, "period_start_day": 4},
+            {"id": "c", "provider": "anthropic", "monthly_price_usd": 100, "included_usd": None, "period_start_day": 1}]
+    spends = [
+        {"ref": "s1", "at": "2026-10-21T10:00:00", "provider": "ollama", "key": None, "api_usd": 50.0, "tokens": 100},
+        {"ref": "s2", "at": "2026-10-22T10:00:00", "provider": "ollama", "key": None, "api_usd": 30.0, "tokens": 60},
+        {"ref": "s3", "at": "2026-10-23T10:00:00", "provider": "ollama", "key": "K2", "api_usd": 6.0, "tokens": 6},
+        {"ref": "s4", "at": "2026-10-05T10:00:00", "provider": "anthropic", "key": None, "api_usd": 30.0, "tokens": 1},
+        {"ref": "s5", "at": "2026-10-06T10:00:00", "provider": "anthropic", "key": None, "api_usd": 10.0, "tokens": 1},
+        {"ref": "s6", "at": "2026-10-06T10:00:00", "provider": "local", "key": None, "api_usd": 0.0, "tokens": 5},
+    ]
+    alloc, out = collect.allocate_subscriptions(spends, subs)
+    # s1 fits in a's $60; s2: $10 more on a (full), $20 overflows to b
+    assert [(x["sub"], round(x["api_usd"], 6)) for x in alloc["s2"]] == [("a", 10.0), ("b", 20.0)]
+    assert abs(alloc["s1"][0]["sub_usd"] - 50 * 20 / 60) < 1e-6
+    assert alloc["s3"][0]["sub"] == "b" and alloc["s3"][0]["period"] == "2026-10-04"
+    # Claude: fee split by share of the period's spend
+    assert abs(alloc["s4"][0]["sub_usd"] - 75.0) < 1e-6 and abs(alloc["s5"][0]["sub_usd"] - 25.0) < 1e-6
+    assert "s6" not in alloc
+    per = {s["id"]: s["periods"] for s in out}
+    assert per["a"] == [{"start": "2026-10-20", "end": "2026-11-20", "api_usd": 60.0, "sub_usd": 20.0, "used_pct": 100.0}]
+    assert per["b"][0]["api_usd"] == 26.0 and per["b"][0]["start"] == "2026-10-04"
+
+
+def test_period_start():
+    assert collect.period_start("2026-11-03T23:00:00", 4) == "2026-10-04"
+    assert collect.period_start("2026-11-04T00:00:00", 4) == "2026-11-04"
+    assert collect.period_start("2026-01-10", 20) == "2025-12-20"

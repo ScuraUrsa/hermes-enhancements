@@ -332,6 +332,8 @@ def read_llm_usage(paths: list[str]) -> dict:
                 g = out.setdefault(key, {"calls": 0, "provider": r.get("provider") or "", "first": iso(r.get("ts")),
                                          "last": iso(r.get("ts")), "input": 0, "output": 0, "cache_read": 0})
                 g["calls"] += 1
+                if r.get("key"):
+                    g["key"] = r["key"]
                 cr = num(r.get("cache_read_tokens"))
                 g["input"] += max(num(r.get("input_tokens")) - cr, 0)  # logged input includes the cached part
                 g["output"] += num(r.get("output_tokens"))
@@ -477,6 +479,7 @@ class Pricing:
 
     def __init__(self, cfg: dict, budget_path: str | None = None):
         self.cfg = cfg.get("providers", {})
+        self.subscriptions = [x for x in cfg.get("subscriptions", []) if x.get("id") and x.get("provider")]
         self.model_prices = dict(cfg.get("prices_per_mtok", {}))
         self.prices_source = "pricing.json"
         if budget_path and os.path.exists(os.path.expanduser(budget_path)):
@@ -518,6 +521,93 @@ class Pricing:
 
 
 # ---------------------------------------------------------------------------------------------- build
+# ---------------------------------------------------------------------------------------------- subscriptions
+def period_start(at: str, start_day: int) -> str:
+    """Start date (YYYY-MM-DD) of the monthly billing period that contains `at`."""
+    d = dt.date.fromisoformat((at or "1970-01-01")[:10])
+    day_ = max(1, min(int(start_day or 1), 28))
+    if d.day >= day_:
+        return d.replace(day=day_).isoformat()
+    prev = (d.replace(day=1) - dt.timedelta(days=1)).replace(day=day_)
+    return prev.isoformat()
+
+
+def period_end(start: str) -> str:
+    d = dt.date.fromisoformat(start)
+    nxt = (d.replace(day=28) + dt.timedelta(days=4)).replace(day=d.day)
+    return nxt.isoformat()
+
+
+def allocate_subscriptions(spends: list[dict], subs: list[dict]) -> tuple[dict, list[dict]]:
+    """Which subscription paid for each spend, and how much of its fee that is.
+
+    spends: {"ref", "at", "provider", "key", "api_usd", "tokens"}. A spend that names its key (llm_usage.jsonl)
+    goes to the subscription with that key. Otherwise the provider's subscriptions are a pool, used in config order
+    (Hermes tries OLLAMA_API_KEY first, then OLLAMA_API_KEY_FJ): each one takes spend until its included usage for
+    that billing period is used up, then the next one; what is left after the last one stays on the last one
+    (over the limit). A subscription without included_usd (Claude Max: limits are time windows, not dollars) takes
+    everything of its provider and splits its fee by the share of the period's API-equivalent spend.
+
+    Returns ({ref: [{"sub", "period", "api_usd", "sub_usd", "tokens"}]}, subscriptions with per-period totals).
+    """
+    by_provider = defaultdict(list)
+    for sub in subs:
+        by_provider[sub["provider"]].append(sub)
+    used = defaultdict(float)  # (sub id, period) -> api usd
+    alloc = defaultdict(list)
+
+    def give(ref, sub, at, api, tokens_):
+        per = period_start(at, sub.get("period_start_day", 1))
+        used[(sub["id"], per)] += api
+        alloc[ref].append({"sub": sub["id"], "period": per, "api_usd": api, "tokens": tokens_})
+
+    for x in sorted(spends, key=lambda x: (not x.get("key"), x.get("at") or "")):
+        cands = by_provider.get(x["provider"], [])
+        if not cands or x["api_usd"] <= 0 and not x["tokens"]:
+            continue
+        if x.get("key"):
+            hit = next((c for c in cands if x["key"] in c.get("keys", [])), None)
+            if hit:
+                give(x["ref"], hit, x["at"], x["api_usd"], x["tokens"])
+                continue
+        rest, rest_tok = x["api_usd"], x["tokens"]
+        for i, c in enumerate(cands):
+            inc = c.get("included_usd")
+            per = period_start(x["at"], c.get("period_start_day", 1))
+            room = rest if inc is None or i == len(cands) - 1 else max(inc - used[(c["id"], per)], 0.0)
+            take = min(room, rest)
+            if take <= 0 and i < len(cands) - 1:
+                continue
+            share = take / rest if rest > 0 else 1.0
+            give(x["ref"], c, x["at"], take, round(rest_tok * share))
+            rest -= take
+            rest_tok -= round(rest_tok * share)
+            if rest <= 1e-12:
+                break
+
+    out_subs = []
+    for sub in subs:
+        fee, inc = float(sub.get("monthly_price_usd") or 0), sub.get("included_usd")
+        periods = sorted({p for (sid, p) in used if sid == sub["id"]})
+        tot = {p: used[(sub["id"], p)] for p in periods}
+        rows = []
+        for p in periods:
+            rows.append({"start": p, "end": period_end(p), "api_usd": round(tot[p], 4),
+                         "sub_usd": round(fee * (tot[p] / inc if inc else (1.0 if tot[p] > 0 else 0.0)), 4),
+                         "used_pct": round(100 * tot[p] / inc, 1) if inc else None})
+        out_subs.append({**{k: v for k, v in sub.items() if k != "keys"}, "keys": sub.get("keys", []),
+                         "periods": rows})
+    fee_of = {s_["id"]: s_ for s_ in subs}
+    for lst in alloc.values():
+        for a in lst:
+            sub = fee_of[a["sub"]]
+            fee, inc = float(sub.get("monthly_price_usd") or 0), sub.get("included_usd")
+            total = used[(a["sub"], a["period"])]
+            a["sub_usd"] = round(fee * a["api_usd"] / inc if inc else (fee * a["api_usd"] / total if total else 0.0), 6)
+            a["api_usd"] = round(a["api_usd"], 6)
+    return dict(alloc), out_subs
+
+
 def build(args) -> dict:
     now = dt.datetime.now(dt.timezone.utc)
     since = (now - dt.timedelta(days=args.days)).isoformat(timespec="seconds")
@@ -602,7 +692,7 @@ def build(args) -> dict:
                  why="Wywołania modelu poza sesją agenta (skrypt Hermesa), zliczone przez llm_usage.py.",
                  at=g["first"], end=g["last"], provider=provider_of(model, g["provider"]), model=model,
                  tokens=tokens(g["input"], g["output"], g["cache_read"], 0), where=f"Hermes {vm} · skrypt {caller}",
-                 meta={"caller": caller, "calls": g["calls"], "vm": vm})
+                 meta={"caller": caller, "calls": g["calls"], "vm": vm, "key": g.get("key")})
     project = threads.get("project_id", "")
     for th in threads.get("threads", []):
         s = th.get("session") or {}
@@ -871,8 +961,41 @@ def build(args) -> dict:
             return [m for m in st["models"] if m["provider"] != "none"]
         return [st]
 
+    # ---- subscriptions: which plan paid for each part of each step, and what share of its fee that is
+    spends = []
+    for sid, st in steps.items():
+        for i, part in enumerate(parts(st)):
+            # an undated step (the shared coordinator total) counts in the current period, not in 1970
+            spends.append({"ref": (sid, i), "at": st.get("at") or st.get("end") or now.isoformat(),
+                           "provider": part["provider"],
+                           "key": (st.get("meta") or {}).get("key"), "api_usd": part["cost_usd"],
+                           "tokens": tok_sum(part["tokens"])})
+    alloc, subscriptions = allocate_subscriptions(spends, pricing.subscriptions)
+    for (sid, _i), lst in alloc.items():
+        acc = steps[sid].setdefault("subs", {})
+        for a in lst:
+            g = acc.setdefault(a["sub"], {"api_usd": 0.0, "sub_usd": 0.0, "tokens": 0})
+            g["api_usd"] += a["api_usd"]
+            g["sub_usd"] += a["sub_usd"]
+            g["tokens"] += a["tokens"]
+
     for t in traces.values():
         t["steps"] = sorted(dict.fromkeys(t["steps"]), key=lambda s: steps[s].get("at") or "")
+        by_s = defaultdict(lambda: {"api_usd": 0.0, "sub_usd": 0.0, "tokens": 0})
+        for sid in t["steps"]:
+            covered = 0.0
+            for sub, g in (steps[sid].get("subs") or {}).items():
+                for k in ("api_usd", "sub_usd", "tokens"):
+                    by_s[sub][k] += g[k]
+                covered += g["api_usd"]
+            rest = sum(p_["cost_usd"] for p_ in parts(steps[sid])) - covered
+            rest_tok = sum(tok_sum(p_["tokens"]) for p_ in parts(steps[sid])) - sum(
+                g["tokens"] for g in (steps[sid].get("subs") or {}).values())
+            if rest > 1e-9 or rest_tok > 0:  # local / free / unknown provider: no subscription
+                by_s["none"]["api_usd"] += max(rest, 0.0)
+                by_s["none"]["tokens"] += max(rest_tok, 0)
+        t["by_subscription"] = {k: {"api_usd": round(v["api_usd"], 5), "sub_usd": round(v["sub_usd"], 5),
+                                    "tokens": v["tokens"]} for k, v in by_s.items()}
         by_p = defaultdict(lambda: {"cost_usd": 0.0, "tokens": 0, "label": ""})
         for sid in t["steps"]:
             for part in parts(steps[sid]):
@@ -910,6 +1033,7 @@ def build(args) -> dict:
                     "claude_threads": len(threads.get("threads", [])),
                     "claude_threads_exported_at": threads.get("exported_at"), "pull_requests": len(prs),
                     "commits_scanned": len(commits), "github_calls": gh.calls},
+        "subscriptions": subscriptions,
         "pricing": pricing.cfg, "model_prices": pricing.model_prices, "model_prices_source": pricing.prices_source,
         "totals": dict(totals),
         "coordinator_cost_usd": round(coord_cost, 4),
