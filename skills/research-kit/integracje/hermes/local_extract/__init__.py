@@ -124,10 +124,13 @@ def extract_urls(urls: list[str], *, fallback=None, client_factory=_client) -> l
     return results
 
 
-try:
+try:  # nowsze Hermesy
     from plugins.web._common import BaseWebSearchProvider as _Base
-except ImportError:  # testy poza Hermesem
-    _Base = object
+except ImportError:
+    try:  # starsze buildy (np. prod aaa1e08): rejestr wymaga podklasy WebSearchProvider
+        from agent.web_search_provider import WebSearchProvider as _Base
+    except ImportError:  # testy poza Hermesem
+        _Base = object
 
 
 class LocalExtractProvider(_Base):  # type: ignore[misc,valid-type]
