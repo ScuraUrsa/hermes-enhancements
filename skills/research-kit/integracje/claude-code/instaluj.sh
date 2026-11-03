@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the bibliography hooks (K76) into the user's Claude Code settings (~/.claude/settings.json).
+# Install the bibliography hooks (K76) into the user's Claude Code settings ($CLAUDE_CONFIG_DIR or ~/.claude).
 # Meant for the cloud environment's setup script, so every new session in the project checks links
 # against the shared bibliography before WebFetch and records visits after it:
 #   [ -f /mnt/project-files/bibliografia/kit/instaluj.sh ] && bash /mnt/project-files/bibliografia/kit/instaluj.sh || true
@@ -10,13 +10,14 @@
 set -uo pipefail
 ZRODLO="$(cd "$(dirname "$0")" && pwd)"
 BIB_DIR="${BIB_DIR:-/mnt/project-files/bibliografia}"
-CEL="${HOME}/.claude/bib-hook"
-mkdir -p "$CEL" "${HOME}/.claude" || exit 0
+KONFIG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+CEL="$KONFIG/bib-hook"
+mkdir -p "$CEL" || exit 0
 # bib.py sits next to this script in the kit copy, or in ../../skrypty in the repo.
 BIB_PY="$ZRODLO/bib.py"; [ -f "$BIB_PY" ] || BIB_PY="$ZRODLO/../../skrypty/bib.py"
 cp "$ZRODLO/bib_hook.py" "$BIB_PY" "$CEL/" || { echo "bib-hook: copy failed" >&2; exit 0; }
 KOMENDA="BIB_DIR=$BIB_DIR BIB_WRITER=claude-\${CLAUDE_CODE_REMOTE_SESSION_ID:-\$(hostname)} python3 $CEL/bib_hook.py"
-python3 - "$HOME/.claude/settings.json" "$KOMENDA" <<'PY' || echo "bib-hook: settings merge failed" >&2
+python3 - "$KONFIG/settings.json" "$KOMENDA" <<'PY' || echo "bib-hook: settings merge failed" >&2
 import json, sys
 from pathlib import Path
 plik, komenda = Path(sys.argv[1]), sys.argv[2]
@@ -29,7 +30,10 @@ for zdarzenie, matcher in (("PreToolUse", "WebFetch"), ("PostToolUse", "WebFetch
     lista = [w for w in hooks.get(zdarzenie, []) if "bib_hook.py" not in json.dumps(w)]
     lista.append({"matcher": matcher, "hooks": [{"type": "command", "command": komenda, "timeout": 15}]})
     hooks[zdarzenie] = lista
-plik.write_text(json.dumps(ust, indent=2, ensure_ascii=False) + "\n")
+nowy = json.dumps(ust, indent=2, ensure_ascii=False) + "\n"
+if not plik.is_file() or plik.read_text() != nowy:
+    plik.write_text(nowy)
+    print("bib-hook: settings changed")
 PY
-echo "bib-hook: installed (base $BIB_DIR)"
+echo "bib-hook: installed (base $BIB_DIR, settings $KONFIG/settings.json)"
 exit 0
