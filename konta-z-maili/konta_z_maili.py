@@ -30,7 +30,7 @@ SYGNALY = [
     ("weryfikacja", 3, r"verif|weryfik|potwierd[źz]|confirm (your )?(e-?mail|account|address|registration)|potwierdzenie (adresu|rejestracji|e-?mail)"),
     ("haslo", 3, r"password|hasł|haslo|reset|odzyskiw|recover"),
     ("logowanie", 3, r"sign[- ]?in|log[- ]?in|logowani|zalogow|new device|nowe urządzen|nowego urządzen|security alert|alert bezpiecze|unusual activity|nietypow|access(ed)? your account|dostęp do konta"),
-    ("kod", 3, r"\bcode\b|\bkod\b|one[- ]time|jednorazow|2fa|two[- ]factor|dwuetap|otp"),
+    ("kod", 3, r"(verification|security|login|sign[- ]?in|confirmation|access) code|kod (weryfikacyjny|logowania|bezpiecze|autoryzac|potwierdz|do logowania|jednorazowy)|one[- ]time (code|password)|2fa|two[- ]factor|dwuetap|\botp\b"),
     ("konto", 2, r"your account|twoje konto|twojego konta|account (update|settings|change)|zmiany? (na|w) koncie|profil|profile|usunięci[ea] konta|delete (your )?account|account (deletion|closure)"),
     ("regulamin", 2, r"terms|regulamin|privacy policy|polityk[ai] prywatno|warunk|zmiany w dokument|umow"),
     ("zakup", 2, r"order|zamówieni|zamowieni|receipt|paragon|faktur|invoice|payment|płatno|platnosc|subscription|subskrypc|abonament|renew|odnowieni|trial|okres próbny|booking|rezerwac|bilet|ticket|przesyłk|shipment|dostaw"),
@@ -173,6 +173,10 @@ def raport(args):
             if a[1]: g["do"][a[1].lower()] += 1
         wmax = 0
         for n, w, rx in SYG_RE:
+            # Masowe maile (z List-Unsubscribe) liczą się tylko przy rejestracji/weryfikacji/haśle,
+            # żeby newslettery z „order”/„login” w temacie nie udawały kont.
+            if unsub and n not in ("rejestracja", "weryfikacja", "haslo"):
+                continue
             if rx.search(temat):
                 g["syg"][n] += 1; wmax = max(wmax, w)
         if wmax > g["przyklad_w"] or g["przyklad"] is None:
@@ -184,7 +188,8 @@ def raport(args):
         mocne = sum(v for k, v in g["syg"].items() if wagi[k] == 3)
         srednie = sum(v for k, v in g["syg"].items() if wagi[k] == 2)
         osoba = dom.split(":")[0] in POCZTA_OSOB
-        if mocne: pewnosc = "konto prawie pewne"
+        if osoba: pewnosc = "osoba prywatna"
+        elif mocne: pewnosc = "konto prawie pewne"
         elif srednie: pewnosc = "konto prawdopodobne"
         elif osoba: pewnosc = "osoba prywatna"
         elif g["unsub"]: pewnosc = "newsletter (konto możliwe)"
@@ -200,6 +205,7 @@ def raport(args):
             "przyklad_temat": temat,
             "link": f"https://mail.google.com/mail/?authuser={adres}#all/{watek}",
         })
+    wiersze = [r for r in wiersze if not any(POMIN.search(str(v)) for v in r.values())]  # reguła Filipa 24.10
     rank = {"konto prawie pewne": 0, "konto prawdopodobne": 1, "newsletter (konto możliwe)": 2, "inne": 3, "osoba prywatna": 4}
     wiersze.sort(key=lambda r: (r["adres_filipa"], rank[r["pewnosc"]], -r["maili"]))
     pola = list(wiersze[0].keys()) if wiersze else []
