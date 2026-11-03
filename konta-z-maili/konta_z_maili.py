@@ -23,6 +23,7 @@ DB = Path(os.environ.get("KONTA_DB", Path.home() / ".hermes/konta-z-maili/konta.
 POMIN = re.compile(r"hitachi", re.I)
 HEADERS = ["From", "To", "Delivered-To", "Subject", "Date", "List-Unsubscribe"]
 QUERY = "-in:sent -in:chats -in:drafts"
+PARTIA = int(os.environ.get("KONTA_PARTIA", 10))  # >~15 równoległych get daje 429 (concurrent limit)
 
 # --- sygnały w tematach (PL + EN); waga: 3 = konto prawie pewne, 2 = prawdopodobne, 1 = słaby
 SYGNALY = [
@@ -76,7 +77,7 @@ def usluga(alias):
 
 def baza():
     DB.parent.mkdir(parents=True, exist_ok=True)
-    c = sqlite3.connect(DB)
+    c = sqlite3.connect(DB, timeout=60)  # kilka procesów (po jednym na konto) naraz
     c.execute("""create table if not exists m(konto text, id text, watek text, ts integer, od text, od_nazwa text,
                  do_ text, delivered text, temat text, unsub integer, primary key(konto,id))""")
     c.execute("create table if not exists ids(konto text, id text, primary key(konto,id))")
@@ -93,8 +94,11 @@ def konta(arg):
 def pobierz(args):
     c = baza()
     for alias in konta(args.konta):
-        s = usluga(alias)
-        adres = s.users().getProfile(userId="me").execute()["emailAddress"]
+        try:
+            s = usluga(alias)
+            adres = s.users().getProfile(userId="me").execute()["emailAddress"]
+        except Exception as e:  # np. invalid_grant: konto wymaga ponownej autoryzacji
+            print(f"[{alias}] POMINIĘTE, błąd autoryzacji: {type(e).__name__}: {str(e)[:120]}", flush=True); continue
         if POMIN.search(adres):
             print(f"[{alias}] pomijam konto służbowe"); continue
         c.execute("insert or replace into stan(konto,adres,listing_ok) values(?,?,coalesce((select listing_ok from stan where konto=?),0))", (alias, adres, alias))
@@ -117,13 +121,14 @@ def pobierz(args):
 
 def pobierz_naglowki(s, c, alias, ids):
     from googleapiclient.errors import HttpError
-    kolejka, zrobione, przerwa = list(ids), 0, 1.2  # 50 x 5 jednostek / partia; limit 15000/min
+    kolejka, zrobione, przerwa = list(ids), 0, 0.3  # PARTIA x 5 jednostek; limit 15000/min/użytkownik
     while kolejka:
-        partia, kolejka = kolejka[:50], kolejka[50:]
+        partia, kolejka = kolejka[:PARTIA], kolejka[PARTIA:]
         wyniki, bledy = [], []
 
         def cb(rid, resp, exc):
             if exc is not None:
+                if getattr(getattr(exc, "resp", None), "status", None) == 404: return  # usunięta w międzyczasie
                 bledy.append(rid); return
             h = {x["name"].lower(): x["value"] for x in resp.get("payload", {}).get("headers", [])}
             nazwa, od = email.utils.parseaddr(h.get("from", ""))
@@ -144,8 +149,8 @@ def pobierz_naglowki(s, c, alias, ids):
         if bledy:  # zwykle 429 (limit): zwolnij i dołóż błędne na koniec kolejki
             przerwa = min(przerwa * 2, 30); kolejka += bledy
         else:
-            przerwa = max(1.2, przerwa * 0.8)
-        if zrobione % 1000 < 50:
+            przerwa = max(0.3, przerwa * 0.8)
+        if zrobione % 1000 < len(partia):
             print(f"[{alias}] nagłówki {zrobione}, zostało {len(kolejka)}, przerwa {przerwa:.1f} s", flush=True)
         time.sleep(przerwa)
 
@@ -159,7 +164,7 @@ def raport(args):
                                              "nazwy": collections.Counter(), "nadawcy": collections.Counter(),
                                              "do": collections.Counter(), "przyklad": None, "przyklad_w": 0, "unsub": 0})
     for konto, mid, watek, ts, od, nazwa, do_, deliv, temat, unsub in c.execute("select * from m"):
-        if not od or "@" not in od: continue
+        if not od or "@" not in od or POMIN.search(" ".join((od, nazwa or "", do_ or "", deliv or "", temat or ""))): continue  # nic związanego z Hitachi Energy
         dom = domena_glowna(od)
         klucz_dom = dom
         if dom in POSREDNICY and nazwa:
