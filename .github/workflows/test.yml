@@ -46,6 +46,7 @@ jobs:
   # (wręcz odwrotnie: czerwony trace-dashboard nie może "przebarwić"
   # zielonego video-digest; brak continue-on-error w całym pliku).
   test:
+    name: test (${{ matrix.project }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
