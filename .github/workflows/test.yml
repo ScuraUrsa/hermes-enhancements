@@ -1,0 +1,103 @@
+name: test
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'video-digest/**'
+      - 'cheap-route/**'
+      - 'trace-dashboard/**'
+      - 'home-inventory/**'
+      - 'wyjscie/**'
+      - 'bench/**'
+      - 'skills/research-kit/**'
+      - '.github/workflows/**'
+  push:
+    branches: [master]
+    paths:
+      - 'video-digest/**'
+      - 'cheap-route/**'
+      - 'trace-dashboard/**'
+      - 'home-inventory/**'
+      - 'wyjscie/**'
+      - 'bench/**'
+      - 'skills/research-kit/**'
+      - '.github/workflows/**'
+
+# Świadomie POZA paths (brak testów na masterze i w PR-ach pomiaru run77):
+# POV/, travel/, docs/.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Testy projektów importują moduły z roota projektu (dom, dom_web, collect,
+  # wyjscie, bibliografia/bib). video-digest i bench są instalowane -e, gdzie
+  # PYTHONPATH jest bezszkodowym dublem.
+  PYTHONPATH: '.'
+
+jobs:
+  # Każdy projekt = osobny matrix job z własną nazwą checka, fail-fast: false,
+  # więc czerwony suite jednego projektu nie może maskować zielonych innych
+  # (wręcz odwrotnie: czerwony trace-dashboard nie może "przebarwić"
+  # zielonego video-digest; brak continue-on-error w całym pliku).
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: video-digest
+            install: pip install -e . pytest
+            target: tests
+            ffmpeg: true
+          - project: cheap-route
+            install: pip install pytest
+            target: tests
+          - project: trace-dashboard
+            install: pip install pytest
+            target: tests
+          - project: home-inventory
+            install: pip install pytest
+            target: .   # zbiera test_*.py z roota projektu; nowy test_labels_web.py (PR #60) podbierze się automatycznie
+          - project: wyjscie
+            install: pip install pytest
+            target: .
+          - project: bench
+            install: pip install -e . pytest   # bench/pyproject.toml (pakiet hbench, PR #6)
+            target: tests
+          - project: skills/research-kit
+            install: pip install pytest
+            target: testy
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ffmpeg
+        if: matrix.ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Run tests — ${{ matrix.project }}
+        # Guard obecności, NIE continue-on-error: pomija TYLKO przypadek
+        # "projekt w ogóle nie istnieje na tym refie" (wyjscie/, bench/
+        # przychodzą całym katalogiem via PR #42 / #6). Zwalidowany przez
+        # pytest suite niezależnie od wyniku przenosi swój normalny czerwony/
+        # zielony status i nigdy nie jest wyciszany.
+        run: |
+          proj="${{ matrix.project }}"
+          if [ ! -d "$proj" ]; then
+            echo "::notice title=skipped::$proj nie istnieje na tym refie — katalog + testy przychodzą via własny PR projektu"
+            exit 0
+          fi
+          cd "$proj"
+          ${{ matrix.install }}
+          python -m pytest ${{ matrix.target }} -q
