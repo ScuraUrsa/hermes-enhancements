@@ -1,0 +1,75 @@
+nazwa,typ,zasieg,url,jak_obserwowac,co_daje,status_url
+Trojmiasto.pl – kalendarz imprez,agregator,Trójmiasto,https://www.trojmiasto.pl/imprezy/,strona listy codziennie,najszerszy lokalny kalendarz (koncerty dzieci sport kultura),do weryfikacji
+Trojmiasto.pl – spektakle,agregator,Trójmiasto,https://www.trojmiasto.pl/kultura/spektakle/,strona listy codziennie,repertuar wszystkich scen z filtrem miejsca i dnia,sprawdzony 30.10
+Trojmiasto.pl – katalog sport i rekreacja,katalog miejsc,Trójmiasto,https://katalog.trojmiasto.pl/sport_i_rekreacja/,co miesiąc (nowe miejsca),ok. 60 kategorii; ok. 930 wpisów w kategoriach aktywności (bez sklepów i serwisów); źródło do rejestru,sprawdzony 30.10
+Going.,bilety,Polska,https://goingapp.pl/,strona miasta Gdańsk/Gdynia/Sopot codziennie,koncerty kluby festiwale,sprawdzony (K77)
+eBilet,bilety,Polska,https://www.ebilet.pl/,strona miasta codziennie,koncerty teatr sport wystawy,sprawdzony (K77)
+Biletyna,bilety,Polska,https://biletyna.pl/,strona miasta codziennie,kabarety stand-up spektakle gościnne,do weryfikacji
+KupBilecik,bilety,Polska,https://www.kupbilecik.pl/,strona miasta codziennie,spektakle koncerty,do weryfikacji
+Eventim,bilety,Polska,https://www.eventim.pl/,strona miasta codziennie,duże koncerty,do weryfikacji
+Ticketmaster,bilety,Polska,https://www.ticketmaster.pl/,strona miasta codziennie,duże koncerty i sport,do weryfikacji
+Pomorskie.travel,portal regionu,Pomorskie,https://pomorskie.travel/,co tydzień,wydarzenia regionu i atrakcje (POI z współrzędnymi),sprawdzony 30.10
+Karta Turysty Pomorskie,zniżki,Pomorskie,https://kartaturysty.pomorskie.travel/,co miesiąc,partnerzy ze zniżkami (atrakcje sport),sprawdzony 30.10
+Odkryj Pomorze,katalog miejsc,Pomorskie,https://odkryjpomorze.pl/,co miesiąc,listy tematyczne (strzelnice parki linowe golf wyciągi),sprawdzony 30.10
+Ergo Arena,obiekt,Gdańsk/Sopot,https://ergoarena.pl/,kalendarz co tydzień,koncerty i sport halowy,do weryfikacji
+AmberExpo – kalendarz,obiekt,Gdańsk,https://amberexpo.pl/en/calendar/,przy każdym weekendzie,targi konsumenckie (ALEgramy Targi Rzeczy Ładnych fantasy),sprawdzony 4.11 (typy/wydarzenia.md)
+Polska Filharmonia Bałtycka,scena,Gdańsk,https://filharmonia.gda.pl/,repertuar co tydzień,koncerty,do weryfikacji
+Opera Bałtycka,scena,Gdańsk,https://operabaltycka.pl/,repertuar co tydzień,opera balet,do weryfikacji
+Teatr Wybrzeże,scena,Gdańsk,https://teatrwybrzeze.pl/,repertuar co tydzień,teatr,do weryfikacji
+Teatr Szekspirowski,scena,Gdańsk,https://teatrszekspirowski.pl/,repertuar co tydzień,teatr festiwale,do weryfikacji
+Teatr Muzyczny Gdynia,scena,Gdynia,https://muzyczny.org/,repertuar co tydzień,musicale,do weryfikacji
+Teatr Miejski Gdynia,scena,Gdynia,https://teatrgombrowicza.art.pl/,repertuar co tydzień,teatr (latem Scena na plaży),do weryfikacji
+Klub B90,klub,Gdańsk,https://b90.pl/,kalendarz co tydzień,koncerty klubowe,do weryfikacji
+Hevelianum,nauka/rodzina,Gdańsk,https://hevelianum.pl/,wydarzenia co tydzień,warsztaty rodzinne,do weryfikacji
+Centrum Nauki Experyment,nauka/rodzina,Gdynia,https://experyment.gdynia.pl/,wydarzenia co tydzień,warsztaty rodzinne,do weryfikacji
+Europejskie Centrum Solidarności,kultura,Gdańsk,https://ecs.gda.pl/,wydarzenia co tydzień,wystawy debaty dzieci,do weryfikacji
+Muzeum Gdańska,muzeum,Gdańsk,https://muzeumgdansk.pl/,wydarzenia co tydzień,zwiedzanie z przewodnikiem rodzinne,do weryfikacji
+Muzeum II Wojny Światowej,muzeum,Gdańsk,https://muzeum1939.pl/,wydarzenia co tydzień,wystawy,do weryfikacji
+Instytut Kultury Miejskiej,kultura,Gdańsk,https://ikm.gda.pl/,wydarzenia co tydzień,festiwale literackie spacery,do weryfikacji
+Gdański Archipelag Kultury,kultura,Gdańsk,https://gak.gda.pl/,wydarzenia co tydzień,lokalne domy kultury (zajęcia dla dorosłych i dzieci),do weryfikacji
+Restaurant Week,kulinaria,Polska,https://restaurantweek.pl/,przed edycją (wiosna jesień),menu 3 dania w stałej cenie,do weryfikacji
+Playtomic,rezerwacje kortów,Polska,https://playtomic.com/,na żądanie,wolne korty padel (Baltic Padel Club),sprawdzony 30.10
+Pado,rezerwacje kortów,Polska,https://pado.app/pl/gdansk,na żądanie,kluby padel/squash Trójmiasta,sprawdzony 30.10
+Prezent Marzeń,przeżycia,Polska,https://prezentmarzen.com/,co miesiąc (nowe przeżycia w regionie),gotowe vouchery (strzelnica Subiekt i inne),do weryfikacji
+Superprezenty,przeżycia,Polska,https://www.superprezenty.pl/,co miesiąc,vouchery (Aeroklub Gdański kite Jastarnia),sprawdzony 30.10
+Trojmiasto.pl – imprezy na dzień,agregator,Trójmiasto,"https://www.trojmiasto.pl/imprezy/kalendarz-imprez/dzien,RRRR-MM-DD.html",dla każdego dnia w oknie terminu,kategorie targi warsztaty dla dzieci wstęp wolny,wzorzec z typy/wydarzenia.md (4.11)
+In Your Pocket Gdańsk – wydarzenia,agregator,Trójmiasto,https://www.inyourpocket.com/poland/gdansk/events/boardgame-festival-amber-expo,co tydzień,wybór wydarzeń i festiwale hobby (daty potwierdzać u organizatora),link z typy/wydarzenia.md (4.11)
+eBilet – targi,bilety,Polska,https://www.ebilet.pl/biznes/targi,co tydzień,targi tematyczne (Targi Unikatów i podobne),link z typy/wydarzenia.md (4.11)
+Visit Gdańsk,portal miasta,Gdańsk,https://visitgdansk.com/,co tydzień,festiwale miejskie jarmarki plener,link z typy/wydarzenia.md (4.11)
+Targi Unikatów / Targi Rzeczy Ładnych (organizatorzy),targi,Trójmiasto,,co tydzień przez Facebook Wydarzenia i eBilet,edycje tematyczne (np. Mroczne Unikaty 7.11.2026),do uzupełnienia: strony organizatorów
+Facebook Wydarzenia (Gdańsk Gdynia Sopot),agregator,Trójmiasto,https://www.facebook.com/events/,co tydzień jeśli Hermes ma dostęp,targi pop-upy małe festiwale,brak API; bez dostępu oznacz „nie sprawdzono”
+Trojmiasto.pl – imprezy dla dzieci,agregator,Trójmiasto,"https://www.trojmiasto.pl/imprezy/kalendarz-imprez/dladzieci,1.html",co tydzień (czwartek),filtr wydarzeń dla dzieci,sprawdzony 4.11
+Trojmiasto.pl – weekend z wstępem wolnym,agregator,Trójmiasto,"https://www.trojmiasto.pl/imprezy/dni,weekend,wstepwolny,1.html",co tydzień (czwartek),darmowe wydarzenia w weekend,sprawdzony 4.11
+Trojmiasto.pl – kiermasze,agregator,Trójmiasto,"https://www.trojmiasto.pl/imprezy/kalendarz-imprez/okolicznosciowe/kiermasz/o1,0.html",co tydzień,kiermasze jarmarki targi rękodzieła,sprawdzony 4.11
+Trojmiasto.pl – targi i konferencje (dzień),agregator,Trójmiasto,"https://www.trojmiasto.pl/imprezy/targi-konferencje/o1,0,dzien,RRRR-MM-DD.html",dla dni w oknie terminu,targi tematyczne (tu był Targi Unikatów Anime),wzorzec z wyników wyszukiwania 4.11
+Trojmiasto.pl – dział Dziecko (artykuły weekendowe),agregator,Trójmiasto,https://www.trojmiasto.pl/dziecko/,co tydzień,zestawienia „weekend z dzieckiem” z wydarzeniami,do weryfikacji
+Gdansk.pl – wydarzenia,miasto,Gdańsk,https://www.gdansk.pl/wydarzenia,co tydzień,oficjalny kalendarz miasta (koncerty sport teatr spotkania; m.in. pchle targi),sprawdzony 4.11
+Nadbałtyckie Centrum Kultury – kalendarz,kultura,Gdańsk,https://www.nck.org.pl/en/calendar,co tydzień,koncerty wystawy jarmarki w Ratuszu Staromiejskim,sprawdzony 4.11
+PIK Gdańsk (Punkt Informacji Kulturalnej),agregator,Trójmiasto,https://pikgdansk.pl/festiwal/,co tydzień,festiwale teatr dzieci targi kabaret sport,sprawdzony 4.11
+PIK Gdańsk – targi,agregator,Trójmiasto,https://pikgdansk.pl/inne/targi/targi-rzeczy-ladnych-trojmiasto/,co tydzień,targi i jarmarki,sprawdzony 4.11
+Wydarzenia Gdańsk – kalendarz Trójmiasta,agregator,Trójmiasto,https://www.wydarzenia-gdansk.pl/,co miesiąc (sprawdzić czy działa),rodzina dzieci gastronomia sport; formularz zgłoszeń,4.11 lista się nie ładowała; niepewne
+eBilet – Trójmiasto,bilety,Trójmiasto,https://www.ebilet.pl/miasto/trojmiasto,co tydzień,wszystkie biletowane wydarzenia w mieście,sprawdzony 4.11
+eBilet – wstęp wolny,bilety,Polska,https://www.ebilet.pl/now/tag/wstep-wolny/,co tydzień,darmowe wydarzenia,sprawdzony 4.11
+Targi Rzeczy Ładnych (TRŁ Trójmiasto),targi,Gdańsk,https://www.trojmiasto.pl/targi-rzeczy-ladnych/,przed edycją (kwiecień i październik),"design i rękodzieło w AMBEREXPO, 2 edycje w roku",sprawdzony 4.11
+"Targi Unikatów (edycje tematyczne: Anime, Mroczne Unikaty)",targi,Gdańsk,https://www.trojmiasto.pl/imprezy/Targi-Unikatow-Anime-imp595456.html,co tydzień przez trojmiasto.pl targi i Facebook,rękodzieło tematyczne; strona organizatora nieznaleziona 4.11,do weryfikacji
+Targi Fantastyki,targi/konwent,Gdańsk,https://targifantastyki.pl/,przed edycją,Wakacyjne Targi Fantastyki 8–9.08.2026 AMBEREXPO; cosplay planszówki retro,link z konwenty-poludniowe.pl 4.11
+ALEgramy / Planszowa Gdarena,festiwal planszówek,Gdańsk,https://www.trojmiasto.pl/planszowa-gdarena/,przed edycją,festiwal gier planszowych AMBEREXPO (7–8.11.2026),sprawdzony 4.11
+Remcon,konwent,Gdańsk,https://www.trojmiasto.pl/remcon/,przed edycją (luty),festiwal fantastyki i gier AMBEREXPO,sprawdzony 4.11
+Trójfikcje,konwent,Trójmiasto,https://trojfikcje.pl/,przed edycją,festiwal fantastyki,do weryfikacji
+Konwenty Południowe – kalendarz konwentów,agregator,Polska,https://konwenty-poludniowe.pl/konwenty/kalendarz/2199-wakacyjne-targi-fantastyki-gdansk-2026,co miesiąc (filtr miasta Gdańsk Gdynia),konwenty fantastyki gier anime (np. Pasja Minicon Gdynia 6–7.11.2026),sprawdzony 4.11
+Gry w Plamie (GAK Plama),spotkania planszówkowe,Gdańsk,"https://www.gdansk.pl/wydarzenia/gry-w-plamie-zagrajmy-razem-w-planszowki,w,41234",co miesiąc,otwarte wieczory planszówkowe,sprawdzony 4.11
+Pedagogiczna Biblioteka Pomorska – klub planszówek,spotkania planszówkowe,Gdańsk,https://pbp.gda.pl/wydarzenia/spotkania-z-planszowkami-w-nowej-odslonie/,co miesiąc,spotkania z planszówkami,sprawdzony 4.11
+Hackerspace Trójmiasto – wydarzenia,społeczność,Gdańsk,https://hs3.pl/en/events/,co miesiąc,warsztaty pikniki Festiwal Światła,sprawdzony 4.11
+Meetup – Gdańsk,społeczność,Trójmiasto,https://www.meetup.com/pl/topics/tabletop-role-playing-and-board-games,co miesiąc,grupy hobby (gry outdoor networking),do weryfikacji
+BoardGameGeek – gildie Trójmiasta,społeczność,Trójmiasto,https://boardgamegeek.com/guild/1025,co miesiąc,gildie planszówkowe z ogłoszeniami spotkań,do weryfikacji
+Gdzie Starocie – targi pomorskie,agregator,Pomorskie,https://gdziestarocie.pl/targi/wojewodztwo/pomorskie/,co miesiąc,"pchle targi: Oliwa (niedziele V–IX), Targ Rybny (ostatnia sobota), Abrahama Gdynia (lato)",sprawdzony 4.11
+Pchli Targ Gdańsk,targ,Gdańsk,https://pchlitarggdansk.pl/,co miesiąc,pchli targ,do weryfikacji
+Pchli Targ Z KUFRA (Osowa),targ,Gdańsk,"https://www.gdansk.pl/wydarzenia/pchli-targ-z-kufra,w,41005",co tydzień (niedziele 10–15),pchli targ na parkingu CH Osowa,sprawdzony 4.11
+Miasto Dzieci – Trójmiasto,przewodnik,Trójmiasto,https://miastodzieci.pl/podroze/51-ciekawych-miejsc-w-gdyni-gdansku-i-sopocie-ktore-warto-odwiedzic-z-dzieckiem-w-trojmiescie/,co kwartał,miejsca z dziećmi (do rejestru atrakcji),sprawdzony 4.11
+FB: Dzieje się w Trójmieście (strona),facebook,Trójmiasto,https://www.facebook.com/imprezytrojmiasto/,co tydzień (przeglądarka Hermesa),zapowiedzi imprez,Facebook blokuje odczyt bez logowania; wielkość nieznana
+"FB: Gdańsk Gdynia Sopot – Wydarzenia, Informacje, Imprezy, Ogłoszenia (strona)",facebook,Trójmiasto,https://www.facebook.com/p/Gda%C5%84sk-Gdynia-Sopot-Wydarzenia-Informacje-Imprezy-Og%C5%82oszenia-100067622770805/,co tydzień (przeglądarka Hermesa),zapowiedzi i ogłoszenia,jw.
+FB: Planeta Trójmiasto (strona),facebook,Trójmiasto,https://www.facebook.com/p/Planeta-Tr%C3%B3jmiasto-61567638754323/,co tydzień,wydarzenia i atrakcje,jw.
+FB: Poznaj Trójmiasto (strona),facebook,Trójmiasto,https://www.facebook.com/poznaj.trojmiasto/,co tydzień,atrakcje i wydarzenia,jw.
+FB: Mama & Tata i Dziecko: Trójmiasto i okolice (strona),facebook,Trójmiasto,https://www.facebook.com/MamaTataiDzieckoTrojmiastoiOkolice/,co tydzień,wydarzenia dla rodzin z dziećmi,jw.
+FB: Targi Fantastyki (fanpage),facebook,Polska,https://www.facebook.com/TargiFantastyki/,przed edycją,edycje Targów Fantastyki,adres z opisu na konwenty-poludniowe.pl; jw.
+FB: Tri-city Expats Gdynia Sopot Gdansk (grupa),facebook,Trójmiasto,https://www.inyourpocket.com/gdansk/tri-city-expats-gdynia-sopot-gdansk_145529v,co miesiąc,spotkania i wydarzenia anglojęzyczne,link do opisu w In Your Pocket; adres grupy do ustalenia
