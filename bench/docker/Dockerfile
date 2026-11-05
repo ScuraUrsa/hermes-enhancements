@@ -25,7 +25,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-cer
     && rm -rf /var/lib/apt/lists/*
 RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" "@github/copilot@${COPILOT_CLI_VERSION}"
 RUN pip install --no-cache-dir uv
-RUN curl -fsSL "$EVAL_CLI_URL" | xz -d > /usr/local/bin/eval-cli \n    && echo "$EVAL_CLI_SHA256  /usr/local/bin/eval-cli" | sha256sum -c - \n    && chmod 755 /usr/local/bin/eval-cli
+RUN curl -fsSL "$EVAL_CLI_URL" | xz -d > /usr/local/bin/eval-cli \
+    && echo "$EVAL_CLI_SHA256  /usr/local/bin/eval-cli" | sha256sum -c - \
+    && chmod 755 /usr/local/bin/eval-cli
 
 RUN useradd -m bench
 WORKDIR /bench
