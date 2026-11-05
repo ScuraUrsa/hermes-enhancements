@@ -15,7 +15,14 @@ to ``--output-dir``. Non-Anthropic endpoints are registered through the
 plugged in here; Zed reads that provider's key from ``<ID>_API_KEY`` (``HBENCH_API_KEY``,
 see ``crates/language_models/src/provider/api_compatible.rs``).
 
-A prebuilt static binary (Zed f16f965) is on this repo's ``tools/zed-eval-cli`` branch.
+Use release ``zed-eval-cli-f16f965-p1`` of this repo (static musl build from source, workflow on
+branch ``tools/zed-eval-cli-build``): it fixes a stray quote in eval-cli's settings JSON that makes
+every run of an unpatched f16f965 fail with "trailing characters at line 14 column 18".
+
+Zed's ``terminal`` tool never returns in headless runs on the Hermes VMs (2026-10-24, any shell), so
+it is disabled by default (``ZED_EVAL_DISABLE_TOOLS=terminal``, as Hermes' agent-run does since
+WOBI #86); the agent edits and the harness runs the hidden tests. Cell option ``zed_terminal = true``
+turns it back on.
 """
 
 from __future__ import annotations
@@ -79,7 +86,10 @@ class Zed(Agent):
             str(ctx.timeout),
             "--output-dir",
             str(out),
+            "--no-staff",
         ]
+        if not ctx.options.get("zed_terminal", False):
+            env["ZED_EVAL_DISABLE_TOOLS"] = "terminal"
         return argv, env
 
     def parse(self, ctx: RunContext, stdout_path: Path) -> dict:

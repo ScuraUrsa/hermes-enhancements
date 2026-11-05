@@ -150,6 +150,15 @@ def test_claude_cost_only_for_anthropic(tmp_path):
     assert AGENTS["claude-code"]().parse(_ctx(tmp_path, "ollama"), out)["cost_usd"] is None
 
 
+def test_zed_terminal_off_by_default(tmp_path):
+    argv, env = AGENTS["zed"]().command(_ctx(tmp_path, "ollama", base_url="http://h:11434"))
+    assert env["ZED_EVAL_DISABLE_TOOLS"] == "terminal" and "--no-staff" in argv
+    ctx = _ctx(tmp_path, "ollama", base_url="http://h:11434")
+    ctx.options["zed_terminal"] = True
+    argv, env = AGENTS["zed"]().command(ctx)
+    assert "ZED_EVAL_DISABLE_TOOLS" not in env
+
+
 def test_zed_env_mapping(tmp_path):
     argv, env = AGENTS["zed"]().command(_ctx(tmp_path, "ollama", base_url="http://h:11434"))
     providers = json.loads(env["ZED_OPENAI_COMPATIBLE_PROVIDERS"])

@@ -22,7 +22,7 @@ options = { max_turns = 100 }
 [[cell]]
 agent = "claude-code"
 provider = "ollama-cloud"
-models = ["glm-5.3", "kimi-k2.7-code", "minimax-m3", "deepseek-v4-pro", "glm-5.3-flash"]
+models = ["glm-5.3", "kimi-k2.7-code", "minimax-m3", "deepseek-v4-pro", "glm-5.3-flash", "deepseek-v4.1-flash"]
 options = { max_turns = 100 }
 
 # --- Same model, different frameworks (isolates the harness) ---
@@ -31,11 +31,12 @@ agent = "copilot-cli"
 provider = "ollama-cloud"
 models = ["glm-5.3"]
 
-# Zed needs eval-cli built from the Zed repo (see hbench/agents/zed.py); enable once it exists.
-# [[cell]]
-# agent = "zed"
-# provider = "ollama-cloud"
-# models = ["glm-5.3"]
+# Zed's agent (eval-cli, terminal tool off by default, see hbench/agents/zed.py). deepseek-v4.1-flash is
+# what Filip's own Zed uses: compare it with the claude-code cell on the same model.
+[[cell]]
+agent = "zed"
+provider = "ollama-cloud"
+models = ["glm-5.3", "deepseek-v4.1-flash"]
 
 # --- Copilot on its own subscription models (separate quota pool), if Filip has Copilot ---
 # [[cell]]
