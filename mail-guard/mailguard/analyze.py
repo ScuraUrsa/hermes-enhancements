@@ -132,6 +132,8 @@ def analyse(raw: bytes, protected: tuple[str, ...] | None = None, gmail_labels: 
     for w, code, text in sig:
         if code == "reply_to_mismatch" and trusted:
             w = 15 if w >= 30 else 3
+        if code == "disposable_domain" and trusted:   # thangs.com, lock.me: real brands with DMARC
+            w = 0
         if code in _HARD_SENDER:
             hard = True
         reasons.append((w, code, text))
@@ -177,11 +179,12 @@ def analyse(raw: bytes, protected: tuple[str, ...] | None = None, gmail_labels: 
         if unauth and links:
             hard = True
             reasons.append((20, "lure_unauth_link", "Przynęta od niepotwierdzonego nadawcy z linkiem do kliknięcia."))
-    if any(c == "disposable_domain" for _, c, _ in sig):
+    if not trusted and any(c == "disposable_domain" for _, c, _ in sig):
         hard = True
     if gmail_labels and "SPAM" in gmail_labels:
-        hard = True
-        reasons.append((30, "gmail_spam", "Gmail sam uznał ten mail za spam."))
+        # an authenticated newsletter in spam is unwanted, not phishing: counts, but does not lift the cap
+        hard = hard or not trusted
+        reasons.append((30 if not trusted else 15, "gmail_spam", "Gmail sam uznał ten mail za spam."))
     if body.forms:
         hard = True
         reasons.append((25, "html_form", "Mail zawiera formularz HTML (wpisywanie danych w treści maila)."))

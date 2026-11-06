@@ -390,3 +390,9 @@ def test_random_label(label, rand):
     from mailguard.domains import random_label
 
     assert random_label(label) is rand
+
+
+def test_authenticated_newsletter_in_spam_is_not_phishing():
+    raw = mk(frm="AI news <n@thangs.com>", domain="thangs.com", reply_to="r@esp.example")
+    rep = analyse(raw, gmail_labels=["SPAM"])
+    assert rep.label == "ok" and any(r["code"] == "gmail_spam" for r in rep.reasons)
