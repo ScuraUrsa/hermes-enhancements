@@ -1,5 +1,4 @@
 import subprocess
-from pathlib import Path
 
 import pytest
 
@@ -8,12 +7,18 @@ from ytdigest import config
 
 @pytest.fixture
 def cfg(tmp_path, monkeypatch):
+    """Hermetic config: pure DEFAULTS, no operator files.
+
+    YTDIGEST_CONFIG points at a missing file, which config_path() treats as
+    "no config file" instead of falling through to ~/.hermes (that silent
+    fallthrough used to leak Filip's real config into every test).
+    HERMES_REAL_HOME is redirected so nothing reads the operator's ~/.hermes.
+    """
     monkeypatch.setenv("YTDIGEST_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("YTDIGEST_CONFIG", str(tmp_path / "none.yaml"))
+    monkeypatch.setenv("HERMES_REAL_HOME", str(tmp_path / "home"))
     c = config.load(None)
-    c["routing_file"] = str(tmp_path / "no-routing.json")
-    c["topic_routes"] = {}  # topic overrides have their own tests
-    c["processed_playlist"] = {"enabled": False}
+    assert set(c) == set(config.DEFAULTS), "cfg fixture must yield pure defaults"
     return c
 
 

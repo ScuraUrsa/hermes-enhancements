@@ -87,7 +87,10 @@ def test_falls_back_to_frames_when_gemini_fails(cfg, faked, monkeypatch, synthet
 
     monkeypatch.setattr(gemini, "analyse", boom)
     monkeypatch.setattr(fetch, "download_video", lambda url, out, h, cookies=None: synthetic_video)
-    res = pipeline.process("abcdefghijk", cfg, log=lambda m: None)
+    # tag "search": the default tag "manual" routes vision/report onto
+    # topic_routes["manual"] (claude-code:sonnet); this test targets the
+    # generic default route (vision = gemma4:31b fallback chain).
+    res = pipeline.process("abcdefghijk", cfg, tag="search", log=lambda m: None)
     assert res["status"] == "done"
     bundle, rep, run = faked["notion"][-1]
     assert bundle["frames"] and all(f["caption"] for f in bundle["frames"])
@@ -110,7 +113,7 @@ def test_retired_vision_model_falls_back(cfg, faked, monkeypatch, synthetic_vide
         return real(self, ref, system, user, images=images, max_tokens=max_tokens)
 
     monkeypatch.setattr(llm.Client, "json", json_410_for_main)
-    res = pipeline.process("abcdefghijk", cfg, log=lambda m: None)
+    res = pipeline.process("abcdefghijk", cfg, tag="search", log=lambda m: None)
     _, _, run = faked["notion"][-1]
     assert res["status"] == "done" and run["visual"] and run["vision_model"].endswith("glm-5.3-flash")
     assert not res["degraded"]
