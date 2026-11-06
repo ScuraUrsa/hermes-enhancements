@@ -1,0 +1,17 @@
+repo = "ScuraUrsa/WOBI"
+fix_commit = "3d9e5828eec327250b678229021d8a63875790c6"
+category = "bugfix"
+difficulty = "easy"
+tags = ["python", "yaml", "wobi", "private"]
+hidden_tests = ["tests/test_llm_triage_policy.py"]
+
+[setup]
+command = 'uv venv -q .venv && uv pip install -q --python .venv/bin/python "pytest>=8" pyyaml'
+
+[verify]
+command = ".venv/bin/python -m pytest -q tests/test_llm_triage_policy.py"
+regression = ".venv/bin/python -m pytest -q tests/test_llm_triage_classify.py tests/test_llm_triage_models.py tests/test_llm_triage_router.py"
+
+[agent]
+timeout_sec = 900
+env_hint = "A Python environment with pytest and PyYAML is ready: run tests with `.venv/bin/python -m pytest`."
