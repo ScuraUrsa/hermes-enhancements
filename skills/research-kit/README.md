@@ -20,6 +20,7 @@ Plan i decyzje: `plany/research/2026-10-23-standaryzacja-researchu/plan.md` (K76
 | `skrypty/waliduj_raport.py`, `eksport_raportu.py` | walidator i eksport raportu (K80) |
 | `integracje/claude-code/` | hak WebFetch/WebSearch → bibliografia + przykład `settings.json` |
 | `integracje/hermes/bibliografia/` | plugin Hermesa: haki `web_search`/`web_extract`/`browser_navigate` + narzędzie `bibliografia` |
+| `integracje/hermes/local_extract/` | dostawca `web_extract` bez kluczy (K136): pobranie strony z maszyny Hermesa + trafilatura; strony z JS i blokadami idą do pierścienia bez klucza. Włączenie: plugin w `plugins.enabled`, `pip install trafilatura` w venv Hermesa, `web.extract_backend: local-extract` |
 | `testy/` | `python3 -m unittest discover -s testy -v` |
 
 ## Baza bibliografii w skrócie
