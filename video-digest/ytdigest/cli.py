@@ -142,7 +142,12 @@ def cmd_rerender(cfg, a) -> int:
     from . import notion, render
 
     root = Path(a.data_dir or cfg["data_dir"]) / "bundles"
-    dirs = [root / v for v in a.video] if a.video else sorted(d for d in root.iterdir() if (d / "report.json").is_file())
+    if a.video:
+        dirs = [root / v for v in a.video]
+    elif root.is_dir():
+        dirs = sorted(d for d in root.iterdir() if (d / "report.json").is_file())
+    else:
+        dirs = []
     nt = notion.Notion(cfg["notion_data_source_id"]) if a.notion else None
     done = 0
     for d in dirs:
@@ -294,7 +299,11 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--port", type=int, default=8765)
     s.set_defaults(fn=cmd_serve)
     a = p.parse_args(argv)
-    cfg = config.load(a.config)
+    try:
+        cfg = config.load(a.config)
+    except Exception as exc:  # unreadable/malformed config must not dump a traceback
+        print(f"config error: {exc}", file=sys.stderr)
+        return 2
     return a.fn(cfg, a)
 
 
