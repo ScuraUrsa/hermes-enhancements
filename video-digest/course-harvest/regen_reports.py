@@ -102,9 +102,11 @@ def main() -> int:
     ap.add_argument("--idle-min", type=int, default=120)
     ap.add_argument("--pause-sec", type=int, default=0, help="rest between lessons (per worker)")
     ap.add_argument("--daily-cap", type=int, default=0, help="max v2 reports per UTC day (0 = no cap)")
+    ap.add_argument("--keys-file", help="JSON list of lesson keys: only these (e.g. digested with an empty transcript)")
     a = ap.parse_args()
     cfg = config.load()
     site_dir = crawl.map_path(cfg, a.site).parent
+    only = set(json.loads(Path(a.keys_file).read_text(encoding="utf-8"))) if a.keys_file else None
     busy: set[str] = set()
     lock = threading.Lock()
     pause_until = [0.0]
@@ -145,6 +147,7 @@ def main() -> int:
             m = crawl.load_map(cfg, a.site)
             todo = [p for p in m["pages"] if (p.get("digest") or {}).get("status") in ("done", "partial")
                     and (not a.course_url_part or any(c in p.get("course_url", "") for c in a.course_url_part))
+                    and (only is None or p["key"] in only)
                     and p["key"] not in busy and ready(crawl.page_dir(cfg, a.site, p["key"]), p)]
             for p in todo[: max(0, a.workers - len(busy))]:
                 with lock:
