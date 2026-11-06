@@ -49,7 +49,7 @@ def access_token(account: str) -> str:
 RETRY_STATUS = {403, 429, 500, 502, 503, 504}   # 403 = rateLimitExceeded / userRateLimitExceeded on Gmail
 
 
-def _get(token: str, url: str, attempts: int = 6) -> dict:
+def _get(token: str, url: str, attempts: int = 8) -> dict:
     """GET with exponential backoff on rate limits and server errors (Gmail per-user quota)."""
     for attempt in range(attempts):
         req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
@@ -82,5 +82,9 @@ def list_ids(token: str, query: str, limit: int = 20) -> list[str]:
 
 
 def raw_message(token: str, msg_id: str) -> bytes:
+    return raw_message_with_labels(token, msg_id)[0]
+
+
+def raw_message_with_labels(token: str, msg_id: str) -> tuple[bytes, list[str]]:
     res = _get(token, f"{API}/messages/{urllib.parse.quote(msg_id)}?format=raw")
-    return base64.urlsafe_b64decode(res["raw"] + "=" * (-len(res["raw"]) % 4))
+    return base64.urlsafe_b64decode(res["raw"] + "=" * (-len(res["raw"]) % 4)), list(res.get("labelIds", []))

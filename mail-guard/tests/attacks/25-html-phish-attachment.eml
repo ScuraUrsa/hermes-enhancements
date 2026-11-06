@@ -5,15 +5,15 @@ To: f.j.kazmierczak@gmail.com
 Subject: Podpisz dokument
 Message-ID: <25-html-phish-attachment@attacks.mailguard.invalid>
 MIME-Version: 1.0
-Content-Type: multipart/mixed; boundary="===============0743630945501690742=="
+Content-Type: multipart/mixed; boundary="===============0636247133227100644=="
 
---===============0743630945501690742==
+--===============0636247133227100644==
 Content-Type: text/plain; charset="utf-8"
 Content-Transfer-Encoding: 8bit
 
 Dokument w załączniku.
 
---===============0743630945501690742==
+--===============0636247133227100644==
 Content-Type: text/html
 Content-Transfer-Encoding: base64
 Content-Disposition: attachment; filename="Dokument.html"
@@ -22,4 +22,4 @@ MIME-Version: 1.0
 PGh0bWw+PGZvcm0gYWN0aW9uPSdodHRwczovL3guZXhhbXBsZSc+PGlucHV0IHR5cGU9cGFzc3dv
 cmQ+PC9mb3JtPjwvaHRtbD4=
 
---===============0743630945501690742==--
+--===============0636247133227100644==--

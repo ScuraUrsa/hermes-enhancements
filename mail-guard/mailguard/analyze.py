@@ -106,7 +106,17 @@ def _attachments(msg: EmailMessage) -> list[AttachmentReport]:
     return out
 
 
-def analyse(raw: bytes, protected: tuple[str, ...] | None = None) -> Report:
+_LURE = re.compile(
+    r"(?i)(blocked|suspended|locked|disabled|deleted|restricted|unusual|verify|confirm|expire[sd]?|final notice|"
+    r"zablokowan\w*|zawieszon\w*|usuni[eę]t\w*|wygas\w*|potwierd[zź]\w*|weryfikac\w*|nietypow\w*)"
+    r".{0,40}(account|konto|kont[aou]|photos?|zdj[eę]\w*|password|has[lł]\w*|payment|płatno\w*|storage|"
+    r"mailbox|skrzynk\w*|cloud|chmur\w*|paczk\w*|przesy[lł]k\w*)"
+    r"|(odebra[cć]|odbierz|wygra[lł]\w*|nagrod\w*|bonus|pakiet powitalny|darmowe spiny|free spins|claim|"
+    r"you(?:'ve| have) won|jackpot|kasyn\w*|casino)"
+    r"|\d[\d \u00a0]{2,}\s?(zł|pln|\$|usd|eur|€)\b.{0,30}(czeka|dla ciebie|for you|odbierz|claim)")
+
+
+def analyse(raw: bytes, protected: tuple[str, ...] | None = None, gmail_labels: list[str] | None = None) -> Report:
     protected = protected or protected_domains()
     msg = parse(raw)
     auth, snd, sig = sender_signals(msg, protected)
@@ -158,6 +168,20 @@ def analyse(raw: bytes, protected: tuple[str, ...] | None = None) -> Report:
         hard = True
         reasons.append((25, "payment_change", "Mail mówi o zmianie numeru konta / danych do przelewu: zawsze "
                                               "potwierdź telefonicznie pod znanym numerem."))
+    # Lures: the classic hooks of phishing and scams. Combined with an unauthenticated sender and a link to
+    # click, they are what the spam folders of all 4 accounts were full of (06.11).
+    lure_text = subject_line(msg) + " " + body.text[:600]
+    if _LURE.search(lure_text):
+        unauth = auth.dmarc != "pass"
+        reasons.append((20 if unauth else 5, "lure", "Typowa przynęta (blokada konta, weryfikacja, wygrana, bonus)."))
+        if unauth and links:
+            hard = True
+            reasons.append((20, "lure_unauth_link", "Przynęta od niepotwierdzonego nadawcy z linkiem do kliknięcia."))
+    if any(c == "disposable_domain" for _, c, _ in sig):
+        hard = True
+    if gmail_labels and "SPAM" in gmail_labels:
+        hard = True
+        reasons.append((30, "gmail_spam", "Gmail sam uznał ten mail za spam."))
     if body.forms:
         hard = True
         reasons.append((25, "html_form", "Mail zawiera formularz HTML (wpisywanie danych w treści maila)."))

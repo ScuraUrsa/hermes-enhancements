@@ -240,6 +240,23 @@
     ]
   },
   {
+    "id": "33-blocked-account-throwaway",
+    "expect": [
+      "disposable_domain",
+      "lure",
+      "lure_unauth_link"
+    ],
+    "must_not_reach_model": []
+  },
+  {
+    "id": "34-casino-random-domain",
+    "expect": [
+      "disposable_domain",
+      "lure"
+    ],
+    "must_not_reach_model": []
+  },
+  {
     "id": "32-benign-ai-newsletter",
     "expect": [],
     "must_not_reach_model": []

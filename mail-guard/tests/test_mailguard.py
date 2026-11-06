@@ -362,3 +362,31 @@ def test_malformed_href_has_no_https_domain():
     assert rep.domain != "https" and "malformed" in {c for _, c, _ in rep.flags}
     rep = analyse_link(Link("https://", "x"), 1)
     assert rep.domain != "https"
+
+
+# --- calibration 2: real phishing in spam folders (06.11) -------------------------------------------------
+
+def test_brand_on_own_domain_is_not_display_name_brand():
+    raw = mk(frm="Bitwarden <no-reply@bitwarden.eu>", domain="bitwarden.eu")
+    assert not any(r["code"] == "display_name_brand" for r in analyse(raw).reasons)
+
+
+def test_gmail_spam_label_counts():
+    rep = analyse(mk(frm="X <x@shop.example>", domain="shop.example", ar=NONE), gmail_labels=["SPAM", "UNREAD"])
+    assert any(r["code"] == "gmail_spam" for r in rep.reasons) and rep.label != "ok"
+
+
+def test_legit_no_dmarc_invoice_stays_low():
+    ar = "mx.google.com; dkim=pass header.i=@njumobile.pl; spf=pass smtp.mailfrom=f@njumobile.pl; dmarc=none"
+    raw = mk(frm="nju mobile <efaktura@njumobile.pl>", domain="njumobile.pl", ar=ar, subject="e-faktura nju 10.2026",
+             attachments=[("faktura.pdf", "application/pdf", b"%PDF-1.4\n")])
+    assert analyse(raw).label in ("ok", "uwaga")
+
+
+@pytest.mark.parametrize("label,rand", [("pbjwfhtj", True), ("gbncbkqx", True), ("kwnazvr", True),
+                                        ("scannertool", False), ("humblebundle", False), ("allegrolokalnie", False),
+                                        ("newsletter", False), ("powiadomienia", False)])
+def test_random_label(label, rand):
+    from mailguard.domains import random_label
+
+    assert random_label(label) is rand

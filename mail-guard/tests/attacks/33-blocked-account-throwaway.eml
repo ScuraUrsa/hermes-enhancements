@@ -1,0 +1,27 @@
+Authentication-Results: mx.google.com; spf=pass
+ smtp.mailfrom=b@x7.scannertool.me; dkim=pass header.i=@x7.scannertool.me;
+ dmarc=none header.from=x7.scannertool.me
+From: Cloud Storage <alert@x7.scannertool.me>
+To: f.j.kazmierczak@gmail.com
+Subject: We have blocked your account =?utf-8?q?=F0=9F=9A=AB?= Your photos
+ will be deleted
+Message-ID: <33-blocked-account-throwaway@attacks.mailguard.invalid>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============5968366840981430517=="
+
+--===============5968366840981430517==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Restore access now
+
+--===============5968366840981430517==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<a href=3D'https://x7.scannertool.me/r'>Restore</a> <a href=3D'https://x7.sca=
+nnertool.me/u'>Unsubscribe</a>
+
+--===============5968366840981430517==--

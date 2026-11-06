@@ -161,3 +161,47 @@ def find_lookalike(host: str, protected: tuple[str, ...] | None = None) -> Looka
         ):
             return Lookalike(reg, p, "brand-in-name")
     return None
+
+
+# Throwaway-domain shape (measured 06.11 on Filip's spam: *.scannertool.me, pbjwfhtj.gbncbkqx.us, *.vexurin.biz).
+CHEAP_SENDER_TLDS = {
+    "me", "biz", "us", "id", "web.id", "xyz", "top", "click", "link", "icu", "cyou", "cfd", "sbs", "buzz", "rest",
+    "monster", "quest", "lol", "bond", "online", "site", "store", "shop", "support", "live", "tk", "ml", "ga", "cf",
+    "gq", "su", "info", "work", "pw", "ws", "cc", "vip", "fun", "space", "website", "life", "today", "world",
+}
+_VOWELS = set("aeiouy")
+
+
+def random_label(label: str) -> bool:
+    """A label that looks machine-generated: no pronounceable structure."""
+    label = label.lower()
+    letters = [c for c in label if c.isalpha()]
+    if len(letters) < 6 or "-" in label:
+        return False
+    vowels = sum(c in _VOWELS for c in letters)
+    run = longest = 0
+    for c in letters:
+        run = run + 1 if c not in _VOWELS else 0
+        longest = max(longest, run)
+    digits = sum(c.isdigit() for c in label)
+    return vowels / len(letters) < 0.2 or longest >= 5 or (digits >= 3 and len(letters) >= 4)
+
+
+def domain_shape(host: str) -> tuple[int, str, str] | None:
+    """(weight, code, text) when the sender domain looks disposable, else None."""
+    host = to_unicode(host).lower()
+    reg = registrable(host)
+    if reg in known_good() or reg in protected_domains():
+        return None
+    labels = host.split(".")
+    tld = ".".join(labels[-2:]) if ".".join(labels[-2:]) in CHEAP_SENDER_TLDS else labels[-1]
+    rnd = [lb for lb in labels[:-1] if random_label(lb)]
+    w = (15 if rnd else 0) + (10 if tld in CHEAP_SENDER_TLDS else 0)
+    if not w:
+        return None
+    parts = []
+    if rnd:
+        parts.append(f"losowo wyglądająca nazwa ({rnd[0]})")
+    if tld in CHEAP_SENDER_TLDS:
+        parts.append(f"tania, często nadużywana końcówka .{tld}")
+    return w, "disposable_domain", f"Domena nadawcy {host} wygląda na jednorazową: " + ", ".join(parts) + "."

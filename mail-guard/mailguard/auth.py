@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from email.message import Message
 from email.utils import getaddresses, parseaddr
 
-from .domains import find_lookalike, protected_domains, registrable, to_unicode
+from .domains import domain_shape, find_lookalike, protected_domains, registrable, to_unicode
 
 TRUSTED_AUTHSERV = ("mx.google.com",)
 # Free mailbox providers: a company mail that wants replies to one of these is classic invoice fraud (BEC).
@@ -113,6 +113,11 @@ def sender_signals(msg: Message, protected: tuple[str, ...] | None = None) -> tu
                 sig.append((30, "auth_none", "Ani SPF, ani DKIM nie potwierdzają nadawcy, a domena nie ma DMARC."))
             elif snd.domain and not _aligned(snd.domain, auth):
                 sig.append((15, "auth_unaligned", "SPF/DKIM przechodzą, ale dla innej domeny niż ta w polu Od."))
+            else:
+                sig.append((10, "no_dmarc", f"Domena {snd.domain} nie publikuje DMARC (każdy może się pod nią podszyć; "
+                                            "typowe dla jednorazowych domen spamerów)."))
+            if auth.dkim != "pass":
+                sig.append((10, "no_dkim", "Mail nie ma ważnego podpisu DKIM."))
         if auth.spf in ("fail", "softfail") and auth.dmarc != "pass":
             sig.append((10, "spf_fail", f"SPF: {auth.spf} (serwer nie jest uprawniony do wysyłki z tej domeny)."))
         if auth.forged_headers:
@@ -138,7 +143,8 @@ def sender_signals(msg: Message, protected: tuple[str, ...] | None = None) -> tu
             brand = p.split(".")[0]
             if len(brand) >= 5 and brand not in _COMMON_WORDS and re.search(rf"\b{re.escape(brand)}\b", dn) \
                     and registrable(snd.domain) != p and not find_lookalike(snd.domain, (p,)) \
-                    and registrable(snd.domain) not in _related(p, protected):
+                    and registrable(snd.domain) not in _related(p, protected) \
+                    and brand not in registrable(snd.domain).split(".")[0]:   # bitwarden.eu, mail.notion.com
                 sig.append((20, "display_name_brand", f"Nazwa nadawcy „{snd.display_name}” sugeruje {p}, a mail jest "
                                                       f"z {snd.domain}."))
                 break
@@ -149,6 +155,10 @@ def sender_signals(msg: Message, protected: tuple[str, ...] | None = None) -> tu
             sig.append((30 if free else 15, "reply_to_mismatch",
                         f"Odpowiedź pójdzie na inny adres ({rt}) niż nadawca ({snd.address})."))
             break
+    if snd.domain:
+        shape = domain_shape(snd.domain)
+        if shape:
+            sig.append(shape)
     if snd.domain and not snd.display_name and not snd.address:
         sig.append((10, "no_from", "Brak nadawcy w polu Od."))
     return auth, snd, sig

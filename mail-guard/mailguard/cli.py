@@ -64,7 +64,8 @@ def cmd_gmail(a) -> int:
 
     def fetch(mid):
         try:
-            return mid, analyse(gmail.raw_message(token, mid), prot), None
+            raw, labels = gmail.raw_message_with_labels(token, mid)
+            return mid, analyse(raw, prot, gmail_labels=labels), None
         except Exception as e:  # noqa: BLE001 - one bad message must not stop the run
             return mid, None, e
 
@@ -162,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--id")
     s.add_argument("--limit", type=int, default=20)
     s.add_argument("--format", choices=["summary", "card", "json"], default="summary")
-    s.add_argument("--workers", type=int, default=4)
+    s.add_argument("--workers", type=int, default=2)
     s.add_argument("--exit-zero", action="store_true", help="zawsze kod 0 (dla cronów)")
     s.set_defaults(fn=cmd_gmail)
     s = sub.add_parser("url")
