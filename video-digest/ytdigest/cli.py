@@ -12,6 +12,7 @@
   ytdigest gate                                                     show the idle checks
   ytdigest status                                                   queue counts and spend
   ytdigest serve --host 127.0.0.1 --port 8765                       one-click endpoint
+  ytdigest --check-asr                                              transcription backends: available/missing
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import backlog, categorize, compare, config, discover, fetch, gate, llm, pipeline
+from . import asr_probe, backlog, categorize, compare, config, discover, fetch, gate, llm, pipeline
 from .queue import BACKLOG_PRIORITY, USER_PRIORITY, Queue
 
 
@@ -234,7 +235,9 @@ def cmd_serve(cfg, a) -> int:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="ytdigest", description="YouTube video -> Notion report")
     p.add_argument("--config")
-    sub = p.add_subparsers(dest="cmd", required=True)
+    p.add_argument("--check-asr", action="store_true",
+                   help="print available/missing for every transcription backend and exit")
+    sub = p.add_subparsers(dest="cmd")
     r = sub.add_parser("run", help="process one video now")
     r.add_argument("url")
     r.add_argument("--no-notion", action="store_true")
@@ -294,6 +297,10 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--port", type=int, default=8765)
     s.set_defaults(fn=cmd_serve)
     a = p.parse_args(argv)
+    if a.cmd is None:
+        if a.check_asr:
+            return asr_probe.run(config.load(a.config))
+        p.error("no command given (try --help or --check-asr)")
     cfg = config.load(a.config)
     return a.fn(cfg, a)
 
