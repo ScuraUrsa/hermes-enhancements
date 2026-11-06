@@ -1,0 +1,13 @@
+Authentication-Results: mx.google.com; dkim=pass header.i=@aiweekly.example
+ header.s=s1; spf=pass smtp.mailfrom=b@aiweekly.example; dmarc=pass (p=REJECT)
+ header.from=aiweekly.example
+From: AI Weekly <news@aiweekly.example>
+To: f.j.kazmierczak@gmail.com
+Subject: =?utf-8?q?Nowo=C5=9Bci?= AI
+Message-ID: <32-benign-ai-newsletter@attacks.mailguard.invalid>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+W tym tygodniu: nowe modele j=C4=99zykowe, benchmarki i porady, jak pisa=C4=
+=87 prompty.

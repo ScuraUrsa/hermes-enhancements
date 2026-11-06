@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: mailguard
+Version: 0.1.0
+Summary: Safe mail reading for Hermes: SPF/DKIM/DMARC, spoofing and lookalike checks, link and attachment triage, and an LLM-safe mail card (prompt-injection hygiene)
+Requires-Python: >=3.10
+Provides-Extra: images
+Requires-Dist: pillow>=10; extra == "images"
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"
+Requires-Dist: ruff>=0.6; extra == "dev"
+Requires-Dist: pillow>=10; extra == "dev"

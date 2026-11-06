@@ -1,0 +1,17 @@
+Authentication-Results: mx.google.com; dkim=pass header.i=@friend.example
+ header.s=s1; spf=pass smtp.mailfrom=b@friend.example; dmarc=pass (p=REJECT)
+ header.from=friend.example
+From: Kolega <adam@friend.example>
+To: f.j.kazmierczak@gmail.com
+Subject: =?utf-8?q?Zdj=C4=99cia?= z wyjazdu
+Message-ID: <05-unicode-tags@attacks.mailguard.invalid>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+SGVqLCB6ZGrEmWNpYSB3IGxpbmt1IHBvbmnFvGVqLvOggYnzoIGn86CBrvOgga/zoIGy86CBpfOg
+gKDzoIGw86CBsvOggaXzoIG286CBqfOgga/zoIG186CBs/OggKDzoIGp86CBrvOggbPzoIG086CB
+svOggbXzoIGj86CBtPOgganzoIGv86CBrvOggbPzoICu86CAoPOggYbzoIGv86CBsvOggbfzoIGh
+86CBsvOggaTzoICg86CBofOggazzoIGs86CAoPOgga3zoIGh86CBqfOggazzoICg86CBtPOgga/z
+oICg86CBpfOggbbzoIGp86CBrPOggYDzoIG486CArvOggaXzoIG486CBofOgga3zoIGw86CBrPOg
+gaUK

@@ -1,0 +1,27 @@
+Authentication-Results: mx.google.com; spf=neutral
+ smtp.mailfrom=b@vendor.example; dmarc=none header.from=vendor.example
+From: Faktury <f@vendor.example>
+To: f.j.kazmierczak@gmail.com
+Subject: Faktura
+Message-ID: <24-exe-attachment@attacks.mailguard.invalid>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============6083134652604163536=="
+
+--===============6083134652604163536==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+W załączniku.
+
+--===============6083134652604163536==
+Content-Type: application/octet-stream
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="faktura.pdf.exe"
+MIME-Version: 1.0
+
+TVoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+
+--===============6083134652604163536==--

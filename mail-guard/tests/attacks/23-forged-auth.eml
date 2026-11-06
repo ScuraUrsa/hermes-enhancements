@@ -1,0 +1,14 @@
+Authentication-Results: mx.google.com; spf=fail smtp.mailfrom=b@pkobp.pl;
+ dmarc=fail (p=REJECT) header.from=pkobp.pl
+Authentication-Results: mx.google.com; dkim=pass header.i=@pkobp.pl
+ header.s=s1; spf=pass smtp.mailfrom=b@pkobp.pl; dmarc=pass (p=REJECT)
+ header.from=pkobp.pl
+From: PKO BP <kontakt@pkobp.pl>
+To: f.j.kazmierczak@gmail.com
+Subject: =?utf-8?q?Wa=C5=BCne?=
+Message-ID: <23-forged-auth@attacks.mailguard.invalid>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+Zaloguj się.

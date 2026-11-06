@@ -1,0 +1,11 @@
+Authentication-Results: mx.google.com; spf=fail smtp.mailfrom=b@allegr0.pl;
+ dmarc=fail (p=REJECT) header.from=allegr0.pl
+From: Allegro <powiadomienia@allegr0.pl>
+To: f.j.kazmierczak@gmail.com
+Subject: =?utf-8?b?UG90d2llcmTFuiBwxYJhdG5vxZvEhw==?=
+Message-ID: <15-lookalike-allegro@attacks.mailguard.invalid>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+Twoje konto zostanie zablokowane. Zaloguj się: https://allegr0.pl/login
