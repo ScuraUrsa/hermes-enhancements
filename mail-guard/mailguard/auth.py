@@ -19,7 +19,8 @@ TRUSTED_AUTHSERV = ("mx.google.com",)
 # Free mailbox providers: a company mail that wants replies to one of these is classic invoice fraud (BEC).
 FREEMAIL = {"gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "yahoo.com", "icloud.com",
             "proton.me", "protonmail.com", "wp.pl", "o2.pl", "onet.pl", "op.pl", "interia.pl", "interia.eu",
-            "gazeta.pl", "tlen.pl", "poczta.fm", "vp.pl", "gmx.com", "gmx.net", "mail.ru", "yandex.ru", "aol.com", "zoho.com"}
+            "gazeta.pl", "tlen.pl", "poczta.fm", "vp.pl", "gmx.com", "gmx.net", "mail.ru", "yandex.ru",
+            "aol.com", "zoho.com"}
 # Brand names that are also everyday words; not used for the display-name check.
 _COMMON_WORDS = {"orange", "office", "outlook"}
 
