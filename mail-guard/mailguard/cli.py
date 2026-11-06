@@ -7,7 +7,8 @@
   mailguard save-attachments FILE.eml --out DIR  quarantine copy: images re-encoded, risky files withheld
   mailguard image IN OUT                         re-encode one image to a clean PNG
 
-Exit code of analyze/card: 0 ok, 1 uwaga, 2 podejrzany, 3 niebezpieczny (usable in scripts).
+Exit code = worst label: 0 ok, 1 uwaga, 2 podejrzany, 3 niebezpieczny (not an error!); gmail: 4 = fetch errors
+only. In cron jobs use ``gmail --exit-zero`` so a phishing mail is not reported as a failed job.
 """
 
 from __future__ import annotations
@@ -51,14 +52,31 @@ def cmd_card(a) -> int:
 
 
 def cmd_gmail(a) -> int:
+    from concurrent.futures import ThreadPoolExecutor
+
     from . import gmail
 
     token = gmail.access_token(a.account)
     ids = [a.id] if a.id else gmail.list_ids(token, a.query, a.limit)
     worst = 0
+    errors = 0
     prot = protected_domains(a.protected)
-    for mid in ids:
-        rep = analyse(gmail.raw_message(token, mid), prot)
+
+    def fetch(mid):
+        try:
+            return mid, analyse(gmail.raw_message(token, mid), prot), None
+        except Exception as e:  # noqa: BLE001 - one bad message must not stop the run
+            return mid, None, e
+
+    # a few parallel GETs: Gmail allows ~250 quota units/s per user, messages.get costs 5
+    with ThreadPoolExecutor(max_workers=max(1, a.workers)) as pool:
+        results = list(pool.map(fetch, ids))
+    for mid, rep, err in results:
+        if err is not None:
+            errors += 1
+            print(json.dumps({"gmail_id": mid, "error": f"{type(err).__name__}: {err}"}) if a.format == "json"
+                  else f"{mid}  BŁĄD {type(err).__name__}: {err}", file=sys.stderr)
+            continue
         worst = max(worst, _EXIT[rep.label])
         if a.format == "json":
             print(json.dumps({"gmail_id": mid, **rep.to_dict()}, ensure_ascii=False))
@@ -66,7 +84,9 @@ def cmd_gmail(a) -> int:
             print(f"=== gmail_id {mid}\n{card(rep)}\n")
         else:
             print(f"{mid}  {_summary(rep)}")
-    return worst
+    if errors:
+        print(f"błędy pobierania: {errors}/{len(ids)}", file=sys.stderr)
+    return 0 if a.exit_zero else (4 if errors and worst == 0 else worst)
 
 
 def cmd_url(a) -> int:
@@ -142,6 +162,8 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--id")
     s.add_argument("--limit", type=int, default=20)
     s.add_argument("--format", choices=["summary", "card", "json"], default="summary")
+    s.add_argument("--workers", type=int, default=4)
+    s.add_argument("--exit-zero", action="store_true", help="zawsze kod 0 (dla cronów)")
     s.set_defaults(fn=cmd_gmail)
     s = sub.add_parser("url")
     s.add_argument("urls", nargs="+")

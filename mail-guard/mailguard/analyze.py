@@ -45,6 +45,7 @@ class Report:
     body_truncated: bool = False
     hidden: dict = field(default_factory=dict)
     injection: list[dict] = field(default_factory=list)
+    llm_risk: str = "niskie"           # niskie / średnie / wysokie: how careful a model must be with this mail
     remote_images: int = 0
     tracking_pixels: int = 0
 
@@ -112,36 +113,53 @@ def analyse(raw: bytes, protected: tuple[str, ...] | None = None) -> Report:
     body = _body(msg)
     links = analyse_links(body.links, protected)
     atts = _attachments(msg)
-    reasons: list[tuple[int, str, str]] = list(sig)
+    # Calibrated on 600 real mails (06.11): with DMARC pass, newsletters and receipts routinely have tracking
+    # links whose text shows the brand, a Reply-To at the ESP and hidden preheader text. Those are noise when
+    # the sender is authenticated; only "hard" signals (lookalikes, @-tricks, attachments, smuggling...) count.
+    trusted = auth.dmarc == "pass"
+    reasons: list[tuple[int, str, str]] = []
+    hard = False
+    for w, code, text in sig:
+        if code == "reply_to_mismatch" and trusted:
+            w = 15 if w >= 30 else 3
+        if code in _HARD_SENDER:
+            hard = True
+        reasons.append((w, code, text))
 
     # Links: the worst link counts in full, the rest only a little (a newsletter has 80 harmless links).
     bad_links = sorted((lk for lk in links if lk.score), key=lambda lk: -lk.score)
     if bad_links:
         worst = bad_links[0]
-        reasons.append((min(worst.score, 70), "link", f"Link {worst.id} ({worst.defanged}): "
-                        + " ".join(t for _, _, t in worst.flags)))
-        if len(bad_links) > 1:
+        worst_hard = {c for _, c, _ in worst.flags} & _HARD_LINK
+        w = min(worst.score, 70) if (worst_hard or not trusted) else min(worst.score, 5)
+        hard = hard or bool(worst_hard)
+        reasons.append((w, "link", f"Link {worst.id} ({worst.defanged}): " + " ".join(t for _, _, t in worst.flags)))
+        if len(bad_links) > 1 and not trusted:
             reasons.append((min(5 * (len(bad_links) - 1), 15), "links_more",
                             f"Podejrzanych linków łącznie: {len(bad_links)}."))
     for a in atts:
+        hard = hard or a.score >= 20
         if a.flags:
             reasons.append((min(a.score, 100), "attachment", f"Załącznik {a.id} „{a.filename}”: "
                             + " ".join(t for _, _, t in a.flags)))
 
     hidden_total = body.hidden_chars
     if body.tag_chars:
+        hard = True
         reasons.append((60, "unicode_tags", f"Ukryty tekst w znakach Unicode „tags” ({body.tag_chars} znaków), "
                                             "niewidoczny dla człowieka, czytelny dla AI."))
     elif body.invisible_chars > 20:
         reasons.append((10, "invisible_chars", f"Dużo niewidocznych znaków ({body.invisible_chars})."))
     hidden_inj = injection_signals(" ".join(body.hidden_samples)) if body.hidden_samples else []
-    if hidden_total > 200 or hidden_inj:
-        reasons.append((15, "hidden_text", f"Ukryty tekst w HTML ({hidden_total} znaków), usunięty przed "
-                                           "pokazaniem AI."))
+    if hidden_inj or (hidden_total > 200 and not trusted):
+        reasons.append((15 if hidden_inj else 5, "hidden_text",
+                        f"Ukryty tekst w HTML ({hidden_total} znaków), usunięty przed pokazaniem AI."))
     if _PAYMENT_CHANGE.search(body.text) or _PAYMENT_CHANGE.search(subject_line(msg)):
+        hard = True
         reasons.append((25, "payment_change", "Mail mówi o zmianie numeru konta / danych do przelewu: zawsze "
                                               "potwierdź telefonicznie pod znanym numerem."))
     if body.forms:
+        hard = True
         reasons.append((25, "html_form", "Mail zawiera formularz HTML (wpisywanie danych w treści maila)."))
 
     # Prompt-injection heuristics run on visible text AND on what was hidden or smuggled, because the
@@ -149,12 +167,22 @@ def analyse(raw: bytes, protected: tuple[str, ...] | None = None) -> Report:
     smuggled = decode_tag_smuggling(_content_all(msg)) if body.tag_chars else ""
     subject = " ".join(str(msg.get("Subject", "")).split())
     inj = injection_signals("\n".join([subject, snd.display_name, body.text, " ".join(body.hidden_samples), smuggled]))
+    # Two separate axes. "score" = is this mail a scam for Filip. "llm_risk" = is it dangerous to let a model
+    # read it. Visible AI-related wording (tech newsletters!) raises llm_risk, not the scam score; injection
+    # carried by hidden or smuggled text is both, because no honest sender hides instructions.
+    hidden_carrier = bool(hidden_inj or body.tag_chars or (smuggled and injection_signals(smuggled)))
+    llm_risk = "wysokie" if hidden_carrier else "średnie" if inj else "niskie"
     if inj:
-        w = 40 if (hidden_total or body.tag_chars) else 25
-        reasons.append((w, "prompt_injection", "Treść wygląda na próbę sterowania asystentem AI: "
+        if hidden_carrier:
+            hard = True
+        reasons.append((40 if hidden_carrier else 3, "prompt_injection",
+                        ("Ukryta treść próbuje sterować asystentem AI: " if hidden_carrier else
+                         "Treść zawiera zwroty kierowane do AI (sprawdź, czy to nie zwykły artykuł o AI): ")
                         + ", ".join(code for code, _ in inj) + "."))
 
     score = min(100, sum(w for w, _, _ in reasons))
+    if trusted and not hard:
+        score = min(score, 24)
     text = body.text
     for lk in links:  # replace URLs by ids so the model sees [L3] instead of a clickable address
         if lk.url and len(lk.url) > 8:
@@ -170,7 +198,7 @@ def analyse(raw: bytes, protected: tuple[str, ...] | None = None) -> Report:
         body_text=text[:MAX_BODY_CHARS], body_truncated=truncated,
         hidden={"html_chars": hidden_total, "invisible_chars": body.invisible_chars, "tag_chars": body.tag_chars,
                 "comments": body.comments, "scripts": body.scripts, "forms": body.forms},
-        injection=[{"code": c, "snippet": s} for c, s in inj], remote_images=len(body.remote_images),
+        injection=[{"code": c, "snippet": s} for c, s in inj], llm_risk=llm_risk, remote_images=len(body.remote_images),
         tracking_pixels=body.tracking_pixels,
     )
 
@@ -183,6 +211,10 @@ _PAYMENT_CHANGE = re.compile(
 
 def subject_line(msg) -> str:
     return " ".join(str(msg.get("Subject", "")).split())
+
+
+_HARD_SENDER = {"sender_lookalike", "display_name_email", "forged_auth_header", "dmarc_fail"}
+_HARD_LINK = {"dangerous_scheme", "userinfo", "ip_host", "lookalike", "lookalike_target", "punycode"}
 
 
 def _content_all(msg: EmailMessage) -> str:
@@ -222,7 +254,7 @@ def card(rep: Report, nonce: str | None = None, max_links: int = 15) -> str:
     s = rep.sender
     a = rep.auth
     lines = [
-        f"MAILGUARD v1 | ocena: {rep.label} ({rep.score}/100) | {LABEL_PL[rep.label]}",
+        f"MAILGUARD v1 | ocena: {rep.label} ({rep.score}/100) | {LABEL_PL[rep.label]} | ryzyko dla AI: {rep.llm_risk}",
         f"Od (adres): {s['address']} | SPF={a['spf']} DKIM={a['dkim']} DMARC={a['dmarc']} (źródło: {a['source']})",
         f"Data: {_one_line(rep.date)[:60]}",
     ]

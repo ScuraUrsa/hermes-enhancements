@@ -9,6 +9,9 @@ from __future__ import annotations
 import base64
 import json
 import os
+import random
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -43,10 +46,24 @@ def access_token(account: str) -> str:
         return json.loads(r.read())["access_token"]
 
 
-def _get(token: str, url: str) -> dict:
-    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
-    with urllib.request.urlopen(req, timeout=60) as r:  # noqa: S310 - fixed Google endpoint
-        return json.loads(r.read())
+RETRY_STATUS = {403, 429, 500, 502, 503, 504}   # 403 = rateLimitExceeded / userRateLimitExceeded on Gmail
+
+
+def _get(token: str, url: str, attempts: int = 6) -> dict:
+    """GET with exponential backoff on rate limits and server errors (Gmail per-user quota)."""
+    for attempt in range(attempts):
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:  # noqa: S310 - fixed Google endpoint
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            if e.code not in RETRY_STATUS or attempt == attempts - 1:
+                raise
+        except (urllib.error.URLError, TimeoutError):
+            if attempt == attempts - 1:
+                raise
+        time.sleep(min(60.0, 2 ** attempt + random.random()))
+    raise RuntimeError("unreachable")
 
 
 def list_ids(token: str, query: str, limit: int = 20) -> list[str]:

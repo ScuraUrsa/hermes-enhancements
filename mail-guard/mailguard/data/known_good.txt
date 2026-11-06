@@ -34,3 +34,8 @@ netflixmail.com
 spotifymail.com
 appleid.apple.com
 icloud-content.com
+allegropay.pl
+allegro.tech
+c.gle
+g.co
+goo.gle

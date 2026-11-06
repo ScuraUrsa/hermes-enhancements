@@ -19,6 +19,17 @@ ABUSED_TLDS = {
     "zip", "mov", "top", "xyz", "click", "link", "work", "rest", "cfd", "sbs", "buzz", "monster", "quest", "icu",
     "cyou", "lol", "bond", "online", "site", "store", "live", "shop", "support", "tk", "ml", "ga", "cf", "gq", "su",
 }
+# Click-tracking domains of mail service providers: a link whose text shows the brand but goes through one of
+# these is normal newsletter plumbing, not deception (measured on Filip's inboxes 06.11).
+ESP_TRACKING = {
+    "awstrack.me", "snrs.it", "sendgrid.net", "mailgun.org", "mailgun.net", "list-manage.com", "mlsend.com",
+    "mailchi.mp", "hubspotlinks.com", "hs-sites.com", "exacttarget.com", "mktomail.com", "mkt.com", "smgrid.eu",
+    "rs6.net", "ctctcdn.com", "sparkpostmail.com", "mandrillapp.com", "postmarkapp.com", "beehiiv.com",
+    "substack.com", "convertkit-mail.com", "ck.page", "klclick.com", "klclick1.com", "klaviyomail.com",
+    "freshmail.pl", "getresponse.com", "gr8.com", "salesmanago.pl", "c.gle", "mailerlite.com", "mlsend2.com",
+    "sendinblue.com", "brevo.com", "sib.com", "r.sib", "email-od.com", "cmail19.com", "cmail20.com",
+    "createsend1.com", "trk.klclick.com", "linkedin.com", "lnkd.in", "t.co", "app.link", "branch.io",
+}
 # Redirectors whose real target is in a query parameter.
 _REDIRECT_PARAMS = ("url", "u", "q", "redirect", "redirect_uri", "target", "dest", "destination", "goto", "link", "r")
 
@@ -70,12 +81,18 @@ def analyse_link(link: Link, idx: int, protected: tuple[str, ...] | None = None)
     if low.startswith(("javascript:", "data:", "vbscript:", "file:")):
         rep.flags.append((60, "dangerous_scheme", f"Link typu {low.split(':', 1)[0]}: — przeglądarka wykona kod."))
         return rep
+    if re.match(r"(?i)^[a-z][a-z0-9+.-]*:", url) and "://" not in url:
+        rep.flags.append((20, "malformed", "Link jest zniekształcony (schemat bez „//”)."))
+        return rep
     try:
         parts = urlsplit(url if "://" in url else "http://" + url)
     except ValueError:
         rep.flags.append((20, "malformed", "Link jest zniekształcony."))
         return rep
     host = (parts.hostname or "").lower()
+    if not host:
+        rep.flags.append((20, "malformed", "Link bez adresu serwera."))
+        return rep
     rep.host, rep.domain = to_unicode(host), registrable(to_unicode(host))
     if parts.scheme == "http":
         rep.flags.append((5, "no_tls", "Link bez https."))
@@ -120,7 +137,8 @@ def analyse_link(link: Link, idx: int, protected: tuple[str, ...] | None = None)
     # Shown text looks like a URL/domain but points elsewhere: "https://mbank.pl" -> evil.io
     shown_host = _host_of(link.text) if re.search(r"\b[\w-]+\.[a-z]{2,}\b", link.text.lower()) else ""
     if shown_host and "." in shown_host and " " not in link.text.strip():
-        if registrable(to_unicode(shown_host)) != rep.domain:
+        if registrable(to_unicode(shown_host)) != rep.domain and rep.domain not in ESP_TRACKING \
+                and not any(rep.host.endswith("." + t) for t in ESP_TRACKING):
             rep.flags.append((45, "text_mismatch",
                               f"Tekst linku pokazuje {shown_host}, a link prowadzi do {rep.host}."))
     return rep

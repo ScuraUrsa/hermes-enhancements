@@ -18,10 +18,15 @@ def test_attack_case(case):
     missing = set(case["expect"]) - codes
     assert not missing, (missing, rep.reasons)
     if case["expect"]:
-        assert rep.label != "ok", rep.reasons
+        assert rep.label != "ok" or rep.llm_risk != "niskie", rep.reasons
     else:
-        assert rep.label == "ok", rep.reasons
+        assert rep.label == "ok" and rep.llm_risk == "niskie", rep.reasons
+    if "prompt_injection" in case["expect"]:
+        assert rep.llm_risk in ("średnie", "wysokie")
+    if "hidden_text" in case["expect"] or "unicode_tags" in case["expect"]:
+        assert rep.llm_risk == "wysokie"
     text = card(rep, nonce="f00dfeed")
     for s in case["must_not_reach_model"]:
         assert s not in text
-    assert "\U000e0000" <= max(text) is False or not any(0xE0000 <= ord(c) <= 0xE007F for c in text)
+    assert not any(0xE0000 <= ord(c) <= 0xE007F for c in text)
+    assert f"ryzyko dla AI: {rep.llm_risk}" in text
