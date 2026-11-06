@@ -3,7 +3,7 @@
 - **Data:** 2026-11-06
 - **Wątek:** [Zabezpieczyć czytanie maili i klikanie linków](#cmsg_015HTwbUuT8LqRHP4MjSVwTEG9NLc5MEuY1AsdDd2YH9ce)
 - **ID w kolejce:** K147
-- **Etap:** w budowie (faza 1 w PR [hermes-enhancements #67](https://github.com/ScuraUrsa/hermes-enhancements/pull/67))
+- **Etap:** w budowie (faza 1: [hermes-enhancements #67](https://github.com/ScuraUrsa/hermes-enhancements/pull/67); faza 2 `mail-shield`: [hermes-agent #30](https://github.com/ScuraUrsa/hermes-agent/pull/30))
 - **Priorytet:** P1 (bramka dla K145 [opracowywanie maili](2026-11-06-opracowywanie-maili.md): Hermes nie czyta treści maili, dopóki to nie działa; prod ma `approvals.mode: off`)
 - **Powiązane:** K145 [opracowywanie maili](2026-11-06-opracowywanie-maili.md) (model w kwarantannie i etykiety korzystają z tego planu), [subskrypcje mailowe](2026-11-06-subskrypcje-mailowe/plan.md), K50 [yolo-guard](2026-10-29-yolo-guard.md), K134 [konta z maili](2026-11-03-konta-z-maili.md), K141 [konta Google](2026-11-05-konta-google-inwentaryzacja.md), K114 lokalny klasyfikator, K132 przeglądarka dla Filipa, K136 [otwieranie stron](2026-11-03-otwieranie-stron-web-extract.md), K11 [observability](2026-10-22-observability.md), K12 [k3s](2026-10-22-kubernetes-ha.md)
 
@@ -36,7 +36,15 @@ Zakres: 4 prywatne konta Gmail (f.j.kazmierczak, kazmierczak.filip.jan, koalamis
 
 ### 2a. Test fazy 1 na prawdziwych skrzynkach
 
-WYNIK_TESTU
+**Przebieg 1 (06.11 ok. 15:00, tylko odczyt, prod):** 600 maili ze skrzynek odbiorczych (14 dni, po 150 z konta) i 215 ze spamu (30 dni). Pamięć 35 MB, ok. 1,6 s na mail (czekanie na sieć). Wynik: 114 maili w skrzynkach oznaczonych jako „podejrzany” albo „niebezpieczny”, **wszystkie fałszywe alarmy** (newslettery i potwierdzenia z SPF, DKIM i DMARC pass: Humble Bundle, Empik, Pyszne, Substack, Allegro, Luma). Prawdziwego phishingu w skrzynkach odbiorczych nie było; Gmail już go odsiewa. Przyczyny: linki śledzące serwisów mailingowych (tekst „humblebundle.com”, cel `awstrack.me`, `snrs.it`), ukryty tekst zapowiedzi, Reply-To u dostawcy mailingu, artykuły o AI wyglądające jak prompt injection, `allegropay.pl` uznane za podróbkę `allegro.pl`, błąd parsera dla `https:/…`, a na koncie praktyki chwilowy limit Gmaila (403) przerywał cały przebieg.
+
+**Kalibracja (commit 41d2657):** przy DMARC pass i braku twardego sygnału (podobna domena, sztuczka z @, IP, punycode, groźny załącznik, przemyt Unicode, ukryte polecenia, zmiana numeru konta, formularz) ocena jest ograniczona do „ok”; ryzyko dla AI jest osobną osią (`llm_risk`: niskie/średnie/wysokie), więc artykuł o AI nie jest „phishingiem”, ale model dostaje ostrzeżenie; domeny śledzące dostawców mailingu nie są „niezgodnym linkiem”; ponawianie przy 403/429/5xx, 4 równoległe pobrania, błąd jednego maila nie przerywa przebiegu, `--exit-zero` dla cronów. 90 testów.
+
+**Przebieg 2:** 0 fałszywych alarmów w skrzynkach odbiorczych, ale 0 z 9 phishingów i oszustw ze SPAM-u oznaczonych jako groźne (nadawcy bez DMARC na jednorazowych domenach). Poprawka: sygnały `no_dmarc`, `no_dkim`, `disposable_domain` (losowe etykiety, tanie TLD), przynęty (nagroda, blokada konta, dopłata) z linkiem od nieuwierzytelnionego nadawcy, etykieta SPAM z Gmaila jako sygnał.
+
+**Przebieg 3 (commit 301fcb9):** ok. 800 prawdziwych maili z 4 kont (600 z odebranych, reszta ze SPAM-u). Odebrane: 0 „podejrzany” ani „niebezpieczny”. SPAM: 9 z 9 znanych phishingów i oszustw jako „niebezpieczny”. 0 błędów pobierania, ok. 1,4 min na 150 maili. Resztki szumu (newsletter z DMARC trafiający do SPAM-u, domeny typu thangs.com uznane za jednorazowe) usunięte w 301fcb9: dla nadawcy z DMARC pass `disposable_domain` waży 0, a etykieta SPAM 15 zamiast 30. 104 testy, 34 maile w korpusie ataków.
+
+**Uwaga o tokenach:** tokeny w `~/.hermes/google-accounts/*/google_token.json` mają zakresy `gmail.modify`, `gmail.send`, `drive` i inne. `mailguard` robi tylko GET, ale automatyczny czytelnik (K145) powinien mieć osobny token tylko `gmail.readonly` albo działać w procesie bez dostępu do tych plików (decyzja 7).
 
 ## 3. Opcje (darmowe / open source najpierw)
 
@@ -181,6 +189,7 @@ Stan zmierzony na żywo 06.11 ok. 14:40 UTC przez sesję na PC Filipa (tylko odc
 4. **Klasyfikator Prompt Guard 2 (ONNX, nie Ollama, nie model czatu).** Rekomendacja: **dopiero gdy heurystyki przepuszczą atak z zestawu** (faza 2b).
 5. **Interaktywna przeglądarka (neko) i Lookyloo** po rozbudowie RAM lab-w01 (K19). Rekomendacja: tak, razem z K19.
 6. **Szybkie kroki Filipa z §3.5** (Rozszerzone Bezpieczne przeglądanie, passkeys, Prywatny DNS na telefonie). Rekomendacja: zrobić teraz, ok. 10 min.
+7. **Osobny token tylko do odczytu (`gmail.readonly`) dla automatycznego czytania poczty** (potrzebna jednorazowa zgoda OAuth na każdym z 4 kont). Rekomendacja: **tak**, przed fazą 3 planu K145; wtedy nawet przejęty czytelnik nie wyśle ani nie usunie maila.
 
 ## 9. Źródła
 
