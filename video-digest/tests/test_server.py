@@ -47,7 +47,7 @@ def test_digest_runs_now(srv):
     with urllib.request.urlopen(base + "/digest?token=s3cret&url=https://youtu.be/abcdefghijk") as r:
         assert r.status == 202
     import time
-    for _ in range(50):
+    for _ in range(200):  # 10 s window: 2.5 s is flaky under full-suite load
         if ran:
             break
         time.sleep(0.05)

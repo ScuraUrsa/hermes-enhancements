@@ -84,3 +84,45 @@ def test_talking_heads_go_to_haiku(cfg):
     assert r["report"] == "claude-code:sonnet"
     r, _ = topics.apply(base, cfg, AI, "", "manual", "podcast_talk")
     assert r["report"] == "claude-code:sonnet"
+
+
+def test_call_maps_http_errors(monkeypatch):
+    """youtube._call is the only place that talks to the API: pin its error mapping."""
+    import requests
+
+    class Resp:
+        def __init__(self, status=200, text="", payload=None):
+            self.status_code = status
+            self.text = text
+            self._payload = payload or {}
+
+        def json(self):
+            return self._payload
+
+    seen = {}
+
+    def fake_request(method, url, headers=None, timeout=None, **kw):
+        seen.update({"method": method, "url": url, "auth": headers["Authorization"], "timeout": timeout})
+        return fake_request.response
+
+    monkeypatch.setattr(requests, "request", fake_request)
+
+    fake_request.response = Resp(payload={"items": [{"id": "PL1"}]})
+    assert youtube._call("GET", "playlists", "tok", params={"mine": "true"}) == {"items": [{"id": "PL1"}]}
+    assert seen == {"method": "GET", "url": youtube.YT + "/playlists", "auth": "Bearer tok", "timeout": 30}
+
+    fake_request.response = Resp(status=403, text="Request had insufficient authentication scopes")
+    try:
+        youtube._call("POST", "playlistItems", "tok")
+    except PermissionError as exc:
+        assert "read-only" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("403 with insufficient scope must raise PermissionError")
+
+    fake_request.response = Resp(status=400, text='{"error": "bad part"}')
+    try:
+        youtube._call("POST", "playlistItems", "tok")
+    except RuntimeError as exc:
+        assert "YouTube playlistItems -> 400" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("4xx must raise RuntimeError")
