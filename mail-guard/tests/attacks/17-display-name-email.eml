@@ -1,0 +1,11 @@
+Authentication-Results: mx.google.com; spf=neutral
+ smtp.mailfrom=b@pko-zwrot.example; dmarc=none header.from=pko-zwrot.example
+From: "powiadomienia@pkobp.pl" <bok@pko-zwrot.example>
+To: f.j.kazmierczak@gmail.com
+Subject: Zwrot =?utf-8?b?xZtyb2Rrw7N3?=
+Message-ID: <17-display-name-email@attacks.mailguard.invalid>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+
+Odbierz zwrot.

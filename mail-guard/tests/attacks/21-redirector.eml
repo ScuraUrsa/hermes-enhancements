@@ -1,0 +1,24 @@
+Authentication-Results: mx.google.com; spf=neutral
+ smtp.mailfrom=b@notify.example; dmarc=none header.from=notify.example
+From: Google <g@notify.example>
+To: f.j.kazmierczak@gmail.com
+Subject: =?utf-8?q?Udost=C4=99pniono?= plik
+Message-ID: <21-redirector@attacks.mailguard.invalid>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============7727899912247123425=="
+
+--===============7727899912247123425==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Plik
+
+--===============7727899912247123425==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<a href='https://www.google.com/url?q=https://paypa1.com/signin'>Otwórz</a>
+
+--===============7727899912247123425==--

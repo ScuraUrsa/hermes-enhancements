@@ -16,6 +16,10 @@ from email.utils import getaddresses, parseaddr
 from .domains import find_lookalike, protected_domains, registrable, to_unicode
 
 TRUSTED_AUTHSERV = ("mx.google.com",)
+# Free mailbox providers: a company mail that wants replies to one of these is classic invoice fraud (BEC).
+FREEMAIL = {"gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "yahoo.com", "icloud.com",
+            "proton.me", "protonmail.com", "wp.pl", "o2.pl", "onet.pl", "op.pl", "interia.pl", "interia.eu",
+            "gazeta.pl", "tlen.pl", "poczta.fm", "vp.pl", "gmx.com", "gmx.net", "mail.ru", "yandex.ru", "aol.com", "zoho.com"}
 # Brand names that are also everyday words; not used for the display-name check.
 _COMMON_WORDS = {"orange", "office", "outlook"}
 
@@ -140,7 +144,8 @@ def sender_signals(msg: Message, protected: tuple[str, ...] | None = None) -> tu
 
     for rt in snd.reply_to:
         if registrable(_domain_of(rt)) != registrable(snd.domain):
-            sig.append((15, "reply_to_mismatch",
+            free = registrable(_domain_of(rt)) in FREEMAIL and registrable(snd.domain) not in FREEMAIL
+            sig.append((30 if free else 15, "reply_to_mismatch",
                         f"Odpowiedź pójdzie na inny adres ({rt}) niż nadawca ({snd.address})."))
             break
     if snd.domain and not snd.display_name and not snd.address:

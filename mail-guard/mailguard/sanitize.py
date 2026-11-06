@@ -199,6 +199,12 @@ _INJECTION_PATTERNS = [
      r"skrypt\w*|polecen\w*)\b", "tool-use"),
     (r"\b(call|use|invoke|wywo[lł]aj|u[zż]yj)\b.{0,20}\b(tool|function|narz[eę]dzi\w*|funkcj\w*)\b", "tool-use"),
     (r"!\[[^\]]*\]\(https?://[^)]*\?[^)]*=", "markdown-image-exfil"),
+    (r"\b(send|forward|e-?mail|wy[sś]lij|prze[sś]lij|przeka[zż])\b.{0,40}\b(all|every|wszystkie|ka[zż]d\w*|ostatni\w*|"
+     r"last)\b.{0,40}\b(e-?mails?|mails?|maile|wiadomo[sś]ci|faktur\w*|invoices?|files|pliki|contacts|kontakt\w*|"
+     r"dokument\w*)\b", "bulk-exfiltration"),
+    (r"\b(new|updated|real|actual)\s+instructions?\b|\b(nowe|prawdziwe|aktualne)\s+(instrukcj\w*|polecen\w*)|"
+     r"\bpolecenie od (filipa|u[zż]ytkownika|w[lł]a[sś]ciciela|administratora)|\b(message|instruction) from (the )?"
+     r"(user|owner|admin)", "fake-authority"),
 ]
 _INJECTION_RES = [(re.compile(p, re.I | re.S), code) for p, code in _INJECTION_PATTERNS]
 

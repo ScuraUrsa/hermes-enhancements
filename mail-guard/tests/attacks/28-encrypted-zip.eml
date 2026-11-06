@@ -1,0 +1,26 @@
+Authentication-Results: mx.google.com; spf=neutral
+ smtp.mailfrom=b@ship.example; dmarc=none header.from=ship.example
+From: Kurier <k@ship.example>
+To: f.j.kazmierczak@gmail.com
+Subject: Dokumenty
+Message-ID: <28-encrypted-zip@attacks.mailguard.invalid>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============3463280594734335707=="
+
+--===============3463280594734335707==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Hasło do archiwum: 1234
+
+--===============3463280594734335707==
+Content-Type: application/zip
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="dokumenty.zip"
+MIME-Version: 1.0
+
+UEsDBBQAAQAAAM92Zl1dm7CPAgAAAAIAAAAMAAAAZG9rdW1lbnQuZXhlTVpQSwECFAMUAAEAAADP
+dmZdXZuwjwIAAAACAAAADAAAAAAAAAAAAAAAgAEAAAAAZG9rdW1lbnQuZXhlUEsFBgAAAAABAAEA
+OgAAACwAAAAAAA==
+
+--===============3463280594734335707==--

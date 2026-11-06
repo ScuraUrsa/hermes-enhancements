@@ -1,0 +1,31 @@
+Authentication-Results: mx.google.com; spf=neutral
+ smtp.mailfrom=b@jobs.example; dmarc=none header.from=jobs.example
+From: HR <hr@jobs.example>
+To: f.j.kazmierczak@gmail.com
+Subject: Umowa
+Message-ID: <26-macro-doc@attacks.mailguard.invalid>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============0848665035443228318=="
+
+--===============0848665035443228318==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Umowa do podpisu.
+
+--===============0848665035443228318==
+Content-Type: application/vnd.ms-word.document.macroEnabled.12
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="umowa.docm"
+MIME-Version: 1.0
+
+UEsDBBQAAAAAAM92Zl0rhCYSBAAAAAQAAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbDx4Lz5QSwME
+FAAAAAAAz3ZmXSuEJhIEAAAABAAAABEAAAB3b3JkL2RvY3VtZW50LnhtbDx4Lz5QSwMEFAAAAAAA
+z3ZmXVJ9/y8gAAAAIAAAABMAAAB3b3JkL3ZiYVByb2plY3QuYmluQXR0cmlidXRlIFZCX05hbWUg
+QXV0b09wZW4gU2hlbGxQSwECFAMUAAAAAADPdmZdK4QmEgQAAAAEAAAAEwAAAAAAAAAAAAAAgAEA
+AAAAW0NvbnRlbnRfVHlwZXNdLnhtbFBLAQIUAxQAAAAAAM92Zl0rhCYSBAAAAAQAAAARAAAAAAAA
+AAAAAACAATUAAAB3b3JkL2RvY3VtZW50LnhtbFBLAQIUAxQAAAAAAM92Zl1Sff8vIAAAACAAAAAT
+AAAAAAAAAAAAAACAAWgAAAB3b3JkL3ZiYVByb2plY3QuYmluUEsFBgAAAAADAAMAwQAAALkAAAAA
+AA==
+
+--===============0848665035443228318==--

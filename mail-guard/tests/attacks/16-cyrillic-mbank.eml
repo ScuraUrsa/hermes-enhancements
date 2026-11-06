@@ -1,0 +1,24 @@
+Authentication-Results: mx.google.com; spf=neutral =?utf-8?q?smtp=2Emailfrom?=
+ =?utf-8?b?PWJAbWLQsG5rLnBsOyBkbWFyYz1ub25lIGhlYWRlci5mcm9tPW1i0LBuay5wbA==?=
+From: mBank <alert@=?utf-8?q?mb=D0=B0nk?=.pl>
+To: f.j.kazmierczak@gmail.com
+Subject: Nietypowe logowanie
+Message-ID: <16-cyrillic-mbank@attacks.mailguard.invalid>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============8229650816306032468=="
+
+--===============8229650816306032468==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Potwierdź tożsamość
+
+--===============8229650816306032468==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<a href='https://mbаnk.pl/x'>https://www.mbank.pl</a>
+
+--===============8229650816306032468==--

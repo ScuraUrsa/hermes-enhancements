@@ -1,0 +1,25 @@
+Authentication-Results: mx.google.com; spf=neutral
+ smtp.mailfrom=b@law.example; dmarc=none header.from=law.example
+From: Kancelaria <k@law.example>
+To: f.j.kazmierczak@gmail.com
+Subject: Wezwanie
+Message-ID: <27-pdf-js@attacks.mailguard.invalid>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============6873347291981305610=="
+
+--===============6873347291981305610==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Wezwanie w PDF.
+
+--===============6873347291981305610==
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="wezwanie.pdf"
+MIME-Version: 1.0
+
+JVBERi0xLjcKMSAwIG9iaiA8PCAvT3BlbkFjdGlvbiAyIDAgUiAvSmF2YVNjcmlwdCAodGhpcy5l
+eHBvcnREYXRhT2JqZWN0KCkpID4+CmVuZG9iag==
+
+--===============6873347291981305610==--

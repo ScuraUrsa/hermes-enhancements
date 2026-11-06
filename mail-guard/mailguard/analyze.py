@@ -134,9 +134,13 @@ def analyse(raw: bytes, protected: tuple[str, ...] | None = None) -> Report:
                                             "niewidoczny dla człowieka, czytelny dla AI."))
     elif body.invisible_chars > 20:
         reasons.append((10, "invisible_chars", f"Dużo niewidocznych znaków ({body.invisible_chars})."))
-    if hidden_total > 200:
+    hidden_inj = injection_signals(" ".join(body.hidden_samples)) if body.hidden_samples else []
+    if hidden_total > 200 or hidden_inj:
         reasons.append((15, "hidden_text", f"Ukryty tekst w HTML ({hidden_total} znaków), usunięty przed "
                                            "pokazaniem AI."))
+    if _PAYMENT_CHANGE.search(body.text) or _PAYMENT_CHANGE.search(subject_line(msg)):
+        reasons.append((25, "payment_change", "Mail mówi o zmianie numeru konta / danych do przelewu: zawsze "
+                                              "potwierdź telefonicznie pod znanym numerem."))
     if body.forms:
         reasons.append((25, "html_form", "Mail zawiera formularz HTML (wpisywanie danych w treści maila)."))
 
@@ -169,6 +173,16 @@ def analyse(raw: bytes, protected: tuple[str, ...] | None = None) -> Report:
         injection=[{"code": c, "snippet": s} for c, s in inj], remote_images=len(body.remote_images),
         tracking_pixels=body.tracking_pixels,
     )
+
+
+_PAYMENT_CHANGE = re.compile(
+    r"(?i)\b(now\w+|zmian\w*|zmieni\w*|aktualn\w*)\s+(\w+\s+){0,2}(numer\w*|dan\w*)\s+(\w+\s+){0,1}(kont\w*|"
+    r"rachunk\w*|do przelewu|bankow\w*)|\bprzelew\w* na now\w+ (kont\w*|rachun\w*)|\bnew (bank )?account "
+    r"(number|details)|\b(updated|changed) (payment|bank|banking) (details|information|account)")
+
+
+def subject_line(msg) -> str:
+    return " ".join(str(msg.get("Subject", "")).split())
 
 
 def _content_all(msg: EmailMessage) -> str:
