@@ -87,3 +87,18 @@ Course jargon was the weak spot ("SaaS" -> "sas"/"sasa" about a third of the tim
 - `asr_check.py --course X` transcribes the first minutes of 3 lessons with turbo and with
   large-v3 (3-4x slower) and measures how much they disagree; above 10 % use large-v3 for
   that course.
+
+## One command for any YouTube video, playlist or channel (2026-11-07)
+
+`digest.py URL [URL ...] [--model claude-code:sonnet|haiku] [--max 50] [--notify]` runs the same path as the
+courses: yt-dlp on the PC (480p, ffmpeg + deno from WinGet; the VM is blocked by YouTube) -> text.md with
+description and chapters -> transcript from YouTube's human subtitles, else faster-whisper on the GPU with
+`D:\courses\youtube\asr\default.json` -> sync to dev -> `sitedigest pool` -> Notion "Kursy: lekcje"
+(Strona = youtube) + an overview for playlists/channels. It waits for the dev VM when prod_guard has paused it.
+
+Hermes: skill `media/video-digest` (`hermes/video-digest/SKILL.md`) -> `~/.hermes/scripts/digest_request.py`
+(`hermes/digest_request.py`) writes `~/.hermes/digest-queue/new/<job>.json` on prod -> Windows task
+"Hermes digest queue" (every 10 min, `digest_queue.cmd`) -> `digest_queue.py` -> `digest.py --notify` ->
+done/<job>.json + a phone/Matrix push with the Notion link. The runner also checks once a day that the
+Claude CLI on dev is logged in and pushes Filip the login command if not. Claude Code skill:
+`claude-skill-video-digest.md` (installed as `D:\hermes\.claude\skills\video-digest\SKILL.md`).
