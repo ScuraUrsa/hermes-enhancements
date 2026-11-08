@@ -51,10 +51,12 @@ def main() -> int:
     cfg = config.load()
     m = crawl.load_map(cfg, a.site)
     done = [p for p in m["pages"] if (p.get("digest") or {}).get("status") in ("done", "partial")]
-    by_course: dict[str, list[dict]] = {}
+    by_course: dict[str, list[dict]] = {}  # lessons to push (after --only-v2/--only-new)
+    all_by_course: dict[str, dict[str, dict]] = {}  # every digested lesson, for the overviews
     for p in done:
         if a.course_url_part and not any(c in p.get("course_url", "") for c in a.course_url_part):
             continue
+        all_by_course.setdefault(p.get("course_url", ""), {})[p["key"]] = p
         if a.only_v2 and not (crawl.page_dir(cfg, a.site, p["key"]) / "report.v2.done").is_file():
             continue
         if a.only_new and p["digest"].get("notion_url") and (not a.only_v2 or p["digest"].get("notion_url_v1")):
@@ -84,13 +86,20 @@ def main() -> int:
                     if p["key"] in urls:
                         p["digest"]["notion_url"] = urls[p["key"]]
                 crawl.save_map(cfg, a.site, m2)
-        if not a.lessons_only:
+    # overviews: always from ALL digested lessons of the course (2026-10-22: the ODDF 3.0 v2 overview was built
+    # from the one lesson pushed in that run), and linking the course page, not the library
+    for curl, allp in ({} if a.lessons_only else all_by_course).items():
+        pages = list(allp.values())
+        title = pages[0].get("course") or curl
+        print(f"== overview {title}: {len(pages)} lessons", flush=True)
+        if True:
             slug = curl.rstrip("/").rsplit("/", 1)[-1]
             out = crawl.map_path(cfg, a.site).parent / f"course-{slug}.json"
             # sitedigest's overview reads the whole site map: hand it only this course's lessons
             real_load, real_client = crawl.load_map, notion_out._client
             keys = {p["key"] for p in pages}
-            crawl.load_map = lambda c, s: {**real_load(c, s), "pages": [p for p in real_load(c, s)["pages"] if p["key"] in keys]}
+            crawl.load_map = lambda c, s, _u=curl: {**real_load(c, s), "start_url": _u,
+                                                    "pages": [p for p in real_load(c, s)["pages"] if p["key"] in keys]}
 
             def per_course_client(c, _real=real_client, _slug=slug):  # one overview row per course, not per site
                 nt = _real(c)

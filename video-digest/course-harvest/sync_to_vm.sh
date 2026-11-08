@@ -38,6 +38,18 @@ sort -u .vm_files.txt -o .vm_files.txt
 comm -23 .pc_files.txt .vm_files.txt > .new_files.txt
 # a re-transcribed VTT keeps its name; its new marker (video.pl.vtt.asr2) brings it along
 grep '\.vtt\.asr[0-9]*$' .new_files.txt | sed 's/\.asr[0-9]*$//' >> .new_files.txt || true
+# files left empty on the VM (tar on a full disk, 2026-10-20: 44 transcripts) but not on the PC: send again
+$SSH "cd $DEST && find pages -type f -size 0" | sort > .vm_empty.txt
+comm -12 .pc_files.txt .vm_empty.txt | while read -r f; do [ -s "$f" ] && echo "$f"; done >> .new_files.txt
+# disk guard (2026-10-20, dev filled up to 100%): below MIN_FREE_GB on the VM send no videos, only text and
+# transcripts; the pool digests and prunes what is there and the videos follow once space is back
+MIN_FREE_GB="${MIN_FREE_GB:-15}"
+free_gb=$($SSH "df -BG --output=avail / | tail -1 | tr -dc 0-9")
+if [ "${free_gb:-0}" -lt "$MIN_FREE_GB" ]; then
+  grep -vE '/video\.(mp4|mkv|webm|ts|m4a)$' .new_files.txt > .new_files.tmp || true
+  mv .new_files.tmp .new_files.txt
+  echo "VM free ${free_gb} GB < ${MIN_FREE_GB} GB: videos held back"
+fi
 echo "lessons on PC: $(wc -l < .keys.txt), files to copy: $(wc -l < .new_files.txt)"
 if [ -s .new_files.txt ]; then
   tar cf - -T .new_files.txt | $SSH "cd $DEST && tar xf -"
