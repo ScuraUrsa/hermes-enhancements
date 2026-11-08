@@ -143,7 +143,7 @@ def filip_task(ev: dict) -> str:
     tmp = OUT / "task_steps.md"
     tmp.write_text(steps, encoding="utf-8")
     subprocess.run(["scp", "-q", "-i", KEY, str(tmp), f"{PROD}:/tmp/cohort_steps.md"], check=True, timeout=120)
-    cmd = ("~/.hermes/hermes-agent/venv/bin/python ~/.hermes/scripts/filip_task.py add "
+    cmd = ("~/.local/bin/hermes-python ~/.hermes/scripts/filip_task.py add "
            f"--title {shlex.quote('Warsztat LIVE (kohorta AI SaaS): ' + ev['title'])} --body-file /tmp/cohort_steps.md "
            f"--due {ev['date']} --min {minutes} --thread {shlex.quote(THREAD)} "
            f"--why {shlex.quote('Live workshop of the ODDF: AI SaaS cohort')} "

@@ -37,6 +37,9 @@ def ssh(host: str, cmd: str, timeout: int = 120, stdin: str | None = None) -> su
                           text=True, encoding="utf-8", errors="replace", timeout=timeout)
 
 
+PUSH = ("cd ~/.hermes/scripts/timeplane && ~/.local/bin/hermes-python -c \"import sys, json; sys.path.insert(0, '.'); import tp_push; d = json.loads(sys.stdin.buffer.read().decode('utf-8')); print(tp_push.send(d['title'], d['message'], tag=d['tag'], min_gap=d['min_gap'], url=d.get('url')))\"")
+
+
 def health(state: dict) -> None:
     today = time.strftime("%Y-%m-%d")
     if state.get("health_day") == today:
@@ -52,9 +55,8 @@ def health(state: dict) -> None:
     log(f"dev claude check: {out[:100]}")
     if "ok" not in out.lower():
         msg = f"Claude Code na dev VM nie działa ({out[:80]}). Zaloguj: {LOGIN_CMD}"
-        py = ("import sys; sys.path.insert(0, '/home/ubuntu/.hermes/scripts/timeplane'); import tp_push; "
-              f"tp_push.send('⚠️ Claude na dev wylogowany', {msg!r}, tag='dev-claude', min_gap=720)")
-        ssh(PROD, f"cd ~/.hermes/scripts/timeplane && ~/.hermes/hermes-agent/venv/bin/python -c {json.dumps(py)}")
+        data = json.dumps({"title": "⚠️ Claude na dev wylogowany", "message": msg, "tag": "dev-claude", "min_gap": 720})
+        ssh(PROD, PUSH, stdin=data)
 
 
 def main() -> int:

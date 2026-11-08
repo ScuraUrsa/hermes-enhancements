@@ -60,9 +60,9 @@ def key_for(url: str) -> str:
     return hashlib.sha1(url.encode()).hexdigest()[:12]
 
 
-def ssh(host: str, cmd: str, timeout: int = 600, stdin=None) -> subprocess.CompletedProcess:
+def ssh(host: str, cmd: str, timeout: int = 600, stdin: str | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(["ssh", "-o", "ConnectTimeout=10", "-i", KEY, host, cmd], capture_output=True, text=True,
-                          encoding="utf-8", errors="replace", timeout=timeout, stdin=stdin)
+                          encoding="utf-8", errors="replace", timeout=timeout, input=stdin)
 
 
 def dev_up() -> bool:
@@ -182,10 +182,12 @@ def push_notion(courses: set[str], overview: bool) -> None:
         log("notion: " + line[:160])
 
 
+PUSH = ("cd ~/.hermes/scripts/timeplane && ~/.local/bin/hermes-python -c \"import sys, json; sys.path.insert(0, '.'); import tp_push; d = json.loads(sys.stdin.buffer.read().decode('utf-8')); print(tp_push.send(d['title'], d['message'], tag=d['tag'], min_gap=d['min_gap'], url=d.get('url')))\"")
+
+
 def notify(title: str, message: str, url: str | None) -> None:
-    py = ("import sys; sys.path.insert(0, '/home/ubuntu/.hermes/scripts/timeplane'); import tp_push; "
-          f"print(tp_push.send({title!r}, {message!r}, tag='digest', min_gap=0, url={url!r}))")
-    r = ssh(PROD, f"cd ~/.hermes/scripts/timeplane && ~/.hermes/hermes-agent/venv/bin/python -c {json.dumps(py)}")
+    data = json.dumps({"title": title, "message": message, "tag": "digest", "min_gap": 0, "url": url}, ensure_ascii=True)
+    r = ssh(PROD, PUSH, stdin=data)
     log(f"notify: {(r.stdout + r.stderr).strip()[-120:]}")
 
 
