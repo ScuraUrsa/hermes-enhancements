@@ -46,6 +46,25 @@ jobs:
           python3 /tmp/patch.py
           git diff
 
+      # The terminal tool sandboxes commands with bwrap. eval-cli doesn't handle the
+      # --zed-linux-sandbox-launcher argument the sandbox re-executes it with, and without bwrap
+      # the tool waits for a user to approve running unsandboxed, so every terminal call hangs
+      # until the run's timeout. The VMs are the isolation here: turn the sandbox off.
+      - name: Patch eval-cli to run terminal commands unsandboxed
+        working-directory: zed
+        run: |
+          cat > /tmp/patch2.py <<'PY'
+          p = "crates/eval_cli/src/main.rs"
+          s = open(p).read()
+          a = '"tool_permissions": {{"default": "allow"}},\n'
+          assert s.count(a) == 1, "patch target not found"
+          indent = s.split(a)[0].rsplit("\n", 1)[1]
+          s = s.replace(a, a + indent + '"sandbox_permissions": {{"allow_unsandboxed": true}},\n')
+          open(p, "w").write(s)
+          PY
+          python3 /tmp/patch2.py
+          git diff
+
       - name: Install the toolchain
         working-directory: zed
         run: |
@@ -71,11 +90,11 @@ jobs:
           ./out/eval-cli --help | head -40
           xz -9 -k out/eval-cli
           (cd out && sha256sum eval-cli eval-cli.xz | tee SHA256SUMS)
-          echo "zed $ZED_COMMIT + settings-quote patch, target $TARGET, run $GITHUB_RUN_ID" > out/BUILD_INFO
+          echo "zed $ZED_COMMIT + settings-quote and unsandboxed-terminal patches, target $TARGET, run $GITHUB_RUN_ID" > out/BUILD_INFO
 
       - uses: actions/upload-artifact@v4
         with:
-          name: eval-cli-${{ env.ZED_COMMIT }}-p1
+          name: eval-cli-${{ env.ZED_COMMIT }}-p2
           path: |
             out/eval-cli.xz
             out/SHA256SUMS
