@@ -4,10 +4,15 @@ name: zed-eval-cli
 
 on:
   push:
-    branches: [tools/zed-eval-cli-build]
+    branches: [tools/zed-eval-cli-build, tools/zed-eval-cli-build-p2]
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 env:
   ZED_COMMIT: f16f9652ec57bf806e65b2a0d51bb92a63644914
+  PATCH_LEVEL: p2
   TARGET: x86_64-unknown-linux-musl
 
 jobs:
@@ -28,41 +33,15 @@ jobs:
           git checkout -q FETCH_HEAD
           git log -1 --format='%H %cs %s'
 
-      # Upstream bug (still on main 2026-10-10): eval-cli's agent settings template ends with `}}"`
-      # inside the raw string, so every run fails with "Failed to migrate settings: trailing
-      # characters at line 14 column 18". Drop the stray quote.
-      - name: Patch eval-cli's settings JSON
+      # Hermes patches (p1 settings quote, p2 terminal sandbox launcher + unsandboxed default);
+      # see .github/zed-eval-cli/patch.py for the why.
+      - uses: actions/checkout@v4
+        with:
+          path: hermes
+      - name: Patch eval-cli
         working-directory: zed
         run: |
-          cat > /tmp/patch.py <<'PY'
-          import re
-          p = "crates/eval_cli/src/main.rs"
-          s = open(p).read()
-          pattern = re.compile(r'("format_on_save": "off"\n[ ]*[}][}])"(\n[ ]*"#)')
-          new, n = pattern.subn(lambda m: m.group(1) + m.group(2), s)
-          assert n == 1, "patch target not found: %d" % n
-          open(p, "w").write(new)
-          PY
-          python3 /tmp/patch.py
-          git diff
-
-      # The terminal tool sandboxes commands with bwrap. eval-cli doesn't handle the
-      # --zed-linux-sandbox-launcher argument the sandbox re-executes it with, and without bwrap
-      # the tool waits for a user to approve running unsandboxed, so every terminal call hangs
-      # until the run's timeout. The VMs are the isolation here: turn the sandbox off.
-      - name: Patch eval-cli to run terminal commands unsandboxed
-        working-directory: zed
-        run: |
-          cat > /tmp/patch2.py <<'PY'
-          p = "crates/eval_cli/src/main.rs"
-          s = open(p).read()
-          a = '"tool_permissions": {{"default": "allow"}},\n'
-          assert s.count(a) == 1, "patch target not found"
-          indent = s.split(a)[0].rsplit("\n", 1)[1]
-          s = s.replace(a, a + indent + '"sandbox_permissions": {{"allow_unsandboxed": true}},\n')
-          open(p, "w").write(s)
-          PY
-          python3 /tmp/patch2.py
+          python3 ../hermes/.github/zed-eval-cli/patch.py
           git diff
 
       - name: Install the toolchain
@@ -88,15 +67,38 @@ jobs:
           strip out/eval-cli || true
           file out/eval-cli
           ./out/eval-cli --help | head -40
+          # p2: the sandbox launcher re-exec must reach Zed's launcher, not clap
+          set +e; ./out/eval-cli --zed-linux-sandbox-launcher > /tmp/launcher.txt 2>&1; rc=$?; set -e
+          cat /tmp/launcher.txt
+          if grep -q "unexpected argument" /tmp/launcher.txt; then echo "launcher hook missing"; exit 1; fi
           xz -9 -k out/eval-cli
           (cd out && sha256sum eval-cli eval-cli.xz | tee SHA256SUMS)
-          echo "zed $ZED_COMMIT + settings-quote and unsandboxed-terminal patches, target $TARGET, run $GITHUB_RUN_ID" > out/BUILD_INFO
+          echo "zed $ZED_COMMIT + hermes patches $PATCH_LEVEL (settings quote, terminal sandbox launcher + unsandboxed default), target $TARGET, run $GITHUB_RUN_ID" > out/BUILD_INFO
 
       - uses: actions/upload-artifact@v4
         with:
-          name: eval-cli-${{ env.ZED_COMMIT }}-p2
+          name: eval-cli-${{ env.ZED_COMMIT }}-${{ env.PATCH_LEVEL }}
           path: |
             out/eval-cli.xz
             out/SHA256SUMS
             out/BUILD_INFO
           retention-days: 90
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="zed-eval-cli-${ZED_COMMIT:0:7}-$PATCH_LEVEL"
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release $tag exists; bump PATCH_LEVEL to publish a new one"; exit 0
+          fi
+          cat > notes.md <<EOF
+          Zed's headless agent runner (crates/eval_cli) built from zed-industries/zed commit $ZED_COMMIT (GPL-3.0) by workflow run $GITHUB_RUN_ID on branch $GITHUB_REF_NAME, static $TARGET, with the Hermes patches in .github/zed-eval-cli/patch.py:
+          - p1: stray quote at the end of eval-cli's agent settings template removed (every run failed with 'Failed to migrate settings: trailing characters').
+          - p2: terminal tool fixed. Zed sandboxes terminal commands with bwrap by re-executing the current binary with --zed-linux-sandbox-launcher; eval-cli's main() did not handle that flag, so every command failed (exit 2) and the follow-up unsandboxed/fallback permission prompt blocked the headless run until timeout. eval-cli now calls sandbox::run_sandbox_launcher_if_invoked() and runs terminal commands unsandboxed by default (ZED_EVAL_SANDBOX=1 keeps the bwrap sandbox).
+
+          sha256 eval-cli     $(awk '$2=="eval-cli"{print $1}' out/SHA256SUMS)
+          sha256 eval-cli.xz  $(awk '$2=="eval-cli.xz"{print $1}' out/SHA256SUMS)
+          EOF
+          sed -i 's/^          //' notes.md
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"             --title "Zed eval-cli ${ZED_COMMIT:0:7} + settings and terminal fixes (static x86_64 musl)"             --notes-file notes.md out/eval-cli.xz out/SHA256SUMS out/BUILD_INFO
