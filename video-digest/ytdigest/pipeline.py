@@ -100,6 +100,8 @@ def process(url: str, cfg: dict, *, account: str | None = None, playlists: list[
     bundle["audio"]["speech_ratio"] = transcript.speech_ratio(tr["segments"], bundle["duration_sec"] or 0)
     head = transcript.plain_text(tr["segments"])[:3000]
     log(f"[{vid}] transcript source={tr['source']} segments={len(tr['segments'])}")
+    if (warn := transcript.degradation_warning(tr)):
+        log(f"[{vid}] {warn}")
 
     # 4. classify (cheap model) unless the rule was already sure
     if not cls:

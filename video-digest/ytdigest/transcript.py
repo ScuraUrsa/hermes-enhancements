@@ -173,6 +173,16 @@ def get(info: dict, cfg: dict, work: Path, cookies: str | None = None, audio_get
     return {"source": "none", "language": hint, "segments": [], "errors": errors}
 
 
+def degradation_warning(tr: dict) -> str | None:
+    """One loud line when every transcription step failed; None when a transcript
+    exists. Pipeline prefixes the video id and logs it — a lost transcript must
+    never be silent (the errors say which step killed it and why)."""
+    if tr.get("source") not in (None, "", "none"):
+        return None
+    reason = "; ".join(str(err) for err in tr.get("errors") or []) or "no step recorded a reason"
+    return f"WARNING: no transcript (source=none): {reason}"
+
+
 def speech_ratio(segments: list[dict], duration: float) -> float | None:
     if not duration:
         return None

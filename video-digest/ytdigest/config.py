@@ -140,6 +140,9 @@ def config_path() -> Path | None:
 
 
 def load(path: str | Path | None = None) -> dict:
+    # Whisper/Parakeet weights land in the HuggingFace cache — keep them outside
+    # ~/.hermes so the VM backup never carries GBs of model blobs.
+    os.environ.setdefault("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
     cfg = copy.deepcopy(DEFAULTS)
     p = Path(path) if path else config_path()
     if p:
