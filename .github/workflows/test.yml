@@ -73,7 +73,7 @@ jobs:
             install: pip install -e . pytest   # bench/pyproject.toml (pakiet hbench, PR #6)
             target: tests
           - project: skills/research-kit
-            install: pip install pytest
+            install: pip install pytest httpx   # testy/test_local_extract.py (PR #64) imports httpx
             target: testy
 
     steps:
