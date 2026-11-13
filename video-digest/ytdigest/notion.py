@@ -29,6 +29,14 @@ class NotionError(RuntimeError):
     pass
 
 
+def _status_label(status: str) -> str:
+    """Map a status key to its Notion option name; unknown keys raise NotionError."""
+    try:
+        return STATUS[status]
+    except KeyError:
+        raise NotionError(f"unknown status {status!r}; expected one of {', '.join(STATUS)}") from None
+
+
 class Notion:
     def __init__(self, data_source_id: str, token: str | None = None, session=None):
         import requests
@@ -47,6 +55,8 @@ class Notion:
         for attempt in range(5):
             r = self.http.request(method, url, headers=headers, json=json_body, timeout=60, **kw)
             if r.status_code == 429 or r.status_code >= 500:
+                if attempt == 4:  # last attempt: waiting again would only delay the error
+                    break
                 time.sleep(float(r.headers.get("Retry-After") or 2 * (attempt + 1)))
                 continue
             if r.status_code >= 400:
@@ -119,13 +129,13 @@ def properties(bundle: dict, report: dict, run: dict, status: str) -> dict:
         "Video ID": text(bundle["video_id"]),
         "Link": {"url": bundle["url"]},
         "Kanał": text(bundle.get("channel") or ""),
-        "Status": sel(STATUS[status]),
+        "Status": sel(_status_label(status)),
         "Typ wideo": sel(report.get("video_type")),
-        "Tagi": {"multi_select": [{"name": t[:100]} for t in report.get("tags", [])[:20]]},
+        "Tagi": {"multi_select": [{"name": t[:100]} for t in (report.get("tags") or [])[:20]]},
         "Jedno zdanie": text(report.get("one_line") or ""),
         "Język": sel(lang if lang in ("pl", "en") else ("inny" if lang else None)),
         "Czas trwania (min)": {"number": round((bundle.get("duration_sec") or 0) / 60, 1)},
-        "Playlista": {"multi_select": [{"name": p[:100].replace(",", " ")} for p in bundle.get("playlists", [])[:10]]},
+        "Playlista": {"multi_select": [{"name": p[:100].replace(",", " ")} for p in (bundle.get("playlists") or [])[:10]]},
         "Konto": sel(bundle.get("account") or "ręcznie"),
         "Źródło transkryptu": sel(SOURCE.get(bundle["transcript"]["source"], bundle["transcript"]["source"])),
         "Analiza obrazu": {"checkbox": bool(run.get("visual"))},
@@ -169,7 +179,7 @@ def mark(notion: Notion, vid: str, url: str, title: str, status: str, note: str 
         "Tytuł": {"title": [{"text": {"content": (title or vid)[:1900]}}]},
         "Video ID": {"rich_text": [{"text": {"content": vid}}]},
         "Link": {"url": url},
-        "Status": {"select": {"name": STATUS[status]}},
+        "Status": {"select": {"name": _status_label(status)}},
     }
     if note:
         props["Jedno zdanie"] = {"rich_text": [{"text": {"content": note[:1900]}}]}
