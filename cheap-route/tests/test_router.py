@@ -247,3 +247,57 @@ def test_dispatch_commands_and_media_are_left_to_the_gateway(tmp_path):
     ev = _event("Jaka jest stolica Peru?")
     ev.media_urls = ["/tmp/x.jpg"]
     assert plugin.on_dispatch(event=ev, gateway=gw) is None
+
+
+class V020Llm:
+    """Hermes v0.20 ``PluginLlm.complete``: no ``task`` keyword, it would run on the main model."""
+
+    def __init__(self):
+        self.calls = []
+
+    def complete(self, messages, *, provider=None, model=None, temperature=None, max_tokens=None,
+                 timeout=None, agent_id=None, profile=None, purpose=None):
+        self.calls.append(messages[-1]["content"])
+        raise AssertionError("main model must not be used")
+
+
+def _fake_aux_client(monkeypatch, answers):
+    calls = []
+
+    def call_llm(task=None, *, messages, **kw):
+        calls.append((task, kw))
+        answer = answers[task]
+        if isinstance(answer, Exception):
+            raise answer
+        message = types.SimpleNamespace(content=answer)
+        return types.SimpleNamespace(choices=[types.SimpleNamespace(message=message)])
+
+    agent_pkg = types.ModuleType("agent")
+    aux = types.ModuleType("agent.auxiliary_client")
+    aux.call_llm = call_llm
+    agent_pkg.auxiliary_client = aux
+    monkeypatch.setitem(sys.modules, "agent", agent_pkg)
+    monkeypatch.setitem(sys.modules, "agent.auxiliary_client", aux)
+    return calls
+
+
+def test_v020_llm_goes_through_auxiliary_tasks_not_the_main_model(tmp_path, monkeypatch):
+    calls = _fake_aux_client(monkeypatch, {plugin.ROUTER_TASK: FREE, plugin.FREE_TASK: "Lima."})
+    gw = FakeGateway(True)
+    ctx = _register({}, tmp_path)
+    ctx.llm = V020Llm()
+    ctx.settings["router_timeout"] = 8
+
+    async def go():
+        plugin.on_dispatch(event=_event("Jaka jest stolica Peru?"), gateway=gw)
+        for _ in range(20):
+            await asyncio.sleep(0)
+        pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        if pending:
+            await asyncio.gather(*pending)
+
+    asyncio.run(go())
+    assert [t for t, _ in calls] == [plugin.ROUTER_TASK, plugin.FREE_TASK]
+    assert calls[0][1]["timeout"] == 8.0 and calls[0][1]["temperature"] == 0.0
+    assert ctx.llm.calls == []
+    assert gw.adapter.sent and "Lima." in gw.adapter.sent[0][1]
