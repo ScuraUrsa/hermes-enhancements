@@ -158,6 +158,9 @@ def load(path: str | Path | None = None, overrides: dict | None = None) -> dict:
     """Defaults < file < overrides. `path` (explicit) beats the env lookup;
     without it the file is resolved at call time from $YTDIGEST_CONFIG,
     then $YTDIGEST_HOME/config.yaml, then ~/.hermes/ytdigest/config.yaml."""
+    # Whisper/Parakeet weights land in the HuggingFace cache: keep them outside
+    # ~/.hermes so the VM backup never carries GBs of model blobs.
+    os.environ.setdefault("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
     cfg = copy.deepcopy(DEFAULTS)
     p = Path(path) if path else config_path()
     if p:
