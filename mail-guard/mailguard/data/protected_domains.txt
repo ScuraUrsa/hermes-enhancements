@@ -1,0 +1,85 @@
+# Domains that phishing most often imitates for Filip (Poland). One registrable domain per line.
+# Extend per installation with --protected FILE or MAILGUARD_PROTECTED (also one per line).
+# Google / big tech
+google.com
+gmail.com
+youtube.com
+apple.com
+icloud.com
+microsoft.com
+outlook.com
+live.com
+office.com
+facebook.com
+instagram.com
+whatsapp.com
+meta.com
+amazon.com
+amazon.pl
+netflix.com
+spotify.com
+paypal.com
+revolut.com
+github.com
+notion.so
+bitwarden.com
+anthropic.com
+openai.com
+dropbox.com
+linkedin.com
+# Banks and finance (PL)
+pkobp.pl
+ipko.pl
+mbank.pl
+ing.pl
+santander.pl
+pekao.com.pl
+millennium.pl
+bankmillennium.pl
+aliorbank.pl
+credit-agricole.pl
+bnpparibas.pl
+citibank.pl
+velobank.pl
+nestbank.pl
+xtb.com
+blik.com
+zen.com
+wise.com
+# Shopping and delivery (PL)
+allegro.pl
+olx.pl
+inpost.pl
+poczta-polska.pl
+pocztapolska.pl
+dhl.com
+dhl.pl
+dpd.com.pl
+dpd.pl
+gls-poland.com
+ups.com
+fedex.com
+vinted.pl
+temu.com
+aliexpress.com
+ceneo.pl
+# Telecom, utilities, hosting (PL)
+orange.pl
+play.pl
+plus.pl
+t-mobile.pl
+netia.pl
+pge.pl
+tauron.pl
+energa.pl
+enea.pl
+pgnig.pl
+home.pl
+ovh.com
+ovhcloud.com
+# Government (PL)
+gov.pl
+podatki.gov.pl
+zus.pl
+mobywatel.gov.pl
+epuap.gov.pl

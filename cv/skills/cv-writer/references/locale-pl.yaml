@@ -1,0 +1,14 @@
+# Polish strings for RenderCV 2.8 (no built-in Polish locale). Paste as the top-level `locale:` block.
+# Tested 2026-10-29: dates render as "wrz 2018 – maj 2023", "cze 2023 – obecnie".
+locale:
+  language: english
+  last_updated: Ostatnia aktualizacja
+  month: miesiąc
+  months: miesiące
+  year: rok
+  years: lata
+  present: obecnie
+  phrases:
+    degree_with_area: DEGREE, AREA
+  month_abbreviations: [sty, lut, mar, kwi, maj, cze, lip, sie, wrz, paź, lis, gru]
+  month_names: [styczeń, luty, marzec, kwiecień, maj, czerwiec, lipiec, sierpień, wrzesień, październik, listopad, grudzień]

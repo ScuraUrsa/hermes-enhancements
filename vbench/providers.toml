@@ -1,0 +1,136 @@
+# Where models run, and what a token costs. Secrets are never stored here: api_key_env names the
+# environment variable to read (on Hermes these come from Bitwarden Secrets Manager).
+#
+# billing:
+#   subscription  flat fee, no per-token charge (Ollama Cloud, Claude subscription via Claude Code)
+#   api           pay per token
+#   local         your own hardware
+# Every run records BOTH the marginal cost (0 for subscription/local) and the API-equivalent cost
+# (list price for the same model on a pay-per-token API). Routing ranks by API-equivalent cost so a
+# cheap route stays cheap if a subscription is ever dropped, and because subscriptions are quota-
+# limited by compute, which tracks that price.
+
+[providers.ollama-cloud]          # what Hermes already runs on (deepseek-v4-pro)
+kind = "openai_compat"
+base_url = "https://ollama.com/v1"
+api_key_env = "OLLAMA_API_KEY"
+billing = "subscription"
+
+[providers.claude-code]           # Filip's Claude subscription, through `claude -p`
+kind = "claude_code"
+api_key_env = "CLAUDE_SETUP_TOKEN"  # `claude setup-token`; exported to the CLI as CLAUDE_CODE_OAUTH_TOKEN
+billing = "subscription"
+timeout_sec = 900
+
+[providers.ollama-local]          # optional: Ollama on the PC
+kind = "openai_compat"
+base_url = "http://192.168.56.1:11434/v1"
+billing = "local"
+
+[providers.gemini]                # optional: Gemini through its OpenAI-compatible endpoint
+kind = "openai_compat"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+api_key_env = "GEMINI_API_KEY"
+billing = "api"
+
+[providers.gemini-video]          # optional baseline: Gemini watches the YouTube URL itself
+kind = "gemini_video"
+api_key_env = "GEMINI_API_KEY"
+billing = "api"
+media_resolution = "MEDIA_RESOLUTION_LOW"   # ~100 tokens/s of video instead of ~300
+
+[providers.openrouter]
+kind = "openai_compat"
+base_url = "https://openrouter.ai/api/v1"
+api_key_env = "OPENROUTER_API_KEY"
+billing = "api"
+
+[providers.deepseek]
+kind = "openai_compat"
+base_url = "https://api.deepseek.com"
+api_key_env = "DEEPSEEK_API_KEY"
+billing = "api"
+
+[providers.groq]
+kind = "openai_compat"
+base_url = "https://api.groq.com/openai/v1"
+api_key_env = "GROQ_API_KEY"
+billing = "api"
+
+[providers.anthropic]             # optional: API key instead of the subscription
+kind = "anthropic"
+api_key_env = "ANTHROPIC_API_KEY"
+billing = "api"
+
+[providers.mock]
+kind = "mock"
+billing = "local"
+
+# --- API-equivalent prices, USD per million tokens -----------------------------------------------
+# Ollama Cloud models: cheapest reputable pay-per-token host of the same open weights, taken from
+# models.dev (hermes-infra/models_dev_cache.json, 2026-10), or Hermes' own budget.json where newer.
+# Ollama Cloud retires models without notice: `vbench check --matrix` and `vbench run` ask it which
+# models it still serves and skip the rest.
+# Claude: Anthropic list prices; Claude Code also reports its own API-equivalent cost, which wins.
+[prices]
+"ollama-cloud:gpt-oss:20b"             = { input = 0.03,  output = 0.14, basis = "deepinfra" }
+"ollama-cloud:gpt-oss:120b"            = { input = 0.05,  output = 0.24, basis = "deepinfra" }
+"ollama-cloud:nemotron-3-nano:30b"     = { input = 0.05,  output = 0.20, basis = "openrouter" }
+"ollama-cloud:nemotron-3-super"        = { input = 0.09,  output = 0.45, basis = "openrouter" }
+"ollama-cloud:deepseek-v4-flash"       = { input = 0.14,  output = 0.28, basis = "deepseek" }
+"ollama-cloud:deepseek-v4-pro"         = { input = 0.435, output = 0.87, basis = "deepseek" }
+"ollama-cloud:deepseek-v4.1-flash"     = { input = 0.30,  output = 1.20, basis = "Hermes budget.json (2026-10-05)" }
+"ollama-cloud:glm-5.3-flash"           = { input = 0.15,  output = 0.50, basis = "Hermes budget.json (2026-10-05)" }
+"ollama-cloud:qwen3-next:80b"          = { input = 0.09,  output = 1.10, basis = "openrouter" }
+"ollama-cloud:glm-4.7"                 = { input = 0.43,  output = 1.75, basis = "deepinfra" }
+"ollama-cloud:minimax-m2.7"            = { input = 0.28,  output = 1.20, basis = "openrouter" }
+"ollama-cloud:kimi-k2.6"               = { input = 0.684, output = 3.42, basis = "openrouter" }
+"ollama-cloud:gemma3:4b"               = { input = 0.04,  output = 0.08, basis = "openrouter" }
+"ollama-cloud:gemma3:12b"              = { input = 0.04,  output = 0.13, basis = "openrouter" }
+"ollama-cloud:gemma3:27b"              = { input = 0.08,  output = 0.16, basis = "openrouter" }
+"ollama-cloud:gemma4:31b"              = { input = 0.12,  output = 0.37, basis = "openrouter" }
+"ollama-cloud:ministral-3:8b"          = { input = 0.15,  output = 0.15, basis = "openrouter" }
+"ollama-cloud:ministral-3:14b"         = { input = 0.20,  output = 0.20, basis = "openrouter" }
+"ollama-cloud:qwen3-vl:235b-instruct"  = { input = 0.20,  output = 0.88, basis = "openrouter (retired on Ollama Cloud 2026-10, HTTP 410)" }
+"ollama-cloud:qwen3.5:397b"            = { input = 0.39,  output = 2.34, basis = "openrouter" }
+"ollama-cloud:minimax-m3"              = { input = 0.30,  output = 1.20, basis = "openrouter" }
+"ollama-cloud:gemini-3-flash-preview"  = { input = 0.50,  output = 3.00, basis = "google" }
+"claude-code:haiku"                    = { input = 0.10,  output = 0.50, basis = "anthropic (Haiku 5.5, <=100K prompt)" }
+"claude-code:sonnet"                   = { input = 2.00,  output = 10.0, basis = "anthropic (Sonnet 5.5)" }
+"claude-code:opus"                     = { input = 4.00,  output = 20.0, basis = "anthropic (Opus 5.5)" }
+"anthropic:claude-haiku-5-5"           = { input = 0.10,  output = 0.50, basis = "anthropic" }
+"anthropic:claude-sonnet-5-5"          = { input = 2.00,  output = 10.0, basis = "anthropic" }
+"anthropic:claude-opus-5-5"            = { input = 4.00,  output = 20.0, basis = "anthropic" }
+"gemini:gemini-2.5-flash-lite"         = { input = 0.10,  output = 0.40, basis = "google" }
+"gemini:gemini-3.1-flash-lite"         = { input = 0.25,  output = 1.50, basis = "google" }
+"gemini-video:gemini-2.5-flash-lite"   = { input = 0.10,  output = 0.40, basis = "google" }
+"gemini-video:gemini-3.1-flash-lite"   = { input = 0.25,  output = 1.50, basis = "google" }
+"gemini-video:gemini-3-flash-preview"  = { input = 0.50,  output = 3.00, basis = "google" }
+"deepseek:deepseek-v4-flash"           = { input = 0.14,  output = 0.28, basis = "deepseek" }
+"groq:openai/gpt-oss-20b"              = { input = 0.075, output = 0.30, basis = "groq" }
+"mock:echo"                            = { input = 1.0,   output = 2.0,  basis = "test" }
+"mock:cheap"                           = { input = 0.1,   output = 0.2,  basis = "test" }
+
+# Per-model limits the harness needs (context window in tokens; whether it takes images).
+[models]
+"ollama-cloud:gpt-oss:20b"            = { context = 131072, vision = false }
+"ollama-cloud:gpt-oss:120b"           = { context = 131072, vision = false }
+"ollama-cloud:nemotron-3-nano:30b"    = { context = 1048576, vision = false }
+"ollama-cloud:deepseek-v4-flash"      = { context = 1048576, vision = false }
+"ollama-cloud:deepseek-v4-pro"        = { context = 1048576, vision = false }
+"ollama-cloud:deepseek-v4.1-flash"    = { context = 1048576, vision = false }
+"ollama-cloud:glm-5.3-flash"          = { context = 202752, vision = false }
+"ollama-cloud:qwen3-next:80b"         = { context = 262144, vision = false }
+"ollama-cloud:glm-4.7"                = { context = 202752, vision = false }
+"ollama-cloud:minimax-m2.7"           = { context = 196608, vision = false }
+"ollama-cloud:kimi-k2.6"              = { context = 262144, vision = true }
+"ollama-cloud:gemma3:12b"             = { context = 131072, vision = true }
+"ollama-cloud:gemma3:27b"             = { context = 131072, vision = true }
+"ollama-cloud:gemma4:31b"             = { context = 262144, vision = true }
+"ollama-cloud:ministral-3:14b"        = { context = 262144, vision = true }
+"ollama-cloud:qwen3.5:397b"           = { context = 262144, vision = true }
+"ollama-cloud:minimax-m3"             = { context = 512000, vision = true }
+"ollama-cloud:gemini-3-flash-preview" = { context = 1048576, vision = true }
+"claude-code:haiku"                   = { context = 1000000, vision = true }
+"claude-code:sonnet"                  = { context = 1000000, vision = true }
+"claude-code:opus"                    = { context = 1000000, vision = true }

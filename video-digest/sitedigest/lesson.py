@@ -169,6 +169,15 @@ def _audio(video: Path, work: Path) -> Path:
     return out
 
 
+def drop_frames(pdir: Path) -> int:
+    """Delete a lesson's key frames (100-260 MB per lesson); their captions stay in lesson.json."""
+    freed = 0
+    for d in pdir.glob("video*/frames"):
+        freed += sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+        shutil.rmtree(d, ignore_errors=True)
+    return freed
+
+
 def do_video(client, cfg: dict, route: dict, url: str, n: int, pdir: Path, page_url: str, cookies: str | None,
              run: dict, log) -> dict:
     vdir = pdir / f"video{n:02d}"
@@ -391,6 +400,8 @@ def digest(cfg: dict, site: str, rec: dict, *, model: str | None = None, write_n
             run["notion_error"] = f"{type(exc).__name__}: {str(exc)[:300]}"
             log(f"[{rec['key']}] Notion skipped: {run['notion_error']}")
     (pdir / "report.md").write_text(notion_out.markdown(lesson, rep, run, url), encoding="utf-8")
+    if url and not cfg.get("keep_media"):  # frames went to Notion; without a Notion page they wait for it
+        drop_frames(pdir)
     res = {"key": rec["key"], "status": status, "title": lesson["title"], "one_line": rep.get("one_line"),
            "notion_url": url, "cost_usd": run["cost_usd"], "seconds": run["seconds"], "models": run["models"],
            "videos": len(lesson["videos"]), "files": len(lesson["docs"]), "degraded": run.get("degraded"),

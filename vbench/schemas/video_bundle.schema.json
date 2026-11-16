@@ -1,0 +1,222 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "video_bundle/v1",
+ "title": "VideoBundle",
+ "type": "object",
+ "required": [
+  "video_id",
+  "title",
+  "transcript"
+ ],
+ "properties": {
+  "schema": {
+   "const": "video_bundle/v1"
+  },
+  "video_id": {
+   "type": "string"
+  },
+  "url": {
+   "type": "string"
+  },
+  "title": {
+   "type": "string"
+  },
+  "channel": {
+   "type": "string"
+  },
+  "duration_sec": {
+   "type": "number"
+  },
+  "published_at": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "language": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "description": {
+   "type": "string"
+  },
+  "yt_tags": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "yt_chapters": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "t": {
+      "type": [
+       "number",
+       "null"
+      ]
+     },
+     "title": {
+      "type": [
+       "string",
+       "null"
+      ]
+     }
+    }
+   }
+  },
+  "playlists": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "account": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "transcript": {
+   "type": "object",
+   "required": [
+    "source",
+    "segments"
+   ],
+   "properties": {
+    "source": {
+     "enum": [
+      "youtube_manual",
+      "youtube_auto",
+      "whisper_local",
+      "whisper_groq",
+      "none"
+     ]
+    },
+    "language": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "segments": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": [
+       "start",
+       "end",
+       "text"
+      ],
+      "properties": {
+       "start": {
+        "type": "number"
+       },
+       "end": {
+        "type": "number"
+       },
+       "text": {
+        "type": "string"
+       }
+      }
+     }
+    }
+   }
+  },
+  "frames": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "t",
+     "path"
+    ],
+    "properties": {
+     "t": {
+      "type": "number"
+     },
+     "path": {
+      "type": "string"
+     },
+     "reason": {
+      "enum": [
+       "scene",
+       "interval",
+       "chapter"
+      ]
+     },
+     "ocr_text": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "caption": {
+      "type": [
+       "string",
+       "null"
+      ]
+     }
+    }
+   }
+  },
+  "audio": {
+   "type": "object",
+   "properties": {
+    "music_ratio": {
+     "type": [
+      "number",
+      "null"
+     ]
+    },
+    "speech_ratio": {
+     "type": [
+      "number",
+      "null"
+     ]
+    },
+    "path": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "music_hint": {
+     "type": "boolean"
+    }
+   }
+  },
+  "prep": {
+   "type": "object"
+  },
+  "alt_transcripts": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "array",
+    "items": {
+     "type": "object",
+     "required": [
+      "start",
+      "end",
+      "text"
+     ],
+     "properties": {
+      "start": {
+       "type": "number"
+      },
+      "end": {
+       "type": "number"
+      },
+      "text": {
+       "type": "string"
+      }
+     }
+    }
+   },
+   "description": "benchmark only"
+  }
+ }
+}

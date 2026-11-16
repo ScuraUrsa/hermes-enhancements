@@ -1,0 +1,18 @@
+repo = "ScuraUrsa/hermes-agent"
+fix_commit = "e45b74583589424970c4af47366464178378e31f"
+category = "bugfix"
+difficulty = "hard"
+visibility = "public"
+tags = ["python", "hermes-agent", "public"]
+hidden_tests = ["tests/tools/test_file_tools_cwd_resolution.py"]
+
+[setup]
+command = 'UV_PROJECT_ENVIRONMENT=.venv uv sync -q --frozen --extra dev'
+timeout_sec = 1800
+
+[verify]
+command = ".venv/bin/python -m pytest -q -p no:xdist tests/tools/test_file_tools_cwd_resolution.py"
+
+[agent]
+timeout_sec = 2400
+env_hint = "The project environment is installed in `.venv`: run tests with `.venv/bin/python -m pytest -q <files>` (the full suite is very large; run only the relevant files)."

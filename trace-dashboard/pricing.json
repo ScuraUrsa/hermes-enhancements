@@ -1,0 +1,105 @@
+{
+  "_comment": "How the dashboard turns tokens into money. mode=reported: the source reports the cost (Claude Code and claude.ai report the API list-price equivalent). mode=per_model: USD per 1M tokens by model as [input, cached input, output]; the collector reads Hermes' ~/.hermes/autonomy/budget.json (the table budget.py uses) and falls back to prices_per_mtok below. mode=per_token: flat USD per 1M tokens.",
+  "currency": "USD",
+  "providers": {
+    "anthropic": {
+      "label": "Anthropic (Claude, subskrypcja)",
+      "mode": "reported",
+      "note": "Koszt = cena API (list price) zużytych tokenów, liczona przez Claude Code / claude.ai. Faktycznie płacisz abonament Claude, więc to wartość równoważna, nie faktura."
+    },
+    "ollama": {
+      "label": "Ollama Cloud (Pro)",
+      "mode": "per_model",
+      "note": "Koszt = tokeny × cennik modeli z ~/.hermes/autonomy/budget.json (ten sam, którego używa budget.py). To równoważnik cen API: faktycznie płacisz abonament Ollama Pro (20 USD/mies. za klucz, w tym ok. 60 USD użycia)."
+    },
+    "gemini": {
+      "label": "Google Gemini API",
+      "mode": "per_token",
+      "input_per_mtok": 0.0,
+      "output_per_mtok": 0.0,
+      "note": "Darmowy limit Gemini (cheap-route free channel)."
+    },
+    "local": {
+      "label": "Lokalnie (llama.cpp)",
+      "mode": "per_token",
+      "input_per_mtok": 0.0,
+      "output_per_mtok": 0.0,
+      "note": "Model lokalny (llama.cpp), bez opłat za tokeny."
+    },
+    "other": {
+      "label": "Inny / nieznany",
+      "mode": "per_token",
+      "input_per_mtok": 0.0,
+      "output_per_mtok": 0.0
+    }
+  },
+  "prices_per_mtok": {
+    "deepseek-v4.1-flash": [
+      0.3,
+      0.006,
+      1.2
+    ],
+    "deepseek-v4-pro": [
+      1.32,
+      0.044,
+      3.96
+    ],
+    "glm-5.3-flash": [
+      0.15,
+      0.03,
+      0.5
+    ],
+    "gpt-oss:120b": [
+      0.15,
+      0.014,
+      0.6
+    ],
+    "kimi-k2.7-code": [
+      0.95,
+      0.19,
+      4.0
+    ],
+    "_default": [
+      1.32,
+      0.044,
+      3.96
+    ]
+  },
+  "_comment_subscriptions": "subscriptions: what you actually pay. Usage goes to the subscription whose key it names (llm_usage.jsonl), otherwise to the provider's subscriptions in this order, each until its included_usd for the billing period is used up (Hermes tries OLLAMA_API_KEY first, then OLLAMA_API_KEY_FJ). Share of the fee = API-equivalent cost x monthly_price_usd / included_usd; without included_usd (limits are time windows) the fee is split by the share of the period's API-equivalent cost. period_start_day: the day of the month the plan renews.",
+  "subscriptions": [
+    {
+      "id": "ollama-main",
+      "label": "Ollama Pro (OLLAMA_API_KEY)",
+      "provider": "ollama",
+      "keys": [
+        "OLLAMA_API_KEY"
+      ],
+      "monthly_price_usd": 20,
+      "included_usd": 60,
+      "period_start_day": 20,
+      "note": "Odnowienie ok. 20. dnia miesiąca (z quota.json: skip_until 2026-10-20)."
+    },
+    {
+      "id": "ollama-fj",
+      "label": "Ollama Pro (OLLAMA_API_KEY_FJ)",
+      "provider": "ollama",
+      "keys": [
+        "OLLAMA_API_KEY_FJ"
+      ],
+      "monthly_price_usd": 20,
+      "included_usd": 60,
+      "period_start_day": 4,
+      "note": "Odnowienie 4. dnia miesiąca (reset_at 2026-11-04 z sondy kluczy)."
+    },
+    {
+      "id": "claude-max",
+      "label": "Claude Max 5x",
+      "provider": "anthropic",
+      "keys": [],
+      "monthly_price_usd": 100,
+      "included_usd": null,
+      "period_start_day": 1,
+      "note": "Limit to okna 5-godzinne i tygodniowe, nie dolary: opłata dzielona proporcjonalnie do równowartości API w okresie. Dzień odnowienia do potwierdzenia."
+    }
+  ]
+}

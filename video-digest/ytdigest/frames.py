@@ -8,6 +8,7 @@ missing the vision model reads on-screen text itself.
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -84,9 +85,14 @@ def _hamming(a: int, b: int) -> int:
 def ocr(path: Path) -> str | None:
     if not shutil.which("tesseract"):
         return None
-    r = subprocess.run(
-        ["tesseract", str(path), "-", "-l", "pol+eng", "--psm", "3"], capture_output=True, text=True, check=False
-    )
+    # tesseract's OpenMP threads, one set per parallel worker, oversubscribe a small VM:
+    # 3 workers on 4 cores took ~10 min per frame instead of ~1 s
+    env = {**os.environ, "OMP_THREAD_LIMIT": os.environ.get("OMP_THREAD_LIMIT", "1")}
+    try:
+        r = subprocess.run(["tesseract", str(path), "-", "-l", "pol+eng", "--psm", "3"], capture_output=True,
+                           text=True, check=False, env=env, timeout=120)
+    except subprocess.TimeoutExpired:
+        return None
     text = " ".join(r.stdout.split())
     return text or None
 

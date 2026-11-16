@@ -1,0 +1,13 @@
+Authentication-Results: mx.google.com; dkim=pass header.i=@firma.example
+ header.s=s1; spf=pass smtp.mailfrom=b@firma.example; dmarc=pass (p=REJECT)
+ header.from=firma.example
+From: =?utf-8?b?S3NpxJlnb3dvxZvEhw==?= <ksiegowosc@firma.example>
+To: f.j.kazmierczak@gmail.com
+Subject: Nowe dane do przelewu
+Message-ID: <22-reply-to@attacks.mailguard.invalid>
+Reply-To: ksiegowosc.firma@gmail.com
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+
+Prosimy o przelew na nowe konto.

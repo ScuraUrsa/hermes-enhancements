@@ -1,0 +1,113 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "video_report/v1",
+ "title": "VideoReport",
+ "type": "object",
+ "required": [
+  "one_line",
+  "about",
+  "text_summary",
+  "visual_summary",
+  "key_points",
+  "life_applications",
+  "tags",
+  "video_type"
+ ],
+ "properties": {
+  "one_line": {
+   "type": "string"
+  },
+  "about": {
+   "type": "string"
+  },
+  "text_summary": {
+   "type": "string"
+  },
+  "visual_summary": {
+   "type": "string"
+  },
+  "key_points": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "life_applications": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "action_items": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "tags": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "video_type": {
+   "enum": [
+    "podcast_talk",
+    "interview",
+    "tutorial_screen",
+    "lecture_slides",
+    "explainer_visual",
+    "vlog_travel",
+    "news_commentary",
+    "documentary",
+    "review_product",
+    "music_artistic",
+    "short",
+    "other"
+   ]
+  },
+  "is_artistic": {
+   "type": "boolean"
+  },
+  "language": {
+   "type": "string"
+  },
+  "chapters": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "t": {
+      "type": "number"
+     },
+     "title": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "notable_quotes": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "t": {
+      "type": "number"
+     },
+     "quote": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "related_suggestions": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "confidence": {
+   "type": "number"
+  }
+ }
+}

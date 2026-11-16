@@ -1,0 +1,2 @@
+[console_scripts]
+mailguard = mailguard.cli:main

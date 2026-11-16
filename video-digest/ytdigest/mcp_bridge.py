@@ -58,7 +58,10 @@ def call(name: str, args: dict) -> str:
     rep = _http("GET", "/report", {"url": url})
     if rep.get("status") not in ("done", "artistic"):
         _http("POST", "/digest", {"url": url})
-        deadline = time.time() + int(args.get("wait_seconds") or 600)
+        # `wait_seconds` absent means "the default 10 minutes"; an explicit 0 (or a
+        # negative value) means "queue it and answer right away, do not poll".
+        raw_wait = args.get("wait_seconds")
+        deadline = time.time() + (600 if raw_wait is None else int(raw_wait))
         while time.time() < deadline:
             time.sleep(15)
             rep = _http("GET", "/report", {"url": url})

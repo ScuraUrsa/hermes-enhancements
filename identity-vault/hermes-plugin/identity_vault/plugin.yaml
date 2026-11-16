@@ -1,0 +1,12 @@
+name: identity_vault
+version: 0.1.0
+description: "Consent-gated account creation and logins as Filip on top of Hermes' Bitwarden vault; keeps the Notion account map."
+author: "ScuraUrsa"
+provides_tools:
+  - identity_coverage
+  - identity_share
+  - identity_create_account
+  - identity_request_login
+provides_hooks:
+  - pre_tool_call
+  - post_tool_call

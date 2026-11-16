@@ -1,0 +1,21 @@
+[project]
+name = "vbench"
+version = "0.1.0"
+description = "Benchmark that picks the cheapest good-enough model per kind of YouTube video"
+requires-python = ">=3.11"
+dependencies = []            # standard library only, so it runs on the Hermes VM as is
+
+[project.optional-dependencies]
+fetch = ["yt-dlp[default]"]  # building bundles yourself
+asr = ["faster-whisper"]     # local transcription candidate
+anthropic = ["anthropic"]    # API-key route (the default Claude route is the CLI on the subscription)
+test = ["pytest"]
+
+[project.scripts]
+vbench = "vbench.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["vbench*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

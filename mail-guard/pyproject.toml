@@ -1,0 +1,33 @@
+[project]
+name = "mailguard"
+version = "0.1.0"
+description = "Safe mail reading for Hermes: SPF/DKIM/DMARC, spoofing and lookalike checks, link and attachment triage, and an LLM-safe mail card (prompt-injection hygiene)"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+images = ["pillow>=10"]
+dev = ["pytest>=8", "ruff>=0.6", "pillow>=10"]
+
+[project.scripts]
+mailguard = "mailguard.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["mailguard"]
+
+[tool.setuptools.package-data]
+mailguard = ["data/*.txt"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

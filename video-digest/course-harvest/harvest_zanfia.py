@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import random
 import re
 import sys
@@ -39,6 +40,9 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(r"D:\courses")
 PROFILE = ROOT / ".profile-zanfia"
+# Scheduled runs (cohort_watch.cmd) set HARVEST_HEADLESS=1 so no Chrome window pops up on Filip's screen
+# (2026-10-24). Run by hand without it to log in again in a visible window.
+HEADLESS = os.environ.get("HARVEST_HEADLESS") == "1"
 
 LESSONS_JS = r"""
 async () => {
@@ -90,7 +94,7 @@ def key_for(url: str) -> str:
     return hashlib.sha1(url.encode()).hexdigest()[:12]
 
 
-def open_browser(pw, headless: bool = False):
+def open_browser(pw, headless: bool = HEADLESS):
     PROFILE.mkdir(parents=True, exist_ok=True)
     return pw.chromium.launch_persistent_context(str(PROFILE), channel="chrome", headless=headless,
                                                  viewport={"width": 1366, "height": 900}, locale="pl-PL")
@@ -109,6 +113,8 @@ def ensure_logged_in(page, library_url: str) -> None:
             if "/app/library" not in page.url:
                 page.goto(library_url, wait_until="domcontentloaded")
             return
+        if HEADLESS and i >= 6:  # nobody can log in in a hidden window
+            raise SystemExit("not logged in (headless): run `python harvest_zanfia.py map` by hand to log in")
         if i % 60 == 0:
             log(f"waiting for login ({i // 12} min): log in in the opened Chrome window (email code), then leave it open; now at {page.url.split('?')[0]}")
     raise SystemExit("not logged in after 60 minutes")
@@ -126,8 +132,24 @@ def map_products(page, library_url: str) -> list[dict]:
     page.goto(library_url, wait_until="domcontentloaded")
     page.wait_for_selector("text=Moje produkty", timeout=60000)
     page.wait_for_timeout(2500)
-    titles = page.evaluate("() => [...new Set([...document.querySelectorAll('[role=button] h3')].map(h => h.innerText.trim()))]")
     products, seen = [], set()
+    # since 2026-10 the cards are links (<a href> with an h3): read them directly
+    links = page.evaluate("""() => [...document.querySelectorAll('a[href] h3')].map(h => { const a = h.closest('a');
+        const lines = (a.innerText||'').split('\\n').map(s => s.trim()).filter(Boolean);
+        return {title: h.innerText.trim(), url: a.href.split('?')[0], lines}; })""")
+    for i, l in enumerate(links, 1):
+        if l["url"] in seen or l["url"].rstrip("/").endswith("/library"):
+            continue
+        seen.add(l["url"])
+        kind = next((x for x in l["lines"] if x in ("Kurs", "Baza wiedzy", "Społeczność")), "")
+        if not kind:  # "Kontynuuj oglądanie" cards link to a course too, but their h3 is a lesson title
+            seen.discard(l["url"])
+            continue
+        log(f"product {i}/{len(links)}: {kind} | {l['title']} -> {l['url']}")
+        products.append({"title": l["title"], "kind": kind, "url": l["url"], "card": l["lines"][:4]})
+    if products:
+        return products
+    titles = page.evaluate("() => [...new Set([...document.querySelectorAll('[role=button] h3')].map(h => h.innerText.trim()))]")
     for i, t in enumerate(titles, 1):
         page.goto(library_url, wait_until="domcontentloaded")
         page.wait_for_selector("text=Moje produkty", timeout=60000)
@@ -189,6 +211,8 @@ def cmd_map(a) -> None:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         ensure_logged_in(page, a.site_url)
         products = map_products(page, a.site_url)
+        if not products:  # 2026-10-20: a run that saw no cards emptied map/products/courses; keep the old files
+            raise SystemExit("map: no products found on the library page, nothing written")
         save_json(out / "products.json", products)
         courses = {}
         for p in products:
@@ -210,6 +234,16 @@ def cmd_map(a) -> None:
                 for k in ("videos", "downloaded", "download_error", "digest"):
                     if k in prev.get(p["key"], {}) and (k != "videos" or prev[p["key"]].get("downloaded")):
                         p[k] = prev[p["key"]][k]
+            # a course that left the library (2026-11-06: ODDF 1.0 and 2.0 were removed) keeps its pages:
+            # the downloads, transcripts and reports stay ours
+            now = {p["course_url"] for p in m["pages"]}
+            gone = [p for p in prev.values() if p.get("course_url") and p["course_url"] not in now]
+            for p in gone:
+                p.setdefault("removed_from_library", datetime.now(timezone.utc).date().isoformat())
+            m["pages"] += gone
+            if gone:
+                log(f"kept {len(gone)} lessons of courses no longer in the library: "
+                    + ", ".join(sorted({p.get('course', '') for p in gone})))
         save_json(old, m)
         log(f"map: {len(m['pages'])} lessons in {len(courses)} courses -> {old}")
         ctx.close()
