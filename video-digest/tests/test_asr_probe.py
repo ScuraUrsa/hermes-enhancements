@@ -2,6 +2,15 @@
 import pytest
 from ytdigest import asr_probe
 
+import importlib.util
+
+# Both need the optional local ASR extra (faster-whisper + onnx-asr). CI and the dev VM do not install it,
+# so these run only where it is installed (prod's video-digest venv); the import-mocked tests above cover the logic.
+needs_asr_extra = pytest.mark.skipif(
+    not (importlib.util.find_spec("faster_whisper") and importlib.util.find_spec("onnx_asr")),
+    reason="local ASR extra (faster-whisper, onnx-asr) not installed",
+)
+
 
 def test_probe_reports_one_row_per_order_step(cfg):
     cfg["transcript_order"] = ["manual", "groq", "parakeet", "local", "auto"]
@@ -72,6 +81,7 @@ def test_run_exits_one_when_only_video_captions_are_possible(cfg, capsys):
     assert "no ASR backend" in capsys.readouterr().out
 
 
+@needs_asr_extra
 def test_cli_flag_runs_the_probe(monkeypatch, capsys, tmp_path):
     monkeypatch.setenv("YTDIGEST_CONFIG", str(tmp_path / "none.yaml"))
     monkeypatch.setenv("YTDIGEST_DATA_DIR", str(tmp_path / "data"))
@@ -80,6 +90,7 @@ def test_cli_flag_runs_the_probe(monkeypatch, capsys, tmp_path):
     assert "local: available" in capsys.readouterr().out
 
 
+@needs_asr_extra
 def test_this_venv_has_the_local_asr_backends(cfg):
     """The extra is installed here; if it disappears, --check-asr must say missing."""
     cfg["transcript_order"] = ["parakeet", "local"]
