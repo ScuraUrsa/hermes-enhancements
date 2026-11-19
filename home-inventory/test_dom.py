@@ -246,3 +246,91 @@ def test_clothes_attributes_in_note_and_tag(run):
     assert {"item", "place", "note"} <= d.keys()
     assert d["note"] == "typ:płaszcz ciepło:4 kto:filip stan:pranie kolor:granat"
     assert run("set", "płaszcz wełniany", "--tag", "zle")[0] == 2
+
+
+def test_photo_show_circles_the_right_shelf(run, tmp_path):
+    PIL = pytest.importorskip("PIL.Image")
+    src = tmp_path / "szafa.jpg"
+    PIL.new("RGB", (600, 900), (200, 200, 200)).save(src)
+    run("add", "body Teosia", "--cat", "ubrania", "--where", "pokój Teosia > szafa 1 > półka 2",
+        "--side", "lewo", "--depth", "przód")
+    code, out = run("photo", "add", "pokój Teosia > szafa 1", "--file", str(src))
+    assert code == 0 and "automatycznie" in out, out
+    code, out = run("--json", "show", "body Teosia", "--out", str(tmp_path / "out.jpg"))
+    assert code == 0, out
+    data = json.loads(out)["data"]
+    assert data["steps"][0].startswith("Idź do: Pokój Teosia") and "po lewej, z przodu" in data["steps"][-1]
+    img = PIL.open(data["image"])
+    # shelf 2 of 3 = middle band, left third: the red ring is there, the top-right corner is dimmed
+    px = img.load()
+    w, h = img.size
+    reds = [(x, y) for x in range(0, w, 4) for y in range(0, h, 4) if px[x, y][0] > 180 and px[x, y][1] < 80]
+    assert reds and all(y > h * 0.25 and y < h * 0.75 for _, y in reds) and max(x for x, _ in reds) < w * 0.5
+    assert px[w - 5, 5][0] < 150
+    # a manual box wins over the automatic band
+    run("photo", "mark", "pokój Teosia > szafa 1 > półka 2", "--box", "0,0,30,10")
+    code, out = run("--json", "show", "body Teosia", "--out", str(tmp_path / "out2.jpg"))
+    img = PIL.open(json.loads(out)["data"]["image"])
+    px = img.load()
+    reds = [(x, y) for x in range(0, w, 4) for y in range(0, h, 4) if px[x, y][0] > 180 and px[x, y][1] < 80]
+    assert reds and max(y for _, y in reds) < h * 0.2
+
+
+def test_show_without_photo_still_gives_directions(run):
+    run("add", "masło", "--where", "lodówka > półka 3")
+    code, out = run("show", "masło")
+    assert code == 0 and "Idź do: Kuchnia" in out and "Brak zdjęcia" in out
+
+
+def test_qr_encoder_decodes():
+    cv2 = pytest.importorskip("cv2")
+    np = pytest.importorskip("numpy")
+    import dom_qr
+    for text in ("P1", "Hermes, co jest w: Mieszkanie > Kuchnia > Szafka pod zlewem > Pojemnik 3 [P12]"):
+        m = dom_qr.encode(text)
+        n, s = len(m), 8
+        img = np.full(((n + 8) * s, (n + 8) * s), 255, np.uint8)
+        for y, row in enumerate(m):
+            for x, v in enumerate(row):
+                if v:
+                    img[(y + 4) * s:(y + 5) * s, (x + 4) * s:(x + 5) * s] = 0
+        assert cv2.QRCodeDetector().detectAndDecode(img)[0] == text
+def test_codes_for_qr_labels(run, tmp_path):
+    code, out = run("code")
+    assert code == 0 and "Żadne miejsce" in out
+    code, out = run("--json", "code", "pokój Teosia > szafa 1", "--sub")
+    assert code == 0, out
+    data = json.loads(out)["data"]
+    assert [d["code"] for d in data] == ["D001", "D002", "D003", "D004"]  # the wardrobe, then shelves 1-3
+    assert data[0]["full_path"] == "Mieszkanie > Pokój Teosia > Szafa 1"
+    code, out = run("code", "pokój Teosia > szafa 1 > półka 2")  # already has one: unchanged
+    assert code == 0 and "Kody już były" in out and "D003" in out
+    code, out = run("code", "kuchnia > lodówka")
+    assert "D005" in out
+    # #D003 works wherever a place is expected
+    code, out = run("add", "body Teosia", "--where", "#D003", "--qty", "3")
+    assert code == 0 and "Pokój Teosia → Szafa 1 → Półka 2" in out
+    code, out = run("where", "#d003")
+    assert code == 0 and "body Teosia" in out
+    code, out = run("move", "body", "--where", "D-5")
+    assert code == 0 and "Lodówka" in out
+    assert run("add", "x", "--where", "#D099")[0] == 5
+    code, out = run("map", "show", "pokój Teosia")
+    assert "kod D001" in out
+    run("move", "body", "--where", "#D003")
+    assert run("map", "rm", "kuchnia > lodówka")[0] == 0  # D005 is gone ...
+    code, out = run("code", "kuchnia > szafka pod zlewem")
+    assert "D006" in out  # ... and not reused
+
+
+def test_codes_column_added_to_an_old_db(tmp_path, monkeypatch):
+    import sqlite3
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.executescript(dom.SCHEMA)  # the pre-QR schema has no places.code
+    old.execute("INSERT INTO places(parent_id, name, kind) VALUES (NULL, 'Mieszkanie', 'mieszkanie')")
+    old.commit()
+    old.close()
+    monkeypatch.setenv("DOM_DB", str(path))
+    code, out = dom.run(["code", "Mieszkanie"])
+    assert code == 0 and "D001" in out
