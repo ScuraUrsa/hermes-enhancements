@@ -12,7 +12,7 @@
 #
 # Zed: eval-cli comes from release zed-eval-cli-f16f965-p1 of ScuraUrsa/hermes-enhancements
 # (built from Zed source, settings-JSON fix), sha256-checked.
-FROM python:3.12-slim-bookworm
+FROM python:3.15-slim-bookworm
 
 ARG CLAUDE_CODE_VERSION=latest
 ARG COPILOT_CLI_VERSION=latest
